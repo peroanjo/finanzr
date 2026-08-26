@@ -1,0 +1,7 @@
+-r base.txt
+pytest>=9.0.3,<10
+pytest-django>=4.11,<5
+ruff>=0.12,<0.16
+mypy>=1.15,<2
+django-stubs[compatible-mypy]>=5.2,<5.3
+djangorestframework-stubs[compatible-mypy]>=3.16,<3.17

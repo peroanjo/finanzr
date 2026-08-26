@@ -1,0 +1,13 @@
+{
+  "id": "/app/",
+  "name": "Finanzr",
+  "short_name": "Finanzr",
+  "description": "Self-hosted personal finance",
+  "lang": "es",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#09110e",
+  "theme_color": "#19251e",
+  "display_override": ["window-controls-overlay", "standalone"]
+}

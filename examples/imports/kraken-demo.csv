@@ -1,0 +1,2 @@
+txid,pair,time,type,price,cost,fee,vol
+DEMO-KRAKEN-001,XBT/EUR,2026-01-15 12:00:00,buy,50000.00,250.00,0.50,0.005

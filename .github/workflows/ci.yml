@@ -1,0 +1,226 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: finanzr_ci
+          POSTGRES_USER: finanzr
+          POSTGRES_PASSWORD: finanzr-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finanzr -d finanzr_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DJANGO_SECRET_KEY: ci-only-secret-key
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:5173
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: finanzr_ci
+      POSTGRES_USER: finanzr
+      POSTGRES_PASSWORD: finanzr-ci-password
+      PYTHONPATH: backend:.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements/base.txt
+            backend/requirements/dev.txt
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements/dev.txt
+
+      - name: Check Django configuration
+        run: |
+          python backend/manage.py check
+          python backend/manage.py makemigrations --check --dry-run
+
+      - name: Check production deployment settings
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.production
+          DJANGO_SECRET_KEY: ci-only-production-secret-key
+          DJANGO_ALLOWED_HOSTS: localhost
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://localhost
+        run: python backend/manage.py check --deploy
+
+      - name: Run Django backend tests against PostgreSQL
+        run: pytest -q backend/tests
+
+      - name: Generate and validate OpenAPI schema
+        run: >-
+          python backend/manage.py spectacular --file /tmp/finanzr-openapi.yaml
+          --validate --fail-on-warn
+
+      - name: Upload generated OpenAPI schema
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-schema
+          path: /tmp/finanzr-openapi.yaml
+          if-no-files-found: error
+
+  domain-compatibility-tests:
+    name: Domain compatibility tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Keep this path separate from backend/tests: both directories are Python
+      # packages named tests in the current public candidate. These suites are
+      # pure standard library and need no third-party dependencies.
+      - name: Run domain compatibility tests
+        run: python -m unittest discover -s tests -v
+
+  backend-quality:
+    name: Backend quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: backend:.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements/base.txt
+            backend/requirements/dev.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install -r backend/requirements/dev.txt
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Mypy
+        run: mypy backend finanzr
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # These scripts are intentionally required here. They are phase-5
+      # deliverables and must not be replaced with a no-op while absent.
+      - name: ESLint
+        run: npm run lint
+
+      - name: Frontend format check
+        run: npm run format:check
+
+      - name: Run Vitest
+        run: npm run test
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Enforce JavaScript bundle budget
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          assets = list(Path("dist/assets").glob("*.js"))
+          if not assets:
+              raise SystemExit("No JavaScript assets were produced")
+          largest = max(assets, key=lambda path: path.stat().st_size)
+          size = largest.stat().st_size
+          limit = 750_000
+          print(f"Largest JavaScript asset: {largest} ({size} bytes; limit {limit})")
+          if size > limit:
+              raise SystemExit("JavaScript bundle budget exceeded")
+          PY
+
+  production-images:
+    name: Production container builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: production
+          push: false
+          tags: finanzr-backend:ci
+          cache-from: type=gha,scope=backend-production
+          cache-to: type=gha,mode=max,scope=backend-production
+
+      - name: Build production frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: production
+          push: false
+          tags: finanzr-web:ci
+          cache-from: type=gha,scope=frontend-production
+          cache-to: type=gha,mode=max,scope=frontend-production

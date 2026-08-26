@@ -1,0 +1,2 @@
+transaction_id,date,type,category,asset_class,symbol,name,shares,amount,fee,price,description,tax
+DEMO-TR-001,2026-01-15,TRADE,TRADING,ETF,IE00B4L5Y983,Synthetic World ETF,2,-200,1,100,Manual demo purchase,0

@@ -1,0 +1,21 @@
+export * from "./normalized";
+export {
+  adaptFundAccount,
+  adaptStockAccount,
+  adaptCryptoAccount,
+  adaptFundPosition,
+  adaptStockPosition,
+  adaptCryptoPosition,
+  adaptFundMovement,
+  adaptStockMovement,
+  adaptCryptoMovement,
+  adaptFundChart,
+  adaptStockChart,
+  adaptCryptoChart,
+  adaptCryptoPerformance,
+  adaptFundPerformance,
+  adaptStockPerformance,
+  fundInvestmentAdapters,
+  stockInvestmentAdapters,
+  cryptoInvestmentAdapters,
+} from "./adapters";

@@ -1,0 +1,1016 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Finanzr\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: finanzr/importers/base.py:163
+#, python-format
+msgid "%(slug)s received a row that is not a record"
+msgstr "%(slug)s recibió una fila que no es un registro"
+
+#: finanzr/importers/base.py:158
+#, python-format
+msgid "%(slug)s requires a sequence of records"
+msgstr "%(slug)s requiere una secuencia de registros"
+
+#: finanzr/importers/base.py:152
+#, python-format
+msgid "%(slug)s requires text input"
+msgstr "%(slug)s requiere una entrada de texto"
+
+#: backend/apps/api/uploads.py:118
+msgid "A file and an account are required"
+msgstr "Falta archivo o cuenta"
+
+#: backend/apps/api/views.py:80
+msgid "A valid number was expected"
+msgstr "Se esperaba un número válido"
+
+msgid "Summary sources must be a list"
+msgstr "Las fuentes del resumen deben ser una lista"
+
+msgid "The selected summary source is not valid"
+msgstr "La fuente seleccionada para el resumen no es válida"
+
+#: backend/apps/api/views.py:100
+msgid "A valid percentage between 0 and 100 was expected"
+msgstr "Se esperaba un porcentaje válido entre 0 y 100"
+
+#: backend/apps/api/views.py
+msgid "An override already exists for this pair and date"
+msgstr "Ya existe una corrección para este par y fecha"
+
+#: backend/apps/market_data/fx.py
+msgid "Currency codes must contain exactly three letters"
+msgstr "Los códigos de divisa deben contener exactamente tres letras"
+
+#: backend/apps/api/views.py
+msgid "Currencies must be different"
+msgstr "Las divisas deben ser diferentes"
+
+#: backend/apps/api/views.py
+msgid "Exchange rate not found"
+msgstr "No se ha encontrado el tipo de cambio"
+
+#: backend/apps/market_data/fx.py:96
+#, python-format
+msgid "No exchange rate history is available for %(quote)s/%(base)s%(detail)s"
+msgstr "No hay histórico de tipos de cambio disponible para %(quote)s/%(base)s%(detail)s"
+
+#: backend/apps/api/views.py
+msgid "Provider rates cannot be deleted"
+msgstr "Los tipos de cambio del proveedor no se pueden eliminar"
+
+#: backend/apps/api/views.py
+msgid "The price cannot be negative"
+msgstr "El precio no puede ser negativo"
+
+#: backend/apps/api/views.py
+msgid "The price is required"
+msgstr "El precio es obligatorio"
+
+#: backend/apps/accounts/models.py:37
+msgid "API key"
+msgstr "Clave API"
+
+#: backend/apps/accounts/apps.py:8
+msgid "Accounts"
+msgstr "Cuentas"
+
+#: backend/apps/accounts/models.py:43 backend/apps/real_estate/models.py:12
+msgid "Active"
+msgstr "Activa"
+
+#: backend/apps/users/models.py:18
+msgid "Administrator"
+msgstr "Administrador"
+
+#: finanzr/importers/trade_republic.py:78
+msgid "Amount"
+msgstr "Importe"
+
+#: finanzr/importers/kraken.py:74
+msgid "Amount purchased or sold."
+msgstr "Cantidad comprada o vendida."
+
+#: backend/apps/api/admin_users.py:197
+msgid "An account that owns a workspace cannot be deleted"
+msgstr "No se puede eliminar una cuenta propietaria de un espacio"
+
+#: backend/apps/api/auth.py:156 backend/apps/api/admin_users.py:75
+#: backend/apps/api/admin_users.py:152
+msgid "An account with this email address already exists"
+msgstr "Ya existe una cuenta con este correo"
+
+#: finanzr/importers/trade_republic.py:63
+msgid "Asset class"
+msgstr "Clase de activo"
+
+#: finanzr/importers/trade_republic.py:65
+msgid "Asset identifier in the export."
+msgstr "Identificador del activo en el export."
+
+#: finanzr/importers/trade_republic.py:68
+msgid "Asset's commercial name."
+msgstr "Nombre comercial del activo."
+
+#: backend/apps/api/admin_users.py:141
+msgid "At least one active administrator must remain"
+msgstr "Debe quedar al menos un administrador activo"
+
+#: backend/apps/audit/apps.py:8
+msgid "Audit"
+msgstr "Auditoría"
+
+#: finanzr/importers/trade_republic.py:101
+msgid "BENEFITS_SAVEBACK records are used to identify cashback purchases."
+msgstr ""
+"Los registros BENEFITS_SAVEBACK se usan para identificar compras de "
+"cashback."
+
+#: backend/apps/accounts/models.py:12
+msgid "Bank"
+msgstr "Banco"
+
+#: backend/apps/accounts/models.py:13
+msgid "Broker"
+msgstr "Broker"
+
+#: backend/apps/transactions/models.py:10
+msgid "Buy"
+msgstr "Compra"
+
+#: backend/apps/real_estate/models.py:15
+msgid "Cancelled"
+msgstr "Cancelada"
+
+#: backend/apps/real_estate/models.py:54
+msgid "Capital return"
+msgstr "Devolución de capital"
+
+#: finanzr/importers/trade_republic.py:59
+msgid "Category"
+msgstr "Categoría"
+
+#: backend/apps/api/views.py:864
+msgid "Check the required transaction fields"
+msgstr "Revisa los campos obligatorios del movimiento"
+
+#: backend/apps/imports/models.py:12 backend/apps/real_estate/models.py:13
+msgid "Completed"
+msgstr "Completada"
+
+#: backend/apps/transactions/models.py:16
+#: backend/apps/real_estate/models.py:52
+msgid "Contribution"
+msgstr "Aportación"
+
+#: finanzr/importers/kraken.py:71
+msgid "Cost"
+msgstr "Coste"
+
+#: backend/apps/accounts/models.py:38
+msgid "Credentials"
+msgstr "Credenciales"
+
+#: backend/apps/market_data/models.py:14 backend/apps/accounts/models.py:91
+#: finanzr/importers/kraken.py:38
+msgid "Crypto"
+msgstr "Crypto"
+
+#: backend/apps/market_data/models.py:33
+msgid "Crypto symbol"
+msgstr "Símbolo crypto"
+
+#: finanzr/importers/funds.py:133
+msgid "Currency"
+msgstr "Divisa"
+
+#: finanzr/importers/trade_republic.py:50
+msgid "Date"
+msgstr "Fecha"
+
+#: finanzr/importers/kraken.py:64
+msgid "Date and time"
+msgstr "Fecha y hora"
+
+#: finanzr/importers/funds.py:90
+msgid "Date on which the transaction settles."
+msgstr "Fecha en la que se liquida la operación."
+
+#: backend/apps/users/admin.py:21
+msgid "Dates"
+msgstr "Fechas"
+
+#: finanzr/importers/funds.py:148
+msgid "Dates must use the YYYY-MM-DD format."
+msgstr "Las fechas deben incluir el formato AAAA-MM-DD."
+
+#: backend/apps/market_data/models.py:89
+msgid "Day"
+msgstr "Día"
+
+#: backend/apps/real_estate/models.py:14
+msgid "Defaulted"
+msgstr "Impagada"
+
+#: backend/apps/users/models.py:20
+msgid "Demo"
+msgstr "Demo"
+
+#: finanzr/importers/trade_republic.py:86
+msgid "Description"
+msgstr "Descripción"
+
+#: backend/apps/market_data/models.py:13
+msgid "ETF"
+msgstr "ETF"
+
+#: backend/apps/workspaces/models.py:38
+msgid "Editor"
+msgstr "Editor"
+
+#: finanzr/importers/funds.py:83
+msgid "Effective date of the order."
+msgstr "Fecha efectiva de la orden."
+
+#: backend/apps/common/models.py:30 backend/apps/users/models.py:15
+msgid "English"
+msgstr "Inglés"
+
+#: backend/apps/api/auth.py:153 backend/apps/api/admin_users.py:72
+#: backend/apps/api/admin_users.py:149
+msgid "Enter a valid email address"
+msgstr "Introduce un correo electrónico válido"
+
+#: backend/apps/imports/models.py:60 backend/apps/accounts/models.py:46
+msgid "Error"
+msgstr "Error"
+
+#: backend/apps/accounts/models.py:14
+msgid "Exchange"
+msgstr "Exchange"
+
+#: finanzr/importers/trade_republic.py:50
+msgid "Execution date."
+msgstr "Fecha de ejecución."
+
+#: backend/apps/accounts/models.py:44
+msgid "Expired"
+msgstr "Caducada"
+
+#: finanzr/importers/trade_republic.py:32
+msgid ""
+"Export your Trade Republic transaction history as CSV and keep the original "
+"header."
+msgstr ""
+"Exporta el historial de transacciones de Trade Republic en CSV y conserva la"
+" cabecera original."
+
+#: backend/apps/imports/models.py:14
+msgid "Failed"
+msgstr "Fallida"
+
+#: finanzr/importers/kraken.py:73 finanzr/importers/trade_republic.py:82
+msgid "Fee"
+msgstr "Comisión"
+
+#: finanzr/importers/kraken.py:73
+msgid "Fee charged by KrakenPro."
+msgstr "Comisión cobrada por KrakenPro."
+
+#: backend/apps/market_data/models.py:11
+msgid "Fund"
+msgstr "Fondo"
+
+#: finanzr/importers/funds.py:120
+msgid "Fund name"
+msgstr "Nombre del fondo"
+
+#: finanzr/importers/funds.py:121
+msgid "Fund's commercial name."
+msgstr "Denominación comercial del fondo."
+
+#: backend/apps/accounts/models.py:89 finanzr/importers/funds.py:54
+msgid "Funds"
+msgstr "Fondos"
+
+#: finanzr/importers/funds.py:70
+msgid "HTML table"
+msgstr "Tabla HTML"
+
+#: finanzr/importers/funds.py:75
+msgid "HTML with an XLS extension"
+msgstr "HTML con extensión XLS"
+
+#: backend/apps/market_data/models.py:31
+msgid "ISIN"
+msgstr "ISIN"
+
+#: finanzr/importers/funds.py:96
+msgid "Identifier"
+msgstr "Identificador"
+
+#: backend/apps/imports/apps.py:8
+msgid "Imports"
+msgstr "Importaciones"
+
+#: finanzr/importers/kraken.py:39
+msgid "Imports purchases and sales executed on the KrakenPro spot market."
+msgstr "Importa compras y ventas ejecutadas en el mercado spot de KrakenPro."
+
+#: finanzr/importers/trade_republic.py:30
+msgid "Imports purchases, sales, savings plans, and saveback transactions."
+msgstr ""
+"Importa compras, ventas, planes de inversión y operaciones de saveback."
+
+#: finanzr/importers/funds.py:55
+msgid "Imports subscriptions, redemptions, and transfers of index funds."
+msgstr "Importa suscripciones, reembolsos y traspasos de fondos indexados."
+
+#: finanzr/importers/kraken.py:41
+msgid ""
+"In KrakenPro, export the Spot Trades report as CSV. This contract has not "
+"been validated against the classic Kraken product."
+msgstr ""
+"En KrakenPro, exporta el informe Spot Trades en CSV. Este contrato no se ha "
+"validado con el producto Kraken clásico."
+
+#: backend/apps/transactions/models.py:12
+msgid "Incoming transfer"
+msgstr "Traspaso entrante"
+
+#: backend/apps/api/auth.py:75
+msgid "Incorrect email or password"
+msgstr "Credenciales incorrectas"
+
+#: backend/apps/api/privacy.py:60
+msgid "Incorrect password"
+msgstr "Contraseña incorrecta"
+
+#: backend/apps/common/models.py:46
+msgid "Installation settings"
+msgstr "Configuración de instalación"
+
+#: backend/apps/market_data/yahoo.py:36
+msgid "Instrument not found"
+msgstr "Instrumento no encontrado"
+
+#: backend/apps/api/privacy.py:84 backend/apps/api/views.py:108
+msgid "Insufficient permissions"
+msgstr "Permisos insuficientes"
+
+#: backend/apps/transactions/models.py:18
+msgid "Internal"
+msgstr "Interno"
+
+#: finanzr/importers/trade_republic.py:53
+msgid "Internal type"
+msgstr "Tipo interno"
+
+#: finanzr/importers/funds.py:116
+msgid "International fund identifier."
+msgstr "Identificador internacional del fondo."
+
+#: backend/apps/api/auth.py:287 backend/apps/api/auth.py:289
+msgid "Invalid link"
+msgstr "Enlace no válido"
+
+#: backend/apps/api/auth.py:213
+msgid "Invalid role"
+msgstr "Rol no válido"
+
+#: finanzr/importers/funds.py:76
+msgid "Inversis HTML export saved as .xls; it is not a binary Excel workbook."
+msgstr ""
+"Export HTML de Inversis guardado como .xls; no es un libro Excel binario."
+
+#: backend/apps/market_data/models.py:34
+msgid "Kraken"
+msgstr "Kraken"
+
+#: backend/apps/users/models.py:35
+msgid "Leave it empty to use the installation default language."
+msgstr "Déjalo vacío para usar el idioma predeterminado de la instalación."
+
+#: backend/apps/accounts/models.py:88
+msgid "Manual investment"
+msgstr "Inversión manual"
+
+#: backend/apps/portfolio/apps.py:8
+msgid "Manual portfolio"
+msgstr "Portfolio manual"
+
+#: finanzr/importers/funds.py:103
+msgid "Market"
+msgstr "Mercado"
+
+#: backend/apps/market_data/apps.py:8
+msgid "Market data"
+msgstr "Datos de mercado"
+
+#: finanzr/importers/funds.py:104
+msgid "Market or channel reported by the broker."
+msgstr "Mercado o canal informado por el broker."
+
+#: backend/apps/market_data/models.py:91
+msgid "Month"
+msgstr "Mes"
+
+#: finanzr/importers/funds.py:52
+msgid "MyInvestor/Inversis funds"
+msgstr "Fondos MyInvestor/Inversis"
+
+#: finanzr/importers/trade_republic.py:68
+msgid "Name"
+msgstr "Nombre"
+
+#: backend/apps/api/views.py:655
+msgid "Name, identifier, and ticker are required"
+msgstr "Nombre, identificador y ticker son obligatorios"
+
+#: finanzr/importers/funds.py:140
+msgid "Net amount"
+msgstr "Importe neto"
+
+#: finanzr/importers/funds.py:136
+msgid "Net price"
+msgstr "Precio neto"
+
+#: backend/apps/accounts/models.py:39
+msgid "No authentication"
+msgstr "Sin autenticación"
+
+#: backend/apps/transactions/models.py:19
+msgid "None"
+msgstr "Ninguno"
+
+#: finanzr/importers/funds.py:128
+msgid "Number of units, with a comma or decimal point."
+msgstr "Número de participaciones, con coma o punto decimal."
+
+#: backend/apps/accounts/models.py:36
+msgid "OAuth"
+msgstr "OAuth"
+
+#: backend/apps/api/auth.py:122
+msgid "Only an administrator can change the installation settings"
+msgstr "Solo un administrador puede cambiar la configuración de instalación"
+
+#: backend/apps/api/admin_users.py:38
+msgid "Only an administrator can manage users"
+msgstr "Solo un administrador puede gestionar usuarios"
+
+#: finanzr/importers/kraken.py:77
+msgid "Only pairs quoted in EUR are imported."
+msgstr "Solo se importan pares con divisa cotizada EUR."
+
+#: finanzr/importers/kraken.py:95
+msgid "Only pairs quoted in EUR are supported"
+msgstr "Solo se admiten pares cotizados en EUR"
+
+#: backend/apps/api/auth.py:209
+msgid "Only the owner can send invitations"
+msgstr "Solo el propietario puede invitar"
+
+#: finanzr/importers/trade_republic.py:99
+msgid "Only transactions in the TRADING and DELIVERY categories are created."
+msgstr "Solo se crean movimientos de categorías TRADING y DELIVERY."
+
+#: backend/apps/market_data/models.py:35 backend/apps/accounts/models.py:16
+msgid "Other"
+msgstr "Otro"
+
+#: backend/apps/transactions/models.py:13
+msgid "Outgoing transfer"
+msgstr "Traspaso saliente"
+
+#: backend/apps/workspaces/models.py:37
+msgid "Owner"
+msgstr "Propietario"
+
+#: finanzr/importers/kraken.py:60
+msgid "Pair"
+msgstr "Par"
+
+#: backend/apps/imports/models.py:13
+msgid "Partial"
+msgstr "Parcial"
+
+#: backend/apps/imports/models.py:10 backend/apps/accounts/models.py:42
+msgid "Pending"
+msgstr "Pendiente"
+
+#: backend/apps/users/admin.py:18
+msgid "Permissions"
+msgstr "Permisos"
+
+#: backend/apps/planning/apps.py:8
+msgid "Planning"
+msgstr "Planificación"
+
+#: finanzr/importers/kraken.py:69 finanzr/importers/trade_republic.py:83
+msgid "Price"
+msgstr "Precio"
+
+#: finanzr/importers/kraken.py:69
+msgid "Price per crypto unit."
+msgstr "Precio por unidad de crypto."
+
+#: finanzr/importers/trade_republic.py:83 finanzr/importers/funds.py:136
+msgid "Price per unit."
+msgstr "Precio por título."
+
+#: backend/apps/market_data/yahoo.py:102
+msgid "Price unavailable"
+msgstr "Precio no disponible"
+
+#: backend/apps/imports/models.py:11
+msgid "Processing"
+msgstr "Procesando"
+
+#: backend/apps/users/admin.py:16
+msgid "Profile"
+msgstr "Perfil"
+
+#: backend/apps/real_estate/models.py:55
+msgid "Profit"
+msgstr "Beneficio"
+
+#: backend/apps/api/views.py:867
+msgid "Quantity, price, amount, and fee must be positive"
+msgstr "Cantidad, precio, importe y comisión deben ser positivos"
+
+#: finanzr/importers/trade_republic.py:73
+msgid "Quantity; positive for purchases and negative for sales."
+msgstr "Cantidad; positiva en compra y negativa en venta."
+
+#: backend/apps/accounts/models.py:15 backend/apps/real_estate/apps.py:8
+msgid "Real estate"
+msgstr "Inmobiliario"
+
+#: finanzr/importers/trade_republic.py:54
+msgid "Record type reported by Trade Republic."
+msgstr "Tipo de registro informado por Trade Republic."
+
+#: backend/apps/real_estate/models.py:53
+msgid "Reinvestment"
+msgstr "Reinversión"
+
+#: finanzr/importers/base.py:172
+#, python-format
+msgid "Required columns are missing from row %(row_number)s: %(fields)s"
+msgstr "Faltan columnas obligatorias en la fila %(row_number)s: %(fields)s"
+
+#: backend/apps/api/auth.py:270
+msgid "Reset your Finanzr password"
+msgstr "Restablece tu contraseña de Finanzr"
+
+#: backend/apps/accounts/models.py:45
+msgid "Revoked"
+msgstr "Revocada"
+
+#: backend/apps/imports/models.py:15
+msgid "Rolled back"
+msgstr "Revertida"
+
+#: finanzr/importers/funds.py:147
+msgid "Rows must keep the exact 11-column order shown."
+msgstr ""
+"Las filas deben conservar exactamente el orden de 11 columnas indicado."
+
+#: finanzr/importers/trade_republic.py:100
+msgid "STOCK and ETF assets are supported."
+msgstr "Se admiten activos STOCK y ETF."
+
+#: finanzr/importers/trade_republic.py:63
+msgid "STOCK or ETF."
+msgstr "STOCK o ETF."
+
+#: backend/apps/accounts/models.py:87
+msgid "Savings"
+msgstr "Ahorro"
+
+#: backend/apps/api/views.py:132
+msgid "Select the account importer"
+msgstr "Selecciona el importador de la cuenta"
+
+#: backend/apps/transactions/models.py:11
+msgid "Sell"
+msgstr "Venta"
+
+#: finanzr/importers/funds.py:65
+msgid "Semicolon-delimited CSV"
+msgstr "CSV con punto y coma"
+
+#: finanzr/importers/funds.py:89
+msgid "Settlement date"
+msgstr "Fecha de liquidación"
+
+#: backend/apps/common/models.py:29 backend/apps/users/models.py:14
+msgid "Spanish"
+msgstr "Español"
+
+#: backend/apps/market_data/models.py:88
+msgid "Spot"
+msgstr "Spot"
+
+#: finanzr/importers/kraken.py:48
+msgid "Spot Trades CSV"
+msgstr "CSV de Spot Trades"
+
+#: backend/apps/market_data/models.py:12
+msgid "Stock"
+msgstr "Acción"
+
+#: backend/apps/accounts/models.py:90
+msgid "Stocks"
+msgstr "Acciones"
+
+#: finanzr/importers/trade_republic.py:29
+msgid "Stocks and ETFs"
+msgstr "Acciones y ETF"
+
+#: finanzr/importers/funds.py:111
+msgid "Subscription, redemption, or transfer."
+msgstr "Suscripción, reembolso o traspaso."
+
+#: finanzr/importers/funds.py:149
+msgid ""
+"Subscriptions, redemptions, and inbound or outbound transfers are supported."
+msgstr "Se admiten suscripciones, reembolsos y traspasos de entrada o salida."
+
+#: finanzr/importers/trade_republic.py:60
+msgid "TRADING or DELIVERY for portfolio transactions."
+msgstr "TRADING o DELIVERY para movimientos de cartera."
+
+#: finanzr/importers/trade_republic.py:93
+msgid "Tax withholding associated with saveback, if any."
+msgstr "Retención asociada al saveback, si existe."
+
+#: finanzr/importers/trade_republic.py:92
+msgid "Taxes"
+msgstr "Impuestos"
+
+#: finanzr/importers/trade_republic.py:87
+msgid "Text used to identify savings plans and saveback."
+msgstr "Texto usado para reconocer planes y saveback."
+
+#: backend/apps/api/admin_users.py:129
+msgid "The access status is not valid"
+msgstr "El estado de acceso no es válido"
+
+#: backend/apps/api/uploads.py:230
+msgid "The account does not have an active importer"
+msgstr "La cuenta no tiene un importador activo"
+
+#: backend/apps/api/views.py:156
+msgid "The account name is required"
+msgstr "El nombre de la cuenta es obligatorio"
+
+#: backend/apps/api/admin_users.py:78 backend/apps/api/admin_users.py:131
+msgid "The account role is not valid"
+msgstr "El rol de cuenta no es válido"
+
+#: backend/apps/api/uploads.py:236
+msgid "The active importer is no longer available"
+msgstr "El importador activo ya no está disponible"
+
+#: backend/apps/api/uploads.py:239
+msgid "The active importer is not compatible with the account"
+msgstr "El importador activo no es compatible con la cuenta"
+
+#: backend/apps/api/views.py:854
+msgid "The asset does not belong in this section"
+msgstr "El activo no corresponde a esta sección"
+
+#: backend/apps/api/views.py:673
+msgid "The asset is already configured"
+msgstr "El activo ya está configurado"
+
+#: backend/apps/api/auth.py:148 backend/apps/api/auth.py:174
+msgid "The current password is incorrect"
+msgstr "La contraseña actual no es correcta"
+
+#: backend/apps/api/auth.py:128
+msgid "The default language is not valid"
+msgstr "El idioma predeterminado no es válido"
+
+#: backend/apps/api/permissions.py:11
+msgid "The demo account is read-only"
+msgstr "La cuenta demo es de solo lectura"
+
+#: backend/apps/api/auth.py:161
+msgid "The display name cannot exceed 120 characters"
+msgstr "El nombre visible no puede superar los 120 caracteres"
+
+#: backend/apps/api/uploads.py:36
+#, python-format
+msgid "The file exceeds the limit of %(max_rows)s rows"
+msgstr "El archivo supera el límite de %(max_rows)s filas"
+
+#: backend/apps/api/uploads.py:130
+msgid "The file must be UTF-8 encoded"
+msgstr "El archivo debe estar codificado como UTF-8"
+
+#: backend/apps/api/views.py:665
+msgid "The identifier already belongs to another asset type"
+msgstr "El identificador ya pertenece a otro tipo de activo"
+
+#: backend/apps/api/views.py:143
+msgid "The importer is not compatible with this account type"
+msgstr "El importador no es compatible con este tipo de cuenta"
+
+#: backend/apps/api/views.py:1278
+msgid "The instrument does not have a ticker configured"
+msgstr "Instrumento sin ticker configurado"
+
+#: backend/apps/api/auth.py:250
+msgid "The invitation is invalid or has expired"
+msgstr "Invitación inválida o caducada"
+
+#: backend/apps/api/auth.py:107
+msgid "The language is not valid"
+msgstr "El idioma no es válido"
+
+#: backend/apps/market_data/yahoo.py:25
+msgid "The market data provider is unavailable"
+msgstr "El proveedor de mercado no está disponible"
+
+#: backend/apps/api/views.py:740
+msgid "The name is required"
+msgstr "El nombre es obligatorio"
+
+#: backend/apps/api/auth.py:177
+msgid "The new passwords do not match"
+msgstr "Las contraseñas nuevas no coinciden"
+
+#: backend/apps/api/auth.py:180 backend/apps/api/auth.py:293
+#: backend/apps/api/admin_users.py:45
+msgid "The password must be at least 12 characters long"
+msgstr "La contraseña debe tener al menos 12 caracteres"
+
+#: backend/apps/api/admin_users.py:80 backend/apps/api/admin_users.py:175
+msgid "The passwords do not match"
+msgstr "Las contraseñas no coinciden"
+
+#: backend/apps/api/views.py:1424
+msgid "The period does not contain valid dates"
+msgstr "El periodo no contiene fechas válidas"
+
+#: finanzr/importers/funds.py:187
+msgid "The row does not contain the expected 11 columns or has invalid values"
+msgstr ""
+"La fila no contiene las 11 columnas esperadas o tiene valores inválidos"
+
+#: backend/apps/api/views.py:141
+msgid "The selected importer does not exist"
+msgstr "El importador seleccionado no existe"
+
+#: backend/apps/api/views.py:1427
+msgid "The start date must be before the end date"
+msgstr "La fecha inicial debe ser anterior a la final"
+
+#: finanzr/importers/funds.py:71
+msgid ""
+"The table exported by the broker; each <tr> row and its 11 cells are "
+"processed."
+msgstr ""
+"Tabla exportada por el broker; se procesa cada fila <tr> con sus 11 celdas."
+
+#: backend/apps/api/views.py:684 backend/apps/api/views.py:753
+msgid "The ticker already belongs to another asset"
+msgstr "El ticker ya pertenece a otro activo"
+
+#: backend/apps/api/views.py:743
+msgid "The ticker is required"
+msgstr "El ticker es obligatorio"
+
+#: finanzr/importers/kraken.py:109
+msgid "The transaction does not have a positive volume or cost"
+msgstr "La operación no tiene volumen o coste positivo"
+
+#: backend/apps/api/views.py:849
+msgid "The transaction type is not valid"
+msgstr "El tipo de movimiento no es válido"
+
+#: backend/apps/api/admin_users.py:182
+msgid "There are no changes to save"
+msgstr "No hay cambios que guardar"
+
+#: backend/apps/api/uploads.py:226
+msgid "This account type does not support importers"
+msgstr "Este tipo de cuenta no admite importadores"
+
+#: finanzr/importers/funds.py:57
+msgid ""
+"This file can only be exported by accessing your MyInvestor account through "
+"Inversis. In Inversis, go to Investments → Funds → Operations and Queries → "
+"Operations query → Export Excel."
+msgstr ""
+"Este archivo solo puede exportarse accediendo a tu cuenta de MyInvestor a "
+"través de Inversis. Dentro de Inversis ve a Inversiones → Fondos → "
+"Operaciones y Consultas → Consulta de operaciones → Exportar Excel."
+
+#: backend/apps/api/views.py:958
+msgid "This transaction cannot be edited manually"
+msgstr "Este movimiento no admite edición manual"
+
+#: finanzr/importers/kraken.py:65
+msgid "Time at which the transaction was executed."
+msgstr "Momento de ejecución de la operación."
+
+#: backend/apps/common/middleware.py:65
+msgid "Too many requests; please try again later"
+msgstr "Demasiadas solicitudes; inténtalo de nuevo más tarde"
+
+#: finanzr/importers/trade_republic.py:79
+msgid "Total amount with the original sign from the statement."
+msgstr "Importe total con el signo original del extracto."
+
+#: finanzr/importers/funds.py:141
+msgid "Total transaction amount."
+msgstr "Importe total de la operación."
+
+#: finanzr/importers/funds.py:82
+msgid "Trade date"
+msgstr "Fecha de operación"
+
+#: finanzr/importers/kraken.py:60
+msgid "Traded pair; it must currently be quoted in EUR."
+msgstr "Par negociado; actualmente debe estar cotizado en EUR."
+
+#: finanzr/importers/trade_republic.py:39
+msgid "Transaction CSV"
+msgstr "CSV de transacciones"
+
+#: finanzr/importers/kraken.py:55 finanzr/importers/trade_republic.py:46
+msgid "Transaction ID"
+msgstr "ID de transacción"
+
+#: finanzr/importers/kraken.py:71
+msgid "Transaction amount before fees."
+msgstr "Importe de la operación antes de comisión."
+
+#: finanzr/importers/funds.py:133
+msgid "Transaction currency code."
+msgstr "Código de moneda de la operación."
+
+#: finanzr/importers/kraken.py:68
+msgid "Transaction direction."
+msgstr "Dirección de la operación."
+
+#: finanzr/importers/trade_republic.py:82
+msgid "Transaction fee."
+msgstr "Comisión de la operación."
+
+#: backend/apps/transactions/apps.py:8
+msgid "Transactions"
+msgstr "Transacciones"
+
+#: backend/apps/api/privacy.py:68
+msgid "Transfer ownership of your workspaces before deleting the account"
+msgstr "Transfiere la propiedad de tus workspaces antes de eliminar la cuenta"
+
+#: finanzr/importers/kraken.py:68 finanzr/importers/funds.py:110
+msgid "Type"
+msgstr "Tipo"
+
+#: finanzr/importers/kraken.py:49 finanzr/importers/trade_republic.py:40
+msgid "UTF-8 CSV with a header and comma-separated columns."
+msgstr "CSV UTF-8 con cabecera y columnas separadas por comas."
+
+#: finanzr/importers/funds.py:66
+msgid ""
+"UTF-8 text without a header; each row must contain 11 columns separated by "
+";."
+msgstr ""
+"Texto UTF-8 sin cabecera; cada fila debe contener 11 columnas separadas por "
+";."
+
+#: finanzr/importers/kraken.py:56
+msgid "Unique identifier used to prevent duplicates."
+msgstr "Identificador único usado para evitar duplicados."
+
+#: finanzr/importers/funds.py:97
+msgid "Unique transaction code."
+msgstr "Código único de la operación."
+
+#: finanzr/importers/trade_republic.py:47
+msgid "Unique transaction identifier."
+msgstr "Identificador único de la operación."
+
+#: finanzr/importers/trade_republic.py:72 finanzr/importers/funds.py:127
+msgid "Units"
+msgstr "Títulos"
+
+#: backend/apps/market_data/yahoo.py:69
+msgid "Unrecognized market data response"
+msgstr "Respuesta de mercado no reconocida"
+
+#: backend/apps/api/uploads.py:123
+#, python-format
+msgid "Unsupported extension: %(extension)s"
+msgstr "Extensión no admitida: %(extension)s"
+
+#: backend/apps/api/auth.py:271
+#, python-format
+msgid "Use this link to reset it: %(url)s"
+msgstr "Usa este enlace para restablecerla: %(url)s"
+
+#: backend/apps/users/models.py:19
+msgid "User"
+msgstr "Usuario"
+
+#: backend/apps/users/apps.py:8
+msgid "Users"
+msgstr "Usuarios"
+
+#: backend/apps/workspaces/models.py:39
+msgid "Viewer"
+msgstr "Lector"
+
+#: finanzr/importers/kraken.py:74
+msgid "Volume"
+msgstr "Volumen"
+
+#: finanzr/importers/kraken.py:79
+msgid "Volume and cost must be positive."
+msgstr "El volumen y el coste deben ser positivos."
+
+#: backend/apps/imports/models.py:59
+msgid "Warning"
+msgstr "Advertencia"
+
+#: backend/apps/market_data/models.py:90
+msgid "Week"
+msgstr "Semana"
+
+#: backend/apps/transactions/models.py:17
+msgid "Withdrawal"
+msgstr "Retirada"
+
+#: backend/apps/api/auth.py:199
+msgid "Workspace not available"
+msgstr "Workspace no disponible"
+
+#: backend/apps/workspaces/apps.py:8
+msgid "Workspaces"
+msgstr "Espacios de trabajo"
+
+#: finanzr/importers/kraken.py:78
+msgid "XBT is normalized to BTC and XDG to DOGE."
+msgstr "XBT se normaliza como BTC y XDG como DOGE."
+
+#: backend/apps/market_data/models.py:32
+msgid "Yahoo"
+msgstr "Yahoo"
+
+#: backend/apps/api/admin_users.py:118
+msgid "You cannot block or delete your own account"
+msgstr "No puedes bloquear ni eliminar tu propia cuenta"
+
+#: backend/apps/api/auth.py:101
+msgid "You must provide a language"
+msgstr "Debes indicar un idioma"
+
+#: backend/apps/api/views.py:1417
+msgid "You must provide both a start and an end date"
+msgstr "Debes indicar fecha inicial y final"
+
+#: backend/apps/users/models.py:27
+msgid "account role"
+msgstr "rol de cuenta"
+
+#: backend/apps/common/models.py:34
+msgid "default language"
+msgstr "idioma predeterminado"
+
+#: backend/apps/users/models.py:25
+msgid "display name"
+msgstr "nombre visible"
+
+#: backend/apps/common/models.py:42 backend/apps/common/models.py:43
+msgid "installation settings"
+msgstr "configuración de instalación"
+
+#: backend/apps/users/models.py:30
+msgid "preferred language"
+msgstr "idioma preferido"
+
+#: backend/apps/workspaces/models.py
+msgid "The reporting currency cannot be changed after financial data exists"
+msgstr "La moneda de referencia no se puede cambiar después de que existan datos financieros"
+
+#: backend/apps/users/models.py:44
+msgid "user"
+msgstr "usuario"
+
+#: backend/apps/users/models.py:45
+msgid "users"
+msgstr "usuarios"

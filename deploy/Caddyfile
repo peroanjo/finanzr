@@ -1,0 +1,38 @@
+{
+	auto_https off
+	admin off
+}
+
+:8080 {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	route {
+		@api path /api/*
+		reverse_proxy @api backend:8000 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-Proto {$FINANZR_FORWARDED_PROTO}
+		}
+
+		@root path /
+		redir @root /app/ 302
+
+		@health path /healthz
+		respond @health "ok" 200
+
+		@app path /app/*
+		handle @app {
+			root * /srv
+			try_files {path} /app/index.html
+			file_server
+		}
+
+		respond 404
+	}
+}

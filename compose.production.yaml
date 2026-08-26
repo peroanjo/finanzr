@@ -1,0 +1,157 @@
+name: finanzr
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    logging: *default-logging
+
+  backend:
+    image: finanzr-backend:${FINANZR_VERSION:-local}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: production
+    restart: unless-stopped
+    init: true
+    env_file: .env.production
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      FINANZR_LAN_MODE: "0"
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+    volumes:
+      - ./backups:/backups
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - database
+      - application
+      - egress
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/api/health/', headers={'Host':'backend','X-Forwarded-Proto':'https'}); assert urllib.request.urlopen(r, timeout=3).status == 200",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  web:
+    image: finanzr-web:${FINANZR_VERSION:-local}
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: production
+      args:
+        FINANZR_COMMIT: ${FINANZR_COMMIT:-desarrollo}
+        FINANZR_DEPLOYED_AT: ${FINANZR_DEPLOYED_AT:-}
+    environment:
+      FINANZR_FORWARDED_PROTO: https
+    restart: unless-stopped
+    init: true
+    networks:
+      - application
+      - ingress
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /config:size=8m,uid=1000,gid=1000
+      - /data:size=8m,uid=1000,gid=1000
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.7.3
+    profiles:
+      - tunnel
+    restart: unless-stopped
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token-file
+      - /run/secrets/cloudflare_tunnel_token
+    secrets:
+      - cloudflare_tunnel_token
+    networks:
+      - ingress
+    depends_on:
+      web:
+        condition: service_healthy
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+
+networks:
+  database:
+    internal: true
+  application:
+    internal: true
+  ingress:
+  egress:
+
+secrets:
+  cloudflare_tunnel_token:
+    file: ./secrets/cloudflare_tunnel_token

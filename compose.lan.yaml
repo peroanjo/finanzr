@@ -1,0 +1,10 @@
+services:
+  backend:
+    environment:
+      FINANZR_LAN_MODE: "1"
+
+  web:
+    environment:
+      FINANZR_FORWARDED_PROTO: http
+    ports:
+      - "${LAN_BIND_ADDRESS:-127.0.0.1}:${LAN_HTTP_PORT:-8080}:8080"
