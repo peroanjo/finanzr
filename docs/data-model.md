@@ -2,11 +2,13 @@
 
 ## Status
 
-Phase 2 proposal prepared for implementation in Django/PostgreSQL.
+Implemented in Django/PostgreSQL. Django migrations are the executable schema
+contract; this document explains the intended relationships, constraints, and
+ownership rules.
 
-This document defines the logical model. Final table and field names may be
-adjusted slightly when creating the Django models, but their relationships,
-constraints, and ownership rules must be preserved.
+When this logical description and the current models differ, update the
+documentation or record the intentional difference in an ADR instead of
+treating this document as a pending implementation proposal.
 
 ## Principles
 

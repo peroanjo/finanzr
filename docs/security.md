@@ -1,6 +1,6 @@
 # Finanzr Security
 
-Phase 7 checklist status.
+Current security controls and operating requirements.
 
 - `DEBUG` is disabled by default and production requires its own secret key.
 - `HttpOnly` and `SameSite=Lax` sessions; in production, `Secure` cookies, HSTS, and HTTPS redirection.
