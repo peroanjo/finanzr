@@ -3,7 +3,11 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
 import type { AssetReturnMode } from "../components/AssetReturnToggle.vue";
-import FundPerformanceChart from "../components/FundPerformanceChart.vue";
+import FundPerformancePanel, {
+  type FundPerformancePanelModel,
+  type PerformanceMode,
+  type PerformanceRange,
+} from "../components/funds/FundPerformancePanel.vue";
 import FundPriceChart from "../components/FundPriceChart.vue";
 import InvestmentAccountBar from "../components/investments/InvestmentAccountBar.vue";
 import InvestmentAllocationStrip from "../components/investments/InvestmentAllocationStrip.vue";
@@ -42,9 +46,6 @@ import {
   useFundsPortfolio,
   type FundPositionSortKey,
 } from "../composables/useFundsPortfolio";
-
-type PerformanceRange = "6m" | "1y" | "2y" | "custom";
-type PerformanceMode = "value" | "return";
 
 const { t, n, d, locale } = useI18n();
 
@@ -311,6 +312,24 @@ const periodLabel = computed(() =>
           ranges.value.find((item) => item.key === range.value)?.label ?? "",
       }),
 );
+const performancePanelModel = computed<FundPerformancePanelModel>(() => ({
+  accountLabel: selectedAccountLabel.value,
+  displayedRange: displayedRange.value,
+  range: range.value,
+  mode: mode.value,
+  ranges: ranges.value,
+  points: performancePoints.value,
+  lastPerformance: lastPerformance.value,
+  totalValue: totalValue.value,
+  totalInvested: totalInvested.value,
+  realizedPnl: realizedPnl.value,
+  periodLabel: periodLabel.value,
+  periodPnl: periodPnl.value,
+  periodPnlPercent: periodPnlPercent.value,
+  loading: performanceLoading.value,
+  error: performanceError.value,
+  formatters: { money, percentage, signedMoney },
+}));
 const normalizedFundChart = computed(() =>
   fundChart.value
     ? adaptFundChart(fundChart.value, { baseCurrency: fundBaseCurrency.value })
@@ -1054,117 +1073,12 @@ onMounted(loadDashboard);
         @refresh="refreshFundPrices"
       />
 
-      <article class="fund-performance-panel">
-        <header class="fund-performance-header">
-          <div>
-            <p class="section-label">{{ t("funds.performance.section") }}</p>
-            <h2>{{ t("funds.performance.title") }}</h2>
-            <p class="fund-range-label">
-              {{ selectedAccountLabel }} · {{ displayedRange }}
-            </p>
-          </div>
-          <div class="fund-chart-controls">
-            <div
-              class="fund-mode-control"
-              :aria-label="t('funds.performance.chartModeAria')"
-            >
-              <button
-                type="button"
-                :class="{ active: mode === 'value' }"
-                :aria-pressed="mode === 'value'"
-                @click="mode = 'value'"
-              >
-                {{ t("funds.performance.portfolioValue") }}
-              </button>
-              <button
-                type="button"
-                :class="{ active: mode === 'return' }"
-                :aria-pressed="mode === 'return'"
-                @click="mode = 'return'"
-              >
-                {{ t("funds.performance.returnPercent") }}
-              </button>
-            </div>
-            <div
-              class="fund-range-control"
-              :aria-label="t('funds.performance.rangeAria')"
-            >
-              <button
-                v-for="item in ranges"
-                :key="item.key"
-                type="button"
-                :class="{ active: range === item.key }"
-                :aria-pressed="range === item.key"
-                @click="selectRange(item.key)"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <div class="fund-period-kpis">
-          <div>
-            <small>{{ t("funds.performance.closingValue") }}</small>
-            <strong>{{ money(lastPerformance?.valor ?? totalValue) }}</strong>
-          </div>
-          <div>
-            <small>{{ t("funds.performance.contributedCapital") }}</small>
-            <strong>{{
-              money(lastPerformance?.invertido ?? totalInvested)
-            }}</strong>
-          </div>
-          <div>
-            <small>{{ t("funds.performance.totalPnl") }}</small>
-            <strong
-              :class="{
-                positive: (lastPerformance?.pnl ?? 0) >= 0,
-                negative: (lastPerformance?.pnl ?? 0) < 0,
-              }"
-            >
-              {{ signedMoney(lastPerformance?.pnl ?? 0) }}
-            </strong>
-            <span>{{ percentage((lastPerformance?.pnl_pct ?? 0) / 100) }}</span>
-          </div>
-          <div>
-            <small>{{ t("funds.performance.realizedPnl") }}</small>
-            <strong
-              :class="{ positive: realizedPnl >= 0, negative: realizedPnl < 0 }"
-            >
-              {{ signedMoney(realizedPnl) }}
-            </strong>
-          </div>
-          <div>
-            <small>{{ periodLabel }}</small>
-            <strong
-              :class="{ positive: periodPnl >= 0, negative: periodPnl < 0 }"
-            >
-              {{ signedMoney(periodPnl) }}
-            </strong>
-            <span>{{ percentage(periodPnlPercent) }}</span>
-          </div>
-        </div>
-
-        <div v-if="performanceLoading" class="fund-chart-state">
-          {{ t("funds.performance.calculating") }}
-        </div>
-        <div v-else-if="performanceError" class="fund-chart-state error-state">
-          <strong>{{ t("funds.performance.unavailable") }}</strong>
-          <p>{{ performanceError }}</p>
-          <button type="button" @click="loadPerformance()">
-            {{ t("funds.actions.retry") }}
-          </button>
-        </div>
-        <FundPerformanceChart
-          v-else-if="performancePoints.length >= 2"
-          :points="performancePoints"
-          :mode="mode"
-        />
-        <div v-else class="fund-chart-state">
-          <strong>{{ t("funds.performance.insufficientHistory") }}</strong>
-          <p>{{ t("funds.performance.insufficientHistoryHint") }}</p>
-        </div>
-      </article>
+      <FundPerformancePanel
+        :model="performancePanelModel"
+        @update:mode="mode = $event"
+        @select-range="selectRange"
+        @retry="loadPerformance()"
+      />
 
       <article
         class="fund-performance-panel positions-panel"
@@ -2668,18 +2582,6 @@ onMounted(loadDashboard);
   opacity: 0.4;
   cursor: not-allowed;
 }
-.fund-performance-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-}
-.fund-performance-header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 750;
-  letter-spacing: -0.035em;
-}
 .fund-range-label {
   margin: 7px 0 0;
   color: var(--fz-muted);
@@ -2687,19 +2589,12 @@ onMounted(loadDashboard);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
-.fund-chart-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.fund-mode-control,
 .fund-range-control {
   display: flex;
   padding: 4px;
   border-radius: 12px;
   background: var(--fz-surface-soft);
 }
-.fund-mode-control button,
 .fund-range-control button {
   padding: 7px 10px;
   border: 0;
@@ -2711,42 +2606,10 @@ onMounted(loadDashboard);
   white-space: nowrap;
   cursor: pointer;
 }
-.fund-mode-control button.active,
 .fund-range-control button.active {
   background: var(--fz-surface);
   color: var(--fz-ink);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-}
-.fund-period-kpis {
-  margin: 20px 0 14px;
-  padding: 14px 0;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  border-block: 1px solid var(--fz-line);
-}
-.fund-period-kpis > div {
-  min-width: 0;
-  padding: 0 16px;
-  display: grid;
-  gap: 3px;
-  border-left: 1px solid var(--fz-line);
-}
-.fund-period-kpis > div:first-child {
-  padding-left: 0;
-  border-left: 0;
-}
-.fund-period-kpis small,
-.fund-period-kpis span {
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-.fund-period-kpis strong {
-  overflow: hidden;
-  font-size: 14px;
-  font-weight: 740;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .fund-chart-state {
   min-height: 330px;
@@ -2944,13 +2807,6 @@ onMounted(loadDashboard);
   .fund-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .fund-performance-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .fund-chart-controls {
-    justify-content: space-between;
-  }
   .fund-price-header {
     align-items: stretch;
     flex-direction: column;
@@ -3001,29 +2857,6 @@ onMounted(loadDashboard);
   .fund-performance-panel {
     padding: 19px 17px;
     border-radius: 18px;
-  }
-  .fund-chart-controls {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .fund-mode-control,
-  .fund-range-control {
-    overflow-x: auto;
-  }
-  .fund-mode-control button,
-  .fund-range-control button {
-    flex: 1;
-  }
-  .fund-period-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px 0;
-  }
-  .fund-period-kpis > div {
-    min-height: 42px;
-  }
-  .fund-period-kpis > div:nth-child(odd) {
-    padding-left: 0;
-    border-left: 0;
   }
   .fund-price-controls,
   .movement-filters {
@@ -3171,8 +3004,6 @@ onMounted(loadDashboard);
 .fund-table td small,
 .operation-pill,
 .movement-pagination,
-.fund-period-kpis small,
-.fund-period-kpis span,
 .fund-account-fields em {
   font-size: 10px;
 }
@@ -3192,7 +3023,6 @@ onMounted(loadDashboard);
 .fund-table td button,
 .movement-pagination button,
 .fund-range-label,
-.fund-mode-control button,
 .fund-range-control button,
 .fund-chart-state button,
 .fund-calendar-fields label span,
@@ -3205,9 +3035,6 @@ onMounted(loadDashboard);
 .fund-panel-header h2 {
   font-size: 20px;
 }
-.fund-performance-header h2 {
-  font-size: 20px;
-}
 .fund-asset-cell strong,
 .fund-utility strong {
   font-size: 11px;
@@ -3217,9 +3044,6 @@ onMounted(loadDashboard);
 }
 .fund-kpi.primary strong {
   font-size: 27px;
-}
-.fund-period-kpis strong {
-  font-size: 16px;
 }
 .fund-table th {
   font-size: 10px;
