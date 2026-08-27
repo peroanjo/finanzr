@@ -346,7 +346,3 @@ def real_estate_row(
         "retencion_irpf": number(item.tax_rate) if item.tax_rate is not None else None,
         "moneda": item.currency,
     }
-
-
-def today() -> date:
-    return date.today()
