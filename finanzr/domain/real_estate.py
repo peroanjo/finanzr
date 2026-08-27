@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from .money import ZERO, as_float, decimal, is_missing
@@ -16,10 +16,6 @@ def live_capital(project: Record) -> float:
     if not is_missing(initial):
         return as_float(decimal(initial) - decimal(project.get("capital_devuelto")))
     return as_float(decimal(project.get("invertido")))
-
-
-def total_live_capital(projects: Iterable[Record]) -> float:
-    return as_float(sum((decimal(live_capital(project)) for project in projects), ZERO))
 
 
 def new_capital(project: Record) -> float:

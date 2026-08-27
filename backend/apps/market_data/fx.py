@@ -396,26 +396,3 @@ def rate_to_base(
         defaults={"rate": fetched.rate / scale},
     )
     return FxConversion(stored_rate.rate * scale, stored_rate.rate_date, stored_rate.source)
-
-
-def convert_to_base(
-    amount: Decimal,
-    quote_currency: object,
-    base_currency: object,
-    requested_date: date,
-    *,
-    provided_rate: Decimal | None = None,
-    provided_date: date | None = None,
-    provided_source: str = "manual",
-    workspace: Workspace | None = None,
-) -> tuple[Decimal, FxConversion]:
-    conversion = rate_to_base(
-        quote_currency,
-        base_currency,
-        requested_date,
-        provided_rate=provided_rate,
-        provided_date=provided_date,
-        provided_source=provided_source,
-        workspace=workspace,
-    )
-    return amount * conversion.rate, conversion

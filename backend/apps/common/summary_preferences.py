@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import Any
 
 from django.core.exceptions import ValidationError
@@ -46,10 +45,6 @@ def normalize_summary_sources(value: Any) -> list[str]:
 
 def default_summary_sources() -> list[str]:
     return list(DEFAULT_SUMMARY_SOURCES)
-
-
-def source_is_enabled(included_sources: Iterable[str], key: str) -> bool:
-    return key in included_sources
 
 
 def effective_summary_sources(
