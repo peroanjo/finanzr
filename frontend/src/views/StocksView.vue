@@ -28,14 +28,16 @@ import type {
   AssetEditorHandle,
   EditableAsset,
 } from "../components/assetEditor";
-import { applyAdHocChartOperationFixes } from "../domain/chartOperationFixes";
 import {
   adaptStockAccount,
   adaptStockChart,
   adaptStockPerformance,
-  adaptStockPosition,
 } from "../domain/investments";
 import type { NormalizedPerformancePoint } from "../domain/investments";
+import {
+  useStocksPortfolio,
+  type StockPositionSortKey as SortKey,
+} from "../composables/useStocksPortfolio";
 import { reportingCurrency } from "../i18n";
 import type {
   ImporterCatalogItem,
@@ -50,17 +52,6 @@ import type {
 } from "../types/api";
 
 type Range = "6m" | "1y" | "2y" | "custom";
-type SortKey =
-  | "asset"
-  | "ticker"
-  | "cost"
-  | "quantity"
-  | "averagePrice"
-  | "currentPrice"
-  | "value"
-  | "pnl"
-  | "return";
-type Direction = "asc" | "desc";
 const { t, n, d, locale } = useI18n();
 const accounts = ref<StockAccount[]>([]);
 const importerCatalog = ref<ImporterCatalogItem[]>([]);
@@ -95,8 +86,6 @@ const positionsCollapsed = ref(
 const movementsCollapsed = ref(
   localStorage.getItem("finanzr-stocks-movements-collapsed") === "true",
 );
-const positionSortKey = ref<SortKey>("value");
-const positionSortDirection = ref<Direction>("desc");
 const movementIsin = ref("all");
 const movementType = ref("all");
 const movementStart = ref("");
@@ -144,6 +133,34 @@ const ranges = computed(() => [
 ]);
 const baseCurrency = computed(() => reportingCurrency.value);
 const stockBaseCurrency = computed(() => baseCurrency.value);
+const {
+  openPositions,
+  normalizedTopPositions,
+  totalValue,
+  totalCost,
+  unrealizedPnl,
+  realizedPnl,
+  totalPnl,
+  openReturn,
+  pricedPositions,
+  selectedChartOrders,
+  averagePrice,
+  positionSortKey,
+  positionSortDirection,
+  sortedPositions,
+  baseAmount,
+  basePrice,
+  baseFee,
+  sortPositions,
+  ariaSort,
+} = useStocksPortfolio({
+  positions,
+  orders,
+  instruments,
+  selectedIsin,
+  baseCurrency,
+  locale,
+});
 const selectedAccountRow = computed(
   () =>
     accounts.value.find(
@@ -170,70 +187,8 @@ const isTradeRepublic = computed(
       .toLowerCase()
       .includes("trade republic") ?? false,
 );
-const openPositions = computed(() =>
-  [...positions.value]
-    .filter((position) => position.titulos > 0)
-    .sort((a, b) => (b.valor_actual ?? 0) - (a.valor_actual ?? 0)),
-);
-const topPositions = computed(() => openPositions.value.slice(0, 5));
-const totalValue = computed(() =>
-  openPositions.value.reduce(
-    (sum, position) => sum + (position.valor_actual ?? 0),
-    0,
-  ),
-);
-const totalCost = computed(() =>
-  openPositions.value.reduce((sum, position) => sum + position.coste_total, 0),
-);
-const unrealizedPnl = computed(() =>
-  openPositions.value.reduce((sum, position) => sum + (position.pnl ?? 0), 0),
-);
-const realizedPnl = computed(() =>
-  positions.value.reduce((sum, position) => sum + position.pnl_realizada, 0),
-);
-const totalPnl = computed(() => unrealizedPnl.value + realizedPnl.value);
-const openReturn = computed(() =>
-  totalCost.value ? unrealizedPnl.value / totalCost.value : 0,
-);
-const pricedPositions = computed(
-  () =>
-    positions.value.filter((position) => position.precio_actual != null).length,
-);
 const normalizedAccounts = computed(() =>
   accounts.value.map(adaptStockAccount),
-);
-const normalizedTopPositions = computed(() =>
-  topPositions.value.map((position) =>
-    adaptStockPosition(
-      position,
-      instruments.value.find((instrument) => instrument.isin === position.isin),
-      { baseCurrency: baseCurrency.value },
-    ),
-  ),
-);
-const selectedPosition = computed(
-  () =>
-    positions.value.find((position) => position.isin === selectedIsin.value) ??
-    null,
-);
-const selectedOrders = computed(() =>
-  orders.value.filter((order) => order.isin === selectedIsin.value),
-);
-const selectedChartOrders = computed(() =>
-  applyAdHocChartOperationFixes(
-    selectedOrders.value.map((order) => ({
-      ...order,
-      // Chart tooltips use reporting-currency values while retaining source fields for the movement table.
-      precio_compra: order.precio_base ?? order.precio_compra,
-      importe_neto: order.importe_base ?? order.importe_neto,
-      comision: order.comision_base ?? order.comision,
-    })),
-  ),
-);
-const averagePrice = computed(() =>
-  selectedPosition.value?.titulos
-    ? selectedPosition.value.coste_total / selectedPosition.value.titulos
-    : null,
 );
 const normalizedPerformance = computed(() =>
   performance.value
@@ -383,43 +338,6 @@ const positionSortColumns = computed(() => [
   { key: "pnl" as SortKey, label: t("stocks.positions.pnl") },
   { key: "return" as SortKey, label: t("stocks.positions.return") },
 ]);
-const sortedPositions = computed(() => {
-  const collator = new Intl.Collator(locale.value, { sensitivity: "base" });
-  const valueFor = (position: StockPosition): number | string | null => {
-    const ticker =
-      instruments.value.find((instrument) => instrument.isin === position.isin)
-        ?.ticker ?? "";
-    if (positionSortKey.value === "asset") return position.nombre;
-    if (positionSortKey.value === "ticker") return ticker;
-    if (positionSortKey.value === "cost") return position.coste_total;
-    if (positionSortKey.value === "quantity") return position.titulos;
-    if (positionSortKey.value === "averagePrice")
-      return position.titulos ? position.coste_total / position.titulos : 0;
-    if (positionSortKey.value === "currentPrice") return position.precio_actual;
-    if (positionSortKey.value === "value") return position.valor_actual;
-    if (positionSortKey.value === "pnl") return position.pnl;
-    return position.coste_total
-      ? (position.pnl ?? 0) / position.coste_total
-      : 0;
-  };
-  return [...positions.value].sort((a, b) => {
-    const left = valueFor(a);
-    const right = valueFor(b);
-    if (left == null && right == null)
-      return collator.compare(a.nombre, b.nombre);
-    if (left == null) return 1;
-    if (right == null) return -1;
-    const comparison =
-      typeof left === "string" && typeof right === "string"
-        ? collator.compare(left, right)
-        : Number(left) - Number(right);
-    return comparison === 0
-      ? collator.compare(a.nombre, b.nombre)
-      : positionSortDirection.value === "asc"
-        ? comparison
-        : -comparison;
-  });
-});
 const allocationItems = computed<InvestmentAllocationItem[]>(() => {
   const valued = openPositions.value.flatMap((position) =>
     typeof position.valor_actual === "number" && position.valor_actual > 0
@@ -545,15 +463,6 @@ function quantity(value: number) {
 function signedMoney(value: number) {
   return `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
 }
-function baseAmount(order: StockOrder) {
-  return order.importe_base ?? order.importe_neto;
-}
-function basePrice(order: StockOrder) {
-  return order.precio_base ?? order.precio_compra;
-}
-function baseFee(order: StockOrder) {
-  return order.comision_base ?? order.comision;
-}
 function hasOriginalCurrency(order: StockOrder) {
   return Boolean(order.moneda && order.moneda !== stockBaseCurrency.value);
 }
@@ -600,13 +509,6 @@ function sortAria(key: SortKey, label: string) {
       : "stocks.positions.sortAscendingAria",
     { column: label },
   );
-}
-function ariaSort(key: SortKey) {
-  return positionSortKey.value === key
-    ? positionSortDirection.value === "asc"
-      ? "ascending"
-      : "descending"
-    : "none";
 }
 function syncAccountUrl() {
   const url = new URL(window.location.href);
@@ -971,15 +873,6 @@ function toggleMovements() {
     "finanzr-stocks-movements-collapsed",
     String(movementsCollapsed.value),
   );
-}
-function sortPositions(key: SortKey) {
-  if (positionSortKey.value === key)
-    positionSortDirection.value =
-      positionSortDirection.value === "asc" ? "desc" : "asc";
-  else {
-    positionSortKey.value = key;
-    positionSortDirection.value = "asc";
-  }
 }
 function openNewMovement() {
   movementEditor.value?.openCreate();
