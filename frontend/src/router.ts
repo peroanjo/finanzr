@@ -10,11 +10,15 @@ export const router = createRouter({
       component: () => import("./views/LoginView.vue"),
       meta: { public: true },
     },
-    {
-      path: "/design-preview",
-      component: () => import("./views/DesignPreviewView.vue"),
-      meta: { public: true },
-    },
+    ...(import.meta.env.DEV
+      ? [
+          {
+            path: "/design-preview",
+            component: () => import("./views/DesignPreviewView.vue"),
+            meta: { public: true },
+          },
+        ]
+      : []),
     {
       path: "/",
       component: AppShell,
