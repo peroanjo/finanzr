@@ -12,6 +12,7 @@ import FundPriceChart from "../components/FundPriceChart.vue";
 import InvestmentAccountBar from "../components/investments/InvestmentAccountBar.vue";
 import InvestmentAllocationStrip from "../components/investments/InvestmentAllocationStrip.vue";
 import type { InvestmentAllocationItem } from "../components/investments/InvestmentAllocationStrip.vue";
+import InvestmentCollapseButton from "../components/investments/InvestmentCollapseButton.vue";
 import InvestmentOverview from "../components/investments/InvestmentOverview.vue";
 import InvestmentMovementActions from "../components/investments/InvestmentMovementActions.vue";
 import type {
@@ -1101,38 +1102,18 @@ onMounted(loadDashboard);
               {{ priceMessage || t("funds.positions.pricesInEuros") }}
             </p>
           </div>
-          <button
-            type="button"
-            class="fund-collapse-button"
-            :class="{ collapsed: positionsCollapsed }"
-            :aria-expanded="!positionsCollapsed"
-            aria-controls="fund-positions-content"
-            :aria-label="
+          <InvestmentCollapseButton
+            :collapsed="positionsCollapsed"
+            controls="fund-positions-content"
+            :label="
               t(
                 positionsCollapsed
                   ? 'funds.positions.expandAria'
                   : 'funds.positions.collapseAria',
               )
             "
-            :title="
-              t(
-                positionsCollapsed
-                  ? 'funds.positions.expandAria'
-                  : 'funds.positions.collapseAria',
-              )
-            "
-            @click="togglePositions"
-          >
-            <svg
-              :data-direction="positionsCollapsed ? 'down' : 'up'"
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-            >
-              <path
-                :d="positionsCollapsed ? 'm5 7.5 5 5 5-5' : 'm5 12.5 5-5 5 5'"
-              />
-            </svg>
-          </button>
+            @toggle="togglePositions"
+          />
         </header>
         <div
           v-show="!positionsCollapsed"
@@ -1452,38 +1433,18 @@ onMounted(loadDashboard);
                 {{ movementRangeLabel }}
               </button>
             </div>
-            <button
-              type="button"
-              class="fund-collapse-button"
-              :class="{ collapsed: movementsCollapsed }"
-              :aria-expanded="!movementsCollapsed"
-              aria-controls="fund-movements-content"
-              :aria-label="
+            <InvestmentCollapseButton
+              :collapsed="movementsCollapsed"
+              controls="fund-movements-content"
+              :label="
                 t(
                   movementsCollapsed
                     ? 'funds.movements.expandAria'
                     : 'funds.movements.collapseAria',
                 )
               "
-              :title="
-                t(
-                  movementsCollapsed
-                    ? 'funds.movements.expandAria'
-                    : 'funds.movements.collapseAria',
-                )
-              "
-              @click="toggleMovements"
-            >
-              <svg
-                :data-direction="movementsCollapsed ? 'down' : 'up'"
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  :d="movementsCollapsed ? 'm5 7.5 5 5 5-5' : 'm5 12.5 5-5 5 5'"
-                />
-              </svg>
-            </button>
+              @toggle="toggleMovements"
+            />
           </div>
         </header>
         <div v-show="!movementsCollapsed" id="fund-movements-content">
@@ -2191,36 +2152,6 @@ onMounted(loadDashboard);
   align-items: flex-start;
   justify-content: flex-end;
   gap: 10px;
-}
-.fund-collapse-button {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-muted);
-  cursor: pointer;
-}
-.fund-collapse-button:hover {
-  border-color: var(--fz-accent);
-  color: var(--fz-ink);
-}
-.fund-collapse-button:focus-visible {
-  outline: 2px solid var(--fz-accent);
-  outline-offset: 2px;
-}
-.fund-collapse-button svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
 }
 .fund-table-scroll {
   margin-top: 17px;
