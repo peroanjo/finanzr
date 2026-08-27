@@ -20,6 +20,10 @@ import type {
 import type { InvestmentOverviewLabels } from "../components/investments/InvestmentOverview.vue";
 import MovementDeleteDialog from "../components/MovementDeleteDialog.vue";
 import MovementEditorDialog from "../components/MovementEditorDialog.vue";
+import {
+  useCryptoPortfolio,
+  type CryptoPositionSortKey as PositionSortKey,
+} from "../composables/useCryptoPortfolio";
 import type {
   MovementDeleteHandle,
   MovementEditorHandle,
@@ -32,7 +36,6 @@ import {
   adaptCryptoAccount,
   adaptCryptoChart,
   adaptCryptoPerformance,
-  adaptCryptoPosition,
 } from "../domain/investments";
 import type { NormalizedPerformancePoint } from "../domain/investments";
 import { reportingCurrency } from "../i18n";
@@ -49,17 +52,6 @@ import type {
 } from "../types/api";
 
 type PerformanceRange = "6m" | "1y" | "2y" | "custom";
-type PositionSortKey =
-  | "asset"
-  | "ticker"
-  | "cost"
-  | "quantity"
-  | "averagePrice"
-  | "currentPrice"
-  | "value"
-  | "pnl"
-  | "return";
-type SortDirection = "asc" | "desc";
 type CryptoPerformanceMode = "value" | "return";
 
 const CRYPTO_PREFERENCES_STORAGE_KEY = "finanzr:crypto:preferences:v1";
@@ -214,8 +206,6 @@ const positionsCollapsed = ref(
 const movementsCollapsed = ref(
   readStorageItem("finanzr-crypto-movements-collapsed") === "true",
 );
-const positionSortKey = ref<PositionSortKey>("value");
-const positionSortDirection = ref<SortDirection>("desc");
 const movementType = ref("all");
 const movementPage = ref(1);
 let dashboardGeneration = 0;
@@ -236,6 +226,35 @@ const movementStart = ref("");
 const movementEnd = ref("");
 const movementDraftStart = ref("");
 const movementDraftEnd = ref("");
+
+const {
+  openPositions,
+  normalizedTopPositions,
+  totalValue,
+  totalCost,
+  unrealizedPnl,
+  realizedPnl,
+  totalPnl,
+  openReturn,
+  pricedPositions,
+  selectedChartOrders,
+  averagePrice,
+  positionSortKey,
+  positionSortDirection,
+  sortedPositions,
+  baseAmount,
+  basePrice,
+  baseFee,
+  sortPositions,
+  ariaSort,
+} = useCryptoPortfolio({
+  positions,
+  orders,
+  instruments,
+  selectedSymbol,
+  baseCurrency: reportingCurrency,
+  locale,
+});
 
 const ranges = computed<Array<{ key: PerformanceRange; label: string }>>(() => [
   { key: "6m", label: t("crypto.ranges.sixMonths") },
@@ -265,64 +284,9 @@ const movementRangeValid = computed(() =>
   ),
 );
 
-const openPositions = computed(() =>
-  [...positions.value]
-    .filter((item) => item.titulos > 0)
-    .sort((a, b) => (b.valor_actual ?? 0) - (a.valor_actual ?? 0)),
-);
-const topPositions = computed(() => openPositions.value.slice(0, 5));
 const normalizedAccounts = computed(() =>
   accounts.value.map(adaptCryptoAccount),
 );
-const normalizedTopPositions = computed(() =>
-  topPositions.value.map((position) =>
-    adaptCryptoPosition(
-      position,
-      instruments.value.find(
-        (instrument) => instrument.symbol === position.symbol,
-      ),
-      { baseCurrency: reportingCurrency.value },
-    ),
-  ),
-);
-const totalValue = computed(() =>
-  openPositions.value.reduce((sum, item) => sum + (item.valor_actual ?? 0), 0),
-);
-const totalCost = computed(() =>
-  openPositions.value.reduce((sum, item) => sum + item.coste_total, 0),
-);
-const unrealizedPnl = computed(() =>
-  openPositions.value.reduce((sum, item) => sum + (item.pnl ?? 0), 0),
-);
-const realizedPnl = computed(() =>
-  positions.value.reduce((sum, item) => sum + item.pnl_realizada, 0),
-);
-const totalPnl = computed(() => unrealizedPnl.value + realizedPnl.value);
-const openReturn = computed(() =>
-  totalCost.value ? unrealizedPnl.value / totalCost.value : 0,
-);
-const selectedPosition = computed(
-  () =>
-    positions.value.find((item) => item.symbol === selectedSymbol.value) ??
-    null,
-);
-const selectedOrders = computed(() =>
-  orders.value.filter((item) => item.symbol === selectedSymbol.value),
-);
-const selectedChartOrders = computed(() =>
-  selectedOrders.value.map((order) => ({
-    ...order,
-    precio_compra: order.precio_base ?? order.precio_compra,
-    importe_neto: order.importe_base ?? order.importe_neto,
-    comision: order.comision_base ?? order.comision,
-  })),
-);
-const averagePrice = computed(() => {
-  const position = selectedPosition.value;
-  return position && position.titulos > 0
-    ? position.coste_total / position.titulos
-    : null;
-});
 const normalizedPerformance = computed(() =>
   performance.value
     ? adaptCryptoPerformance(performance.value, {
@@ -465,10 +429,6 @@ const allocationItems = computed<InvestmentAllocationItem[]>(() => {
 const allocationTotal = computed(() =>
   allocationItems.value.reduce((sum, item) => sum + item.value, 0),
 );
-const pricedPositions = computed(
-  () =>
-    positions.value.filter((position) => position.precio_actual != null).length,
-);
 const positionSortColumns = computed(() => [
   { key: "asset" as PositionSortKey, label: t("crypto.positions.asset") },
   { key: "ticker" as PositionSortKey, label: t("crypto.positions.symbol") },
@@ -486,47 +446,6 @@ const positionSortColumns = computed(() => [
   { key: "pnl" as PositionSortKey, label: t("crypto.positions.pnl") },
   { key: "return" as PositionSortKey, label: t("crypto.positions.return") },
 ]);
-const sortedPositions = computed(() => {
-  const collator = new Intl.Collator(locale.value, {
-    sensitivity: "base",
-    numeric: true,
-  });
-  const valueFor = (position: CryptoPosition): number | string | null => {
-    if (positionSortKey.value === "asset") return position.nombre;
-    if (positionSortKey.value === "ticker")
-      return (
-        instruments.value.find((item) => item.symbol === position.symbol)
-          ?.ticker ?? position.symbol
-      );
-    if (positionSortKey.value === "cost") return position.coste_total;
-    if (positionSortKey.value === "quantity") return position.titulos;
-    if (positionSortKey.value === "averagePrice")
-      return position.titulos ? position.coste_total / position.titulos : 0;
-    if (positionSortKey.value === "currentPrice") return position.precio_actual;
-    if (positionSortKey.value === "value") return position.valor_actual;
-    if (positionSortKey.value === "pnl") return position.pnl;
-    return position.coste_total
-      ? (position.pnl ?? 0) / position.coste_total
-      : 0;
-  };
-  return [...positions.value].sort((left, right) => {
-    const a = valueFor(left);
-    const b = valueFor(right);
-    if (a == null && b == null)
-      return collator.compare(left.nombre, right.nombre);
-    if (a == null) return 1;
-    if (b == null) return -1;
-    const comparison =
-      typeof a === "string" && typeof b === "string"
-        ? collator.compare(a, b)
-        : Number(a) - Number(b);
-    return comparison === 0
-      ? collator.compare(left.nombre, right.nombre)
-      : positionSortDirection.value === "asc"
-        ? comparison
-        : -comparison;
-  });
-});
 const movementSymbols = computed(() => {
   const names = new Map(
     instruments.value.map((item) => [item.symbol, item.nombre]),
@@ -658,15 +577,6 @@ function displayDate(value: string) {
 
 function money(value: number) {
   return n(value, "currency");
-}
-function baseAmount(item: CryptoOrder) {
-  return item.importe_base ?? item.importe_neto;
-}
-function basePrice(item: CryptoOrder) {
-  return item.precio_base ?? item.precio_compra;
-}
-function baseFee(item: CryptoOrder) {
-  return item.comision_base ?? item.comision;
 }
 function originalMoney(value: number, currency?: string) {
   return n(value, {
@@ -1091,14 +1001,6 @@ function detailId(symbol: string) {
   return `crypto-price-detail-${safe}`;
 }
 
-function ariaSort(key: PositionSortKey) {
-  return positionSortKey.value === key
-    ? positionSortDirection.value === "asc"
-      ? "ascending"
-      : "descending"
-    : "none";
-}
-
 function sortAria(key: PositionSortKey, label: string) {
   return t(
     positionSortKey.value === key && positionSortDirection.value === "asc"
@@ -1106,16 +1008,6 @@ function sortAria(key: PositionSortKey, label: string) {
       : "crypto.positions.sortAscendingAria",
     { column: label },
   );
-}
-
-function sortPositions(key: PositionSortKey) {
-  if (positionSortKey.value === key)
-    positionSortDirection.value =
-      positionSortDirection.value === "asc" ? "desc" : "asc";
-  else {
-    positionSortKey.value = key;
-    positionSortDirection.value = "asc";
-  }
 }
 
 function togglePositions() {
