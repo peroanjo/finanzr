@@ -5,6 +5,7 @@ import { router } from "./router";
 import { i18n, registerMessages } from "./i18n";
 import { coreMessages } from "./i18n/coreMessages";
 import { viewMessagesA } from "./i18n/viewMessagesA";
+import { realEstateMessages } from "./i18n/realEstateMessages";
 import { cryptoMessages } from "./i18n/cryptoMessages";
 import { fundsMessages } from "./i18n/fundsMessages";
 import { stocksMessages } from "./i18n/stocksMessages";
@@ -16,6 +17,7 @@ import "./style.css";
 
 registerMessages(coreMessages);
 registerMessages(viewMessagesA);
+registerMessages(realEstateMessages);
 registerMessages(fundsMessages);
 registerMessages(stocksMessages);
 registerMessages(cryptoMessages);

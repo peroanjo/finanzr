@@ -4,6 +4,7 @@ import { cryptoMessages } from "./cryptoMessages";
 import { fundsMessages } from "./fundsMessages";
 import { stocksMessages } from "./stocksMessages";
 import { viewMessagesA } from "./viewMessagesA";
+import { realEstateMessages } from "./realEstateMessages";
 import { sharedMessages } from "./sharedMessages";
 import { apiMessages } from "./apiMessages";
 
@@ -18,6 +19,7 @@ describe("translation catalogs", () => {
   for (const [name, catalog] of Object.entries({
     coreMessages,
     viewMessagesA,
+    realEstateMessages,
     fundsMessages,
     stocksMessages,
     cryptoMessages,

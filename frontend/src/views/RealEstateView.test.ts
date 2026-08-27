@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
 import { applyLocale, registerMessages } from "../i18n";
 import { viewMessagesA } from "../i18n/viewMessagesA";
+import { realEstateMessages } from "../i18n/realEstateMessages";
 import { useSessionStore } from "../stores/session";
 import RealEstateView from "./RealEstateView.vue";
 
 registerMessages(viewMessagesA);
+registerMessages(realEstateMessages);
 
 vi.mock("../api/client", () => ({
   api: vi.fn(),
