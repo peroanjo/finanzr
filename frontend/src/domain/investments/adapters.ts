@@ -614,27 +614,3 @@ export function adaptCryptoPerformance(
     capabilities: capabilities(CRYPTO_CAPABILITIES),
   };
 }
-
-export const fundInvestmentAdapters = {
-  account: adaptFundAccount,
-  position: adaptFundPosition,
-  movement: adaptFundMovement,
-  chart: adaptFundChart,
-  performance: adaptFundPerformance,
-};
-
-export const stockInvestmentAdapters = {
-  account: adaptStockAccount,
-  position: adaptStockPosition,
-  movement: adaptStockMovement,
-  chart: adaptStockChart,
-  performance: adaptStockPerformance,
-};
-
-export const cryptoInvestmentAdapters = {
-  account: adaptCryptoAccount,
-  position: adaptCryptoPosition,
-  movement: adaptCryptoMovement,
-  chart: adaptCryptoChart,
-  performance: adaptCryptoPerformance,
-};

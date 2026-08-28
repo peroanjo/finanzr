@@ -15,7 +15,4 @@ export {
   adaptCryptoPerformance,
   adaptFundPerformance,
   adaptStockPerformance,
-  fundInvestmentAdapters,
-  stockInvestmentAdapters,
-  cryptoInvestmentAdapters,
 } from "./adapters";
