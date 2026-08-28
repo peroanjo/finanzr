@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from apps.api import views as api_views
+from apps.api import fx_views
 from apps.market_data import fx
 from apps.market_data.models import FxRate, WorkspaceFxOverride
 from apps.users.models import User
@@ -167,7 +167,7 @@ def test_fetch_fx_rates_only_updates_saved_pairs(
         requested_pairs.append((quote, base))
         return fx.FxConversion(Decimal("1.18"), date(2026, 1, 15), "yahoo")
 
-    monkeypatch.setattr(api_views, "rate_to_base", fetch_saved_pair)
+    monkeypatch.setattr(fx_views, "rate_to_base", fetch_saved_pair)
 
     response = auth_client.post("/api/fx-rates/fetch")
 

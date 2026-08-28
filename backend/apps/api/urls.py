@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import admin_users, auth, privacy, uploads, views
+from . import admin_users, auth, fx_views, privacy, uploads, views
 
 urlpatterns = [
     path("auth/csrf", auth.csrf),
@@ -89,9 +89,9 @@ urlpatterns = [
     path("crypto-chart/<str:asset_id>", views.crypto_chart),
     path("investment-performance/<str:kind>", views.investment_performance_view),
     path("account-performance", views.account_performance),
-    path("fx-rates", views.fx_rates),
-    path("fx-rates/<uuid:rate_id>", views.fx_rate_detail),
-    path("fx-rates/fetch", views.fetch_fx_rates),
-    path("fx-rates/chart", views.fx_rate_chart),
-    path("fx-rates/convert", views.fx_convert),
+    path("fx-rates", fx_views.fx_rates),
+    path("fx-rates/<uuid:rate_id>", fx_views.fx_rate_detail),
+    path("fx-rates/fetch", fx_views.fetch_fx_rates),
+    path("fx-rates/chart", fx_views.fx_rate_chart),
+    path("fx-rates/convert", fx_views.fx_convert),
 ]
