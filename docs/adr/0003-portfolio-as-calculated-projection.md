@@ -23,5 +23,8 @@ The portfolio will be a projection of:
 - An asset is not updated in two places.
 - The portfolio total is reproducible from canonical sources.
 - Queries are somewhat more complex and require efficient services/selectors.
-- The legacy importer must detect possible duplicates and show them in `dry-run`.
-- No ambiguous legacy data is deleted automatically.
+- At read time, the projection excludes a `ManualAsset` whose normalized name
+  and current value match a canonical real-estate project; when both have a
+  provider label, those labels must also match.
+- This exclusion is non-destructive: the persisted `ManualAsset` row is not
+  deleted.

@@ -11,7 +11,7 @@ maintainability, contract stability, and a reproducible versioned release.
   aligned with that contract.
 - Split oversized frontend views and backend API modules without changing
   financial behavior or workspace boundaries.
-- Define the support lifecycle for legacy-compatible endpoints and imports.
+- Complete the pre-alpha cleanup of compatibility-shaped API DTOs and IDs.
 - Revalidate a clean self-hosted installation and isolated backup restoration
   for the release candidate.
 - Resolve the remaining publication-provenance checklist and release checks.

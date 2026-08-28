@@ -37,7 +37,6 @@ services:
     volumes:
       - ./backend:/app/backend
       - ./finanzr:/app/finanzr:ro
-      - ./data:/app/data:ro
     depends_on:
       db:
         condition: service_healthy
