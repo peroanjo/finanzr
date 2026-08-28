@@ -22,6 +22,8 @@ Import the public API from `finanzr.importers`:
 from finanzr.importers import (
     BaseImporter,
     ImportContext,
+    ImporterField,
+    ImporterFormat,
     ImportIssue,
     ImportResult,
     InputKind,
@@ -38,9 +40,16 @@ Each implementation inherits from `BaseImporter` and declares:
 | `slug` | Stable, unique identifier | `"kraken_spot"` |
 | `display_name` | Name shown to users | `"KrakenPro Spot Trades"` |
 | `target` | Generated record type | `"crypto_orders"` |
+| `target_label` | User-facing target category | `"Crypto"` |
+| `description` | Short description shown in the catalogue | `"Imports spot trades."` |
+| `source_instructions` | Instructions for obtaining the source file | `"Export Spot Trades as CSV."` |
 | `input_kind` | `TEXT` or `RECORDS` | `InputKind.RECORDS` |
-| `accepted_extensions` | Suggested extensions | `(".csv",)` |
-| `required_fields` | Required columns | `frozenset({"txid", ...})` |
+| `formats` | Accepted formats and their documentation | `(ImporterFormat(".csv", ...),)` |
+| `fields` | Expected fields, examples, and required status | `(ImporterField("txid", ...),)` |
+| `rules` | Additional user-facing validation rules | `("One trade per row.",)` |
+
+`accepted_extensions` and `required_fields` are derived read-only properties of
+`formats` and `fields`; implementations do not declare them directly.
 
 All parsers receive an `ImportContext` and return an `ImportResult`.
 
@@ -71,23 +80,44 @@ records. The parser only receives a sequence of mappings.
 from collections.abc import Mapping
 from typing import Any
 
-from .base import BaseImporter, ImportContext, ImportIssue, ImportResult, InputKind
+from .base import (
+    BaseImporter,
+    ImportContext,
+    ImporterField,
+    ImporterFormat,
+    ImportIssue,
+    ImportResult,
+    InputKind,
+)
 
 
 class NewBrokerImporter(BaseImporter):
     slug = "new_broker"
     display_name = "New Broker"
     target = "stock_orders"
+    target_label = "Stocks & ETFs"
+    description = "Imports buy and sell orders from New Broker."
+    source_instructions = "Export the account activity as CSV."
     input_kind = InputKind.RECORDS
-    accepted_extensions = (".csv",)
-    required_fields = frozenset({
-        "operation_id",
-        "date",
-        "isin",
-        "quantity",
-        "net_amount",
-        "side",
-    })
+    formats = (
+        ImporterFormat(
+            ".csv",
+            "CSV",
+            "Comma-delimited activity export.",
+        ),
+    )
+    fields = tuple(
+        ImporterField(name, label, description, example)
+        for name, label, description, example in (
+            ("operation_id", "Identifier", "Unique operation identifier.", "OP-123"),
+            ("date", "Date", "Trade date.", "2026-01-15"),
+            ("isin", "ISIN", "Instrument identifier.", "US0000000001"),
+            ("quantity", "Quantity", "Number of shares.", "2.5"),
+            ("net_amount", "Net amount", "Amount including fees.", "250.00"),
+            ("side", "Side", "buy or sell.", "buy"),
+        )
+    )
+    rules = ("One operation per row.",)
 
     def _parse(
         self,
@@ -132,15 +162,21 @@ IMPORTER = NewBrokerImporter()
 ## Template for Text, HTML, or Non-Tabular Formats
 
 ```python
-from .base import BaseImporter, ImportContext, ImportResult, InputKind
+from .base import BaseImporter, ImportContext, ImportResult, ImporterFormat, InputKind
 
 
 class NewTextImporter(BaseImporter):
     slug = "new_text"
     display_name = "New text format"
     target = "fund_orders"
+    target_label = "Funds"
+    description = "Imports fund operations from a text export."
+    source_instructions = "Download the operation history as text or HTML."
     input_kind = InputKind.TEXT
-    accepted_extensions = (".txt", ".html")
+    formats = (
+        ImporterFormat(".txt", "Text", "Plain-text operation history."),
+        ImporterFormat(".html", "HTML", "HTML operation history."),
+    )
 
     def _parse(self, source: str, context: ImportContext) -> ImportResult:
         result = ImportResult()
