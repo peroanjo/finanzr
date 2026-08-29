@@ -1,9 +1,11 @@
+import hashlib
 from decimal import Decimal
 
 import pytest
 from apps.accounts.models import Account
 from apps.common.i18n import normalize_language
 from apps.common.models import InstallationSettings
+from apps.imports.models import ImportBatch
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
 from django.apps import apps
@@ -13,6 +15,12 @@ from django.utils import translation
 from rest_framework.test import APIClient
 
 from finanzr.importers import ImportContext, ImporterError, importers
+
+VALID_FUND_ROW = (
+    "<tr><td>2026-01-02</td><td>2026-01-04</td><td>op-1</td><td>Mercado</td>"
+    "<td>SUSCRIPCION</td><td>ES0000000001</td><td>Fondo Demo</td>"
+    "<td>12,5</td><td>EUR</td><td>10,25</td><td>128,13</td></tr>"
+)
 
 
 def create_member(*, role: str = User.Role.USER, language: str = "") -> User:
@@ -196,6 +204,36 @@ def test_import_validation_error_uses_user_language() -> None:
 
 
 @pytest.mark.django_db
+def test_non_inversis_csv_encoding_error_keeps_existing_message_without_batch() -> None:
+    user = create_member()
+    client = APIClient()
+    client.force_login(user)
+    account = Account.objects.create(
+        workspace=user.memberships.get().workspace,
+        name="Synthetic crypto",
+        kind=Account.Kind.CRYPTO,
+        external_id="legacy:crypto:1",
+    )
+    content = (
+        "txid,pair,time,type,price,cost,fee,vol\n"
+        "bad-Á,BTC/EUR,2026-01-01 10:00:00,buy,100,100,1,1\n"
+    ).encode("cp1252")
+
+    response = client.post(
+        "/api/crypto-orders/upload-kraken-pro",
+        {
+            "cuenta_id": "1",
+            "file": SimpleUploadedFile("trades.csv", content, content_type="text/csv"),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "El archivo debe estar codificado como UTF-8"
+    assert account.import_batches.count() == 0
+    assert account.transactions.count() == 0
+
+
+@pytest.mark.django_db
 def test_privacy_validation_error_uses_user_language() -> None:
     user = create_member(language=User.Language.ENGLISH)
     client = APIClient()
@@ -289,3 +327,330 @@ def test_importer_partial_issue_is_stored_in_user_language() -> None:
     assert response.json()["skipped"] == 1
     issue = account.import_batches.get().issues.get()
     assert issue.message == "The row does not contain the expected 11 columns or has invalid values"
+
+
+@pytest.mark.django_db
+def test_inversis_html_upload_decodes_windows_1252_before_parsing() -> None:
+    user = create_member(language=User.Language.ENGLISH)
+    client = APIClient()
+    client.force_login(user)
+    account = Account.objects.create(
+        workspace=user.memberships.get().workspace,
+        name="Synthetic funds",
+        kind=Account.Kind.FUNDS,
+        external_id="legacy:funds:1",
+    )
+    html = """
+    <table><tr>
+      <td>2026-01-02</td><td>2026-01-04</td><td>cp1252-op</td><td>Mercado</td>
+      <td>SUSCRIPCION</td><td>ES0000000001</td><td>Fondo Á Demo</td>
+      <td>12,5</td><td>EUR</td><td>10,25</td><td>128,13</td>
+    </tr></table>
+    """
+
+    response = client.post(
+        "/api/fund-orders/upload",
+        {
+            "cuenta_id": "1",
+            "file": SimpleUploadedFile("inversis.xls", html.encode("cp1252")),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["imported"] == 1
+    assert account.import_batches.count() == 1
+    assert account.transactions.get().instrument.name == "Fondo Á Demo"
+
+
+@pytest.mark.django_db
+def test_inversis_html_selects_sibling_data_table_and_round_trips_entities() -> None:
+    user = create_member(language=User.Language.ENGLISH)
+    client = APIClient()
+    client.force_login(user)
+    account = Account.objects.create(
+        workspace=user.memberships.get().workspace,
+        name="Synthetic funds",
+        kind=Account.Kind.FUNDS,
+        external_id="legacy:funds:1",
+    )
+    source = (
+        "<table><tr><td>layout only</td></tr></table>"
+        "<table>" + VALID_FUND_ROW.replace("Fondo Demo", "Fondo &amp; Demo") + "</table>"
+        "<table>"
+        + VALID_FUND_ROW.replace("op-1", "outside-op").replace("Fondo Demo", "Outside")
+        + "</table>"
+    )
+
+    response = client.post(
+        "/api/fund-orders/upload",
+        {
+            "cuenta_id": "1",
+            "file": SimpleUploadedFile("sibling.html", source.encode("utf-8")),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["imported"] == 1
+    assert account.transactions.count() == 1
+    transaction = account.transactions.get()
+    assert transaction.external_id == "op-1"
+    assert transaction.instrument.name == "Fondo & Demo"
+
+
+@pytest.mark.django_db
+def test_inversis_html_preserves_empty_cell_positions() -> None:
+    user = create_member(language=User.Language.ENGLISH)
+    client = APIClient()
+    client.force_login(user)
+    account = Account.objects.create(
+        workspace=user.memberships.get().workspace,
+        name="Synthetic funds",
+        kind=Account.Kind.FUNDS,
+        external_id="legacy:funds:1",
+    )
+    source = "<table>" + VALID_FUND_ROW.replace("<td>Mercado</td>", "<td></td>") + "</table>"
+
+    response = client.post(
+        "/api/fund-orders/upload",
+        {
+            "cuenta_id": "1",
+            "file": SimpleUploadedFile("empty-market.html", source.encode("utf-8")),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["imported"] == 1
+    transaction = account.transactions.get()
+    assert transaction.market == ""
+    assert transaction.provider_operation_type == "SUSCRIPCION"
+
+
+@pytest.mark.django_db
+def test_inversis_html_accepts_balanced_table_sections() -> None:
+    user = create_member(language=User.Language.ENGLISH)
+    client = APIClient()
+    client.force_login(user)
+    account = Account.objects.create(
+        workspace=user.memberships.get().workspace,
+        name="Synthetic funds",
+        kind=Account.Kind.FUNDS,
+        external_id="legacy:funds:1",
+    )
+    header = (
+        "<tr><th>Trade date</th><th>Settlement</th><th>Identifier</th><th>Market</th>"
+        "<th>Type</th><th>ISIN</th><th>Fund name</th><th>Units</th><th>Currency</th>"
+        "<th>Price</th><th>Amount</th></tr>"
+    )
+    source = "<table><thead>" + header + "</thead><tbody>" + VALID_FUND_ROW + "</tbody></table>"
+
+    response = client.post(
+        "/api/fund-orders/upload",
+        {
+            "cuenta_id": "1",
+            "file": SimpleUploadedFile("sections.html", source.encode("utf-8")),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["imported"] == 1
+    assert account.transactions.get().external_id == "op-1"
+
+
+@pytest.mark.parametrize(
+    ("filename", "source"),
+    (
+        ("malformed.xls", "<table><tr><td>open only"),
+        ("disjoint.html", "<table></table><tr><td>outside the table</td></tr>"),
+        (
+            "external-row.xls",
+            "<table><tr><td>layout only</td></tr></table>"
+            "<tr><td>2026-01-02</td><td>2026-01-04</td><td>op-1</td><td>Mercado</td>"
+            "<td>SUSCRIPCION</td><td>ES0000000001</td><td>Fondo Demo</td>"
+            "<td>12,5</td><td>EUR</td><td>10,25</td><td>128,13</td></tr>",
+        ),
+        (
+            "unsupported-row.xls",
+            "<table>"
+            + VALID_FUND_ROW.replace("SUSCRIPCION", "GARBAGE").replace(
+                "ES0000000001", "NOT-AN-ISIN"
+            )
+            + "</table>",
+        ),
+        (
+            "mixed-invalid-row.xls",
+            "<table>"
+            + VALID_FUND_ROW
+            + VALID_FUND_ROW.replace("op-1", "bad-op").replace("SUSCRIPCION", "GARBAGE")
+            + "</table>",
+        ),
+        (
+            "mixed-alphabetic-date.xls",
+            "<table>"
+            + VALID_FUND_ROW
+            + VALID_FUND_ROW.replace("2026-01-02", "not-a-date")
+            + "</table>",
+        ),
+        (
+            "mixed-empty-date.xls",
+            "<table>"
+            + VALID_FUND_ROW
+            + VALID_FUND_ROW.replace("<td>2026-01-02</td>", "<td></td>")
+            + "</table>",
+        ),
+        (
+            "mixed-ten-cell-row.xls",
+            "<table>" + VALID_FUND_ROW + VALID_FUND_ROW.replace("<td>128,13</td>", "") + "</table>",
+        ),
+        (
+            "mixed-twelve-cell-row.xls",
+            "<table>"
+            + VALID_FUND_ROW.replace("</tr>", "<td>extra</td></tr>")
+            + VALID_FUND_ROW
+            + "</table>",
+        ),
+        (
+            "mixed-direct-text-row.xls",
+            "<table>" + VALID_FUND_ROW + "<tr>arbitrary content</tr></table>",
+        ),
+        (
+            "invalid-date.xls",
+            "<table>" + VALID_FUND_ROW.replace("2026-01-02", "2026-99-99") + "</table>",
+        ),
+        (
+            "nonfinite.xls",
+            "<table>" + VALID_FUND_ROW.replace("12,5", "NaN") + "</table>",
+        ),
+        (
+            "nested-unclosed.xls",
+            "<table><tr><td>layout only<table><tr>"
+            "<td>2026-01-02</td><td>2026-01-04</td><td>op-1</td><td>Mercado</td>"
+            "<td>SUSCRIPCION</td><td>ES0000000001</td><td>Fondo Demo</td>"
+            "<td>12,5</td><td>EUR</td><td>10,25</td><td>128,13</td>"
+            "</tr></table>",
+        ),
+        ("one-cell.html", "<table><tr><td>arbitrary content</td></tr></table>"),
+        ("stray-row-before.html", VALID_FUND_ROW + "<table>" + VALID_FUND_ROW + "</table>"),
+        ("unmatched-close.html", "</table><table>" + VALID_FUND_ROW + "</table>"),
+        ("stray-cell-after.html", "<table>" + VALID_FUND_ROW + "</table><td>stray</td>"),
+        ("stray-thead-before.html", "<thead></thead><table>" + VALID_FUND_ROW + "</table>"),
+        ("unmatched-tbody.html", "</tbody><table>" + VALID_FUND_ROW + "</table>"),
+        (
+            "overlapping-sections.html",
+            "<table><thead><tbody>" + VALID_FUND_ROW + "</tbody></thead></table>",
+        ),
+        (
+            "unclosed-section.html",
+            "<table><thead>" + VALID_FUND_ROW + "</table>",
+        ),
+        (
+            "header-only.html",
+            "<table><tr><th>Trade date</th><th>Settlement</th><th>Identifier</th>"
+            "<th>Market</th><th>Type</th><th>ISIN</th><th>Fund name</th>"
+            "<th>Units</th><th>Currency</th><th>Price</th><th>Amount</th></tr></table>",
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_invalid_inversis_html_is_rejected_without_creating_batch(
+    filename: str, source: str
+) -> None:
+    user = create_member()
+    client = APIClient()
+    client.force_login(user)
+    account = Account.objects.create(
+        workspace=user.memberships.get().workspace,
+        name="Synthetic funds",
+        kind=Account.Kind.FUNDS,
+        external_id="legacy:funds:1",
+    )
+    response = client.post(
+        "/api/fund-orders/upload",
+        {
+            "cuenta_id": "1",
+            "file": SimpleUploadedFile(
+                filename,
+                source.encode("utf-8"),
+                content_type="text/html",
+            ),
+        },
+        HTTP_X_FORWARDED_FOR=filename,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == (
+        f"El archivo .{filename.rsplit('.', 1)[-1]} subido no es una "
+        "exportación HTML de Inversis válida con tabla"
+    )
+    assert account.import_batches.count() == 0
+    assert account.transactions.count() == 0
+
+
+@pytest.mark.django_db
+def test_invalid_inversis_html_is_not_hidden_by_duplicate_batch() -> None:
+    user = create_member(language=User.Language.ENGLISH)
+    client = APIClient()
+    client.force_login(user)
+    workspace = user.memberships.get().workspace
+    account = Account.objects.create(
+        workspace=workspace,
+        name="Synthetic funds",
+        kind=Account.Kind.FUNDS,
+        external_id="legacy:funds:1",
+    )
+    raw = b"<table><tr><td>open only"
+    ImportBatch.objects.create(
+        workspace=workspace,
+        account=account,
+        created_by=user,
+        importer_slug="fund_broker",
+        source_filename="previous.xls",
+        content_sha256=hashlib.sha256(raw).hexdigest(),
+        status=ImportBatch.Status.COMPLETED,
+        source_rows=1,
+    )
+
+    response = client.post(
+        "/api/fund-orders/upload",
+        {
+            "cuenta_id": "1",
+            "file": SimpleUploadedFile("malformed.xls", raw, content_type="text/html"),
+        },
+        HTTP_X_FORWARDED_FOR="duplicate-bypass-test",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == (
+        "The uploaded .xls file is not a valid Inversis HTML table export"
+    )
+    assert account.transactions.count() == 0
+
+
+@pytest.mark.django_db
+def test_invalid_inversis_workbook_is_rejected_without_creating_batch() -> None:
+    user = create_member(language=User.Language.ENGLISH)
+    client = APIClient()
+    client.force_login(user)
+    account = Account.objects.create(
+        workspace=user.memberships.get().workspace,
+        name="Synthetic funds",
+        kind=Account.Kind.FUNDS,
+        external_id="legacy:funds:1",
+    )
+
+    response = client.post(
+        "/api/fund-orders/upload",
+        {
+            "cuenta_id": "1",
+            "file": SimpleUploadedFile(
+                "binary.xls",
+                b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",
+                content_type="application/vnd.ms-excel",
+            ),
+        },
+        HTTP_X_FORWARDED_FOR="binary-workbook-test",
+    )
+
+    assert response.status_code == 400
+    assert "Binary Excel workbooks" in response.json()["error"]
+    assert account.import_batches.count() == 0
+    assert account.transactions.count() == 0

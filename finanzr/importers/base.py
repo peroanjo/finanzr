@@ -140,6 +140,13 @@ class BaseImporter(ABC):
             "rules": [gettext(rule) for rule in self.rules],
         }
 
+    def decode(self, raw: bytes, extension: str) -> str:
+        """Decode uploaded bytes before parsing, using strict UTF-8 by default."""
+        try:
+            return raw.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ImporterError(gettext("The file must be UTF-8 encoded")) from exc
+
     def parse(self, source: Any, context: ImportContext) -> ImportResult:
         """Validate the input shape and delegate concrete normalization."""
         prepared = self._prepare_source(source)

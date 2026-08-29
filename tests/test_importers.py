@@ -68,6 +68,37 @@ class TestFundImporter(unittest.TestCase):
         self.assertEqual(orders[0]["nombre_fondo"], "Fondo & Demo")
         self.assertEqual(orders[0]["titulos"], 12.5)
 
+    def test_decodes_utf8_bom_and_windows_1252_html(self):
+        html = """
+        <table><tr>
+          <td>2026-01-02</td><td>2026-01-04</td><td>op-1</td><td>Mercado</td>
+          <td>SUSCRIPCION</td><td>ES0000000001</td><td>Fondo Á Demo</td>
+          <td>12,5</td><td>EUR</td><td>10,25</td><td>128,13</td>
+        </tr></table>
+        """
+        importer = importers.get("fund_broker")
+
+        self.assertIn("Fondo Á Demo", importer.decode(b"\xef\xbb\xbf" + html.encode(), ".xls"))
+        self.assertIn("Fondo Á Demo", importer.decode(html.encode("cp1252"), ".html"))
+
+    def test_rejects_binary_workbooks_and_non_html_fund_files(self):
+        importer = importers.get("fund_broker")
+
+        with self.assertRaisesRegex(ImporterError, "Binary Excel workbooks"):
+            importer.decode(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", ".xls")
+        with self.assertRaisesRegex(ImporterError, "Binary Excel workbooks"):
+            importer.decode(b"PK\x03\x04not-an-html-file", ".xls")
+        with self.assertRaisesRegex(ImporterError, "HTML table"):
+            importer.decode(b"plain text saved with the wrong extension", ".xls")
+
+    def test_csv_and_other_importers_remain_strict_utf8(self):
+        cp1252 = "fecha;operacion;Fondo Á".encode("cp1252")
+
+        with self.assertRaisesRegex(ImporterError, "UTF-8"):
+            importers.get("fund_broker").decode(cp1252, ".csv")
+        with self.assertRaisesRegex(ImporterError, "UTF-8"):
+            importers.get("kraken_spot").decode(cp1252, ".csv")
+
 
 class TestTradeRepublicImporter(unittest.TestCase):
     def test_detects_one_saveback_and_keeps_regular_plan_separate(self):
