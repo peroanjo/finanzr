@@ -28,20 +28,32 @@ from apps.transactions.currency import conversion_snapshot, transaction_currency
 from apps.transactions.models import Transaction
 from apps.users.models import User
 from apps.workspaces.models import Workspace
-from finanzr.importers import ImportContext, ImporterError, ImportResult, importers
+from finanzr.importers import (
+    BaseImporter,
+    ImportContext,
+    ImporterError,
+    ImportResult,
+    InputKind,
+    importers,
+)
 
 MAX_IMPORT_ROWS = 20_000
 
 
-def parse_source(slug: str, content: str, account_id: int) -> ImportResult:
-    if slug == "fund_broker":
-        return importers.parse(slug, content, ImportContext(account_id=account_id))
+def _parse_decoded_source(importer: BaseImporter, content: str, account_id: int) -> ImportResult:
+    if importer.input_kind == InputKind.TEXT:
+        return importer.parse(content, ImportContext(account_id=account_id))
     records = list(csv.DictReader(io.StringIO(content)))
     if len(records) > MAX_IMPORT_ROWS:
         raise ImporterError(
             _("The file exceeds the limit of %(max_rows)s rows") % {"max_rows": MAX_IMPORT_ROWS}
         )
-    return importers.parse(slug, records, ImportContext(account_id=account_id))
+    return importer.parse(records, ImportContext(account_id=account_id))
+
+
+def parse_source(slug: str, raw: bytes, account_id: int, extension: str) -> ImportResult:
+    importer = importers.get(slug)
+    return _parse_decoded_source(importer, importer.decode(raw, extension), account_id)
 
 
 @transaction.atomic
@@ -184,10 +196,11 @@ def upload(
             status=400,
         )
     raw = uploaded.read()
+    importer = importers.get(slug)
     try:
-        content = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        return Response({"error": _("The file must be UTF-8 encoded")}, status=400)
+        content = importer.decode(raw, extension)
+    except (ImporterError, ValueError) as exc:
+        return Response({"error": str(exc)}, status=400)
     account = find_account(request, account_kind, int(account_id))
     digest = hashlib.sha256(raw).hexdigest()
     existing = ImportBatch.objects.filter(
@@ -207,7 +220,7 @@ def upload(
             }
         )
     try:
-        parsed = parse_source(slug, content, int(account_id))
+        parsed = _parse_decoded_source(importer, content, int(account_id))
     except (ImporterError, ValueError) as exc:
         return Response({"error": str(exc)}, status=400)
     try:
