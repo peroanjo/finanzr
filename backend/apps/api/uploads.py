@@ -199,7 +199,7 @@ def upload(
     importer = importers.get(slug)
     try:
         content = importer.decode(raw, extension)
-    except (ImporterError, ValueError) as exc:
+    except ImporterError as exc:
         return Response({"error": str(exc)}, status=400)
     account = find_account(request, account_kind, int(account_id))
     digest = hashlib.sha256(raw).hexdigest()
@@ -221,7 +221,7 @@ def upload(
         )
     try:
         parsed = _parse_decoded_source(importer, content, int(account_id))
-    except (ImporterError, ValueError) as exc:
+    except ImporterError as exc:
         return Response({"error": str(exc)}, status=400)
     try:
         with transaction.atomic():

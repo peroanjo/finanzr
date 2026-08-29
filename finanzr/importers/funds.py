@@ -6,7 +6,7 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import date
-from html import escape, unescape
+from html import escape
 from html.parser import HTMLParser
 from typing import Any
 
@@ -284,6 +284,40 @@ def _canonical_table(rows: list[list[str]]) -> str:
     )
 
 
+class _SimpleHtmlTableExtractor(HTMLParser):
+    """Safely extract tabular rows and cell strings from HTML without regex."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rows: list[list[str]] = []
+        self._current_row: list[str] | None = None
+        self._current_cell: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        del attrs
+        tag = tag.casefold()
+        if tag == "tr":
+            self._current_row = []
+        elif tag in {"td", "th"} and self._current_row is not None:
+            self._current_cell = []
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.casefold()
+        if tag in {"td", "th"} and self._current_cell is not None:
+            cell_content = "".join(self._current_cell).strip().replace("\xa0", "").strip()
+            if self._current_row is not None:
+                self._current_row.append(cell_content)
+            self._current_cell = None
+        elif tag == "tr" and self._current_row is not None:
+            if self._current_row:
+                self.rows.append(self._current_row)
+            self._current_row = None
+
+    def handle_data(self, data: str) -> None:
+        if self._current_cell is not None:
+            self._current_cell.append(data)
+
+
 class FundBrokerImporter(BaseImporter):
     slug = "fund_broker"
     display_name = _("MyInvestor/Inversis funds")
@@ -450,18 +484,13 @@ class FundBrokerImporter(BaseImporter):
         rows: list[list[str]] = []
         source_format = "html" if "<tr" in source.lower() else "csv"
         if source_format == "html":
-            html_rows = re.findall(r"<tr\b[^>]*>(.*?)</tr\s*>", source, re.DOTALL | re.IGNORECASE)
-            for html_row in html_rows:
-                cells = re.findall(
-                    r"<t[dh]\b[^>]*>(.*?)</t[dh]\s*>",
-                    html_row,
-                    re.DOTALL | re.IGNORECASE,
-                )
-                cleaned = [
-                    unescape(re.sub(r"<[^>]+>", "", cell)).strip().replace("\xa0", "").strip()
-                    for cell in cells
-                ]
-                rows.append(cleaned)
+            parser = _SimpleHtmlTableExtractor()
+            try:
+                parser.feed(source)
+                parser.close()
+            except (AssertionError, ValueError):
+                pass
+            rows = parser.rows
         else:
             rows = [
                 [cell.strip().replace("\xa0", "").strip() for cell in line.split(";")]
