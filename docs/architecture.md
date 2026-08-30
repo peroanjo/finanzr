@@ -38,6 +38,12 @@ The roles are `owner`, `editor` and `viewer`. Market metadata may be shared,
 but transactions, balances, imports, audit events and settings remain scoped to
 the owning workspace.
 
+Administrative user creation provisions a new, empty personal workspace and an
+`owner` membership for that user. It must not grant access to the administrator's
+active workspace. The membership model remains the extension point for future
+shared workspaces; sharing must be an explicit operation rather than a side
+effect of creating an account.
+
 PostgreSQL is the operational store for the Django path. Migrations are the
 schema contract. Backups are encrypted by management commands and must be
 stored outside the source checkout. Secrets are supplied through environment
@@ -73,6 +79,7 @@ projection are recorded in:
 - [`adr/0001-workspace-data-boundary.md`](adr/0001-workspace-data-boundary.md)
 - [`adr/0002-unified-accounts-and-transactions.md`](adr/0002-unified-accounts-and-transactions.md)
 - [`adr/0003-portfolio-as-calculated-projection.md`](adr/0003-portfolio-as-calculated-projection.md)
+- [`adr/0004-personal-workspace-provisioning.md`](adr/0004-personal-workspace-provisioning.md)
 
 Changes that alter data ownership, authentication, import semantics, currency
 conversion or backup/restore should add or update an ADR and focused tests.
