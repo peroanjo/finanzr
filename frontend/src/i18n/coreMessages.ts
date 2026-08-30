@@ -252,7 +252,8 @@ export const coreMessages = defineMessageCatalog(
       newPasswordOptional: "New password (optional)",
       repeatPassword: "Repeat password",
       repeatNewPassword: "Repeat new password",
-      createHelp: "The account will have edit access to the active space.",
+      createHelp:
+        "The account will start with its own empty personal workspace.",
       editHelp: "Leave the password blank to keep the current one.",
       saveChanges: "Save changes",
       passwordMismatch: "The passwords do not match",
@@ -540,7 +541,7 @@ export const coreMessages = defineMessageCatalog(
       newPasswordOptional: "Nueva contraseña (opcional)",
       repeatPassword: "Repetir contraseña",
       repeatNewPassword: "Repetir nueva contraseña",
-      createHelp: "La cuenta tendrá acceso de edición al espacio activo.",
+      createHelp: "La cuenta empezará con su propio workspace personal vacío.",
       editHelp: "Deja la contraseña vacía para conservar la actual.",
       saveChanges: "Guardar cambios",
       passwordMismatch: "Las contraseñas no coinciden",
