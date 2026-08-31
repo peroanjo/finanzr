@@ -29,16 +29,67 @@ class OpenApiMutationContractTests(SimpleTestCase):
         assert "required" not in stock_detail_schema
 
         account_schema = self._request_schema(document, "/api/savings/accounts", "post")
-        assert account_schema["required"] == ["nombre"]
-        assert {"banco", "importer_slug", "moneda", "plataforma", "tipo"} <= set(
-            account_schema["properties"]
-        )
+        assert account_schema["required"] == ["name"]
+        assert {"bank", "currency", "type"} <= set(account_schema["properties"])
+        assert not {"nombre", "banco", "moneda", "tipo"} & set(account_schema["properties"])
         assert "required" not in self._request_schema(
-            document, "/api/savings/accounts/{legacy_id}", "put"
+            document, "/api/savings/accounts/{account_id}", "put"
         )
+        account_detail_parameter = document["paths"]["/api/savings/accounts/{account_id}"]["put"][
+            "parameters"
+        ][0]
+        assert account_detail_parameter["name"] == "account_id"
+        assert account_detail_parameter["schema"] == {"type": "string", "format": "uuid"}
+        account_response = document["paths"]["/api/savings/accounts"]["get"]["responses"]["200"]
+        account_response_schema = self._resolve(
+            document, account_response["content"]["application/json"]["schema"]["items"]
+        )
+        assert set(account_response_schema["properties"]) == {
+            "id",
+            "name",
+            "bank",
+            "type",
+            "currency",
+        }
 
         savings_snapshot = self._request_schema(document, "/api/savings/history", "post")
-        assert set(savings_snapshot["required"]) == {"cuenta_id", "fecha", "saldo"}
+        assert set(savings_snapshot["required"]) == {"account_id", "date", "balance"}
+        assert {"contribution", "interest"} <= set(savings_snapshot["properties"])
+        assert not {"cuenta_id", "fecha", "saldo"} & set(savings_snapshot["properties"])
+        snapshot_response = document["paths"]["/api/savings/history"]["get"]["responses"]["200"]
+        snapshot_response_schema = self._resolve(
+            document, snapshot_response["content"]["application/json"]["schema"]["items"]
+        )
+        assert {
+            "id",
+            "account_id",
+            "date",
+            "balance",
+            "balance_original",
+            "contribution",
+            "contribution_original",
+            "interest",
+            "interest_original",
+            "currency",
+            "base_currency",
+            "exchange_rate",
+            "exchange_rate_date",
+            "exchange_rate_source",
+        } == set(snapshot_response_schema["properties"])
+        history_parameters = document["paths"]["/api/savings/history"]["get"]["parameters"]
+        account_filter_parameter = next(
+            parameter for parameter in history_parameters if parameter["name"] == "account_id"
+        )
+        assert account_filter_parameter["in"] == "query"
+        assert account_filter_parameter["schema"] == {"type": "string", "format": "uuid"}
+        assert "parameters" not in document["paths"]["/api/savings/history"]["post"]
+        delete_parameters = document["paths"]["/api/savings/history/{account_id}/{value_date}"][
+            "delete"
+        ]["parameters"]
+        value_date_parameter = next(
+            parameter for parameter in delete_parameters if parameter["name"] == "value_date"
+        )
+        assert value_date_parameter["schema"] == {"type": "string", "format": "date"}
         investment_snapshot = self._request_schema(document, "/api/investments/history", "post")
         assert set(investment_snapshot["required"]) == {"cuenta_id", "fecha", "valor"}
         assert {"aporte", "intereses"} <= set(investment_snapshot["properties"])

@@ -24,19 +24,86 @@ vi.mock("../components/AccountSnapshotChart.vue", () => ({
 
 const apiMock = vi.mocked(api);
 const accounts = [
-  { id: 1, nombre: "Principal", banco: "Abanca", tipo: "Cuenta corriente" },
   {
-    id: 2,
-    nombre: "Remunerada",
-    banco: "Trade Republic",
-    tipo: "Cuenta remunerada",
+    id: "00000000-0000-0000-0000-000000000001",
+    name: "Principal",
+    bank: "Abanca",
+    type: "Cuenta corriente",
+    currency: "EUR",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000002",
+    name: "Remunerada",
+    bank: "Trade Republic",
+    type: "Cuenta remunerada",
+    currency: "EUR",
   },
 ];
 const history = [
-  { fecha: "2026-05-31", cuenta_id: 1, saldo: 2000, aporte: 0, intereses: 0 },
-  { fecha: "2026-05-31", cuenta_id: 2, saldo: 3000, aporte: 0, intereses: 5 },
-  { fecha: "2026-06-30", cuenta_id: 1, saldo: 2500, aporte: 500, intereses: 0 },
-  { fecha: "2026-06-30", cuenta_id: 2, saldo: 3200, aporte: 195, intereses: 5 },
+  {
+    id: "10000000-0000-0000-0000-000000000001",
+    account_id: accounts[0].id,
+    date: "2026-05-31",
+    balance: 2000,
+    balance_original: 2000,
+    contribution: 0,
+    contribution_original: 0,
+    interest: 0,
+    interest_original: 0,
+    currency: "EUR",
+    base_currency: "EUR",
+    exchange_rate: 1,
+    exchange_rate_date: "2026-05-31",
+    exchange_rate_source: "identity",
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000002",
+    account_id: accounts[1].id,
+    date: "2026-05-31",
+    balance: 3000,
+    balance_original: 3000,
+    contribution: 0,
+    contribution_original: 0,
+    interest: 5,
+    interest_original: 5,
+    currency: "EUR",
+    base_currency: "EUR",
+    exchange_rate: 1,
+    exchange_rate_date: "2026-05-31",
+    exchange_rate_source: "identity",
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000003",
+    account_id: accounts[0].id,
+    date: "2026-06-30",
+    balance: 2500,
+    balance_original: 2500,
+    contribution: 500,
+    contribution_original: 500,
+    interest: 0,
+    interest_original: 0,
+    currency: "EUR",
+    base_currency: "EUR",
+    exchange_rate: 1,
+    exchange_rate_date: "2026-06-30",
+    exchange_rate_source: "identity",
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000004",
+    account_id: accounts[1].id,
+    date: "2026-06-30",
+    balance: 3200,
+    balance_original: 3200,
+    contribution: 195,
+    contribution_original: 195,
+    interest: 5,
+    interest_original: 5,
+    currency: "EUR",
+    base_currency: "EUR",
+    exchange_rate: 1,
+    exchange_rate_date: "2026-06-30",
+    exchange_rate_source: "identity",
+  },
 ];
 
 describe("SavingsView", () => {
@@ -77,7 +144,7 @@ describe("SavingsView", () => {
 
     await wrapper
       .get('select[aria-label="Filtrar histórico por cuenta"]')
-      .setValue("2");
+      .setValue(accounts[1].id);
     expect(wrapper.findAll(".history-list > button")).toHaveLength(2);
     expect(wrapper.get(".history-list").text()).toContain("Remunerada");
     expect(wrapper.get(".history-list").text()).not.toContain("Principal");
@@ -113,8 +180,9 @@ describe("SavingsView", () => {
     );
     expect(saveCall).toBeDefined();
     expect(JSON.parse(String(saveCall?.[1]?.body))).toMatchObject({
-      fecha: "2026-06-30",
-      saldo: 2750,
+      date: "2026-06-30",
+      account_id: accounts[0].id,
+      balance: 2750,
     });
   });
 

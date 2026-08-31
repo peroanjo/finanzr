@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Callable
+from typing import Any, cast
 
 from django.db import transaction
 from django.utils import timezone
@@ -9,39 +10,70 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.accounts.models import Account, AccountSnapshot
 from apps.api import views
 from apps.api.auth import user_payload
+from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.audit.models import AuditEvent
 from apps.users.models import User
 from apps.workspaces.models import WorkspaceMembership
 
 
+def _view_data(view: Callable[[Any], Any], request: Request) -> object:
+    """Call a decorated API view with its underlying Django request."""
+
+    raw_request = getattr(request, "_request", request)
+    return view(raw_request).data
+
+
+def _native_savings_sections(
+    request: Request,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Serialize every savings row for the workspace export's v2 contract."""
+
+    accounts = list(
+        Account.objects.filter(
+            workspace=views.workspace(request),
+            kind=Account.Kind.SAVINGS,
+        )
+        .select_related("provider")
+        .order_by("name")
+    )
+    snapshots = AccountSnapshot.objects.select_related("account").filter(account__in=accounts)
+    return (
+        [savings_account_row(account) for account in accounts],
+        [savings_snapshot_row(snapshot) for snapshot in snapshots.order_by("date")],
+    )
+
+
 def export_payload(request: Request) -> dict[str, object]:
     user = cast(User, request.user)
+    savings_accounts, savings_history = _native_savings_sections(request)
     return {
-        "format": "finanzr-workspace-v1",
+        # v2 is a document-level cutover for savings' UUID-native contract.
+        "format": "finanzr-workspace-v2",
         "workspace": user_payload(user, request),
-        "summary": views.summary(request).data,
-        "savings_accounts": views.savings_accounts(request).data,
-        "savings_history": views.savings_history(request).data,
-        "investment_accounts": views.investment_accounts(request).data,
-        "investment_history": views.investment_history(request).data,
-        "portfolio": views.portfolio(request).data,
-        "real_estate": views.real_estate(request).data,
-        "calculator": views.calculator(request).data,
-        "budget": views.budget(request).data,
-        "fund_accounts": views.fund_accounts(request).data,
-        "stock_accounts": views.stock_accounts(request).data,
-        "crypto_accounts": views.crypto_accounts(request).data,
-        "funds": views.funds(request).data,
-        "stocks": views.stocks(request).data,
-        "cryptos": views.cryptos(request).data,
-        "orders": views.orders(request).data,
-        "stock_orders": views.stock_orders(request).data,
-        "crypto_orders": views.crypto_orders(request).data,
-        "fund_prices": views.fund_prices(request).data,
-        "stock_prices": views.stock_prices(request).data,
-        "crypto_prices": views.crypto_prices(request).data,
+        "summary": views._overview_calculation(request)[0],
+        "savings_accounts": savings_accounts,
+        "savings_history": savings_history,
+        "investment_accounts": _view_data(views.investment_accounts, request),
+        "investment_history": _view_data(views.investment_history, request),
+        "portfolio": _view_data(views.portfolio, request),
+        "real_estate": _view_data(views.real_estate, request),
+        "calculator": _view_data(views.calculator, request),
+        "budget": _view_data(views.budget, request),
+        "fund_accounts": _view_data(views.fund_accounts, request),
+        "stock_accounts": _view_data(views.stock_accounts, request),
+        "crypto_accounts": _view_data(views.crypto_accounts, request),
+        "funds": _view_data(views.funds, request),
+        "stocks": _view_data(views.stocks, request),
+        "cryptos": _view_data(views.cryptos, request),
+        "orders": _view_data(views.orders, request),
+        "stock_orders": _view_data(views.stock_orders, request),
+        "crypto_orders": _view_data(views.crypto_orders, request),
+        "fund_prices": _view_data(views.fund_prices, request),
+        "stock_prices": _view_data(views.stock_prices, request),
+        "crypto_prices": _view_data(views.crypto_prices, request),
     }
 
 

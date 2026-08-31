@@ -38,7 +38,7 @@ const historyAccount = ref("all");
 const accountDialog = ref<HTMLDialogElement>();
 const snapshotDialog = ref<HTMLDialogElement>();
 const accountMode = ref<"create" | "edit">("create");
-const editingAccountId = ref<number | null>(null);
+const editingAccountId = ref<string | null>(null);
 const accountName = ref("");
 const accountBank = ref("");
 const accountType = ref("Cuenta corriente");
@@ -47,7 +47,7 @@ const accountBusy = ref(false);
 const accountError = ref("");
 const accountDeleteArmed = ref(false);
 const snapshotMode = ref<"create" | "edit">("create");
-const snapshotOriginal = ref<{ accountId: number; date: string } | null>(null);
+const snapshotOriginal = ref<{ accountId: string; date: string } | null>(null);
 const snapshotAccountId = ref("");
 const snapshotDate = ref(new Date().toISOString().slice(0, 7));
 const snapshotBalance = ref("");
@@ -58,38 +58,38 @@ const snapshotError = ref("");
 const snapshotDeleteArmed = ref(false);
 
 const allMonths = computed(() =>
-  [...new Set(history.value.map((item) => item.fecha.slice(0, 7)))].sort(),
+  [...new Set(history.value.map((item) => item.date.slice(0, 7)))].sort(),
 );
 const accountRows = computed(() =>
   accounts.value.map((account, index) => {
     const rows = history.value
-      .filter((item) => item.cuenta_id === account.id)
-      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+      .filter((item) => item.account_id === account.id)
+      .sort((a, b) => a.date.localeCompare(b.date));
     const latest = rows.at(-1) ?? null;
     const previous = rows.at(-2) ?? null;
     const totalInterest = rows.reduce(
-      (total, item) => total + item.intereses,
+      (total, item) => total + item.interest,
       0,
     );
     const twelveMonthCutoff = allMonths.value.slice(-12);
     const lastTwelveInterest = rows
-      .filter((item) => twelveMonthCutoff.includes(item.fecha.slice(0, 7)))
-      .reduce((total, item) => total + item.intereses, 0);
+      .filter((item) => twelveMonthCutoff.includes(item.date.slice(0, 7)))
+      .reduce((total, item) => total + item.interest, 0);
     return {
       account,
       color: colors[index % colors.length],
       rows,
       latest,
-      balance: latest?.saldo ?? 0,
-      change: latest && previous ? latest.saldo - previous.saldo : 0,
-      contribution: latest?.aporte ?? 0,
-      lastInterest: latest?.intereses ?? 0,
+      balance: latest?.balance ?? 0,
+      change: latest && previous ? latest.balance - previous.balance : 0,
+      contribution: latest?.contribution ?? 0,
+      lastInterest: latest?.interest ?? 0,
       totalInterest,
       lastTwelveInterest,
       remunerated:
         totalInterest > 0 ||
-        account.tipo.toLocaleLowerCase().includes("remunerada") ||
-        account.tipo.toLocaleLowerCase().includes("interest"),
+        account.type.toLocaleLowerCase().includes("remunerada") ||
+        account.type.toLocaleLowerCase().includes("interest"),
     };
   }),
 );
@@ -97,13 +97,13 @@ const totalBalance = computed(() =>
   accountRows.value.reduce((total, item) => total + item.balance, 0),
 );
 const totalInterest = computed(() =>
-  history.value.reduce((total, item) => total + item.intereses, 0),
+  history.value.reduce((total, item) => total + item.interest, 0),
 );
 const lastTwelveInterest = computed(() => {
   const cutoff = allMonths.value.slice(-12);
   return history.value
-    .filter((item) => cutoff.includes(item.fecha.slice(0, 7)))
-    .reduce((total, item) => total + item.intereses, 0);
+    .filter((item) => cutoff.includes(item.date.slice(0, 7)))
+    .reduce((total, item) => total + item.interest, 0);
 });
 const remuneratedBalance = computed(() =>
   accountRows.value
@@ -133,8 +133,8 @@ const visibleMonths = computed(() => {
 });
 const visibleInterest = computed(() =>
   history.value
-    .filter((item) => visibleMonths.value.includes(item.fecha.slice(0, 7)))
-    .reduce((total, item) => total + item.intereses, 0),
+    .filter((item) => visibleMonths.value.includes(item.date.slice(0, 7)))
+    .reduce((total, item) => total + item.interest, 0),
 );
 const activeRangeLabel = computed(
   () => ranges.value.find((item) => item.key === range.value)?.label ?? "",
@@ -150,7 +150,7 @@ const monthlyChange = computed(
 );
 const balanceSeries = computed<AccountChartSeries[]>(() =>
   accountRows.value.map((row) => ({
-    label: row.account.nombre,
+    label: row.account.name,
     color: row.color,
     values: visibleMonths.value.map((month) => balanceAt(row.rows, month)),
   })),
@@ -159,12 +159,12 @@ const interestSeries = computed<AccountChartSeries[]>(() =>
   accountRows.value
     .filter((row) => row.remunerated)
     .map((row) => ({
-      label: row.account.nombre,
+      label: row.account.name,
       color: row.color,
       values: visibleMonths.value.map((month) =>
         row.rows
-          .filter((item) => item.fecha.startsWith(month))
-          .reduce((total, item) => total + item.intereses, 0),
+          .filter((item) => item.date.startsWith(month))
+          .reduce((total, item) => total + item.interest, 0),
       ),
     })),
 );
@@ -174,9 +174,9 @@ const displayedHistory = computed(() =>
     .filter(
       (item) =>
         historyAccount.value === "all" ||
-        String(item.cuenta_id) === historyAccount.value,
+        item.account_id === historyAccount.value,
     )
-    .sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    .sort((a, b) => b.date.localeCompare(a.date)),
 );
 
 const money = (value: number) => n(value, "currency");
@@ -184,8 +184,8 @@ const percentage = (value: number) => n(value, "percent");
 
 function balanceAt(rows: SavingsSnapshot[], month: string) {
   return (
-    [...rows].reverse().find((item) => item.fecha.slice(0, 7) <= month)
-      ?.saldo ?? 0
+    [...rows].reverse().find((item) => item.date.slice(0, 7) <= month)
+      ?.balance ?? 0
   );
 }
 
@@ -224,14 +224,14 @@ function signedMoney(value: number) {
   return `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
 }
 
-function accountNameFor(id: number) {
+function accountNameFor(id: string) {
   return (
-    accounts.value.find((item) => item.id === id)?.nombre ??
+    accounts.value.find((item) => item.id === id)?.name ??
     t("savings.accountFallback", { id })
   );
 }
 
-function accountColor(id: number) {
+function accountColor(id: string) {
   return (
     accountRows.value.find((item) => item.account.id === id)?.color ?? colors[0]
   );
@@ -252,10 +252,10 @@ function openAccountCreate() {
 function openAccountEdit(account: SavingsAccount) {
   accountMode.value = "edit";
   editingAccountId.value = account.id;
-  accountName.value = account.nombre;
-  accountBank.value = account.banco;
-  accountType.value = account.tipo;
-  accountCurrency.value = account.moneda || "EUR";
+  accountName.value = account.name;
+  accountBank.value = account.bank;
+  accountType.value = account.type;
+  accountCurrency.value = account.currency || "EUR";
   accountError.value = "";
   accountDeleteArmed.value = false;
   accountDialog.value?.showModal();
@@ -273,10 +273,10 @@ async function saveAccount() {
     await api(
       path,
       json(method, {
-        nombre: accountName.value,
-        banco: accountBank.value,
-        tipo: accountType.value,
-        moneda: accountCurrency.value.trim().toUpperCase(),
+        name: accountName.value,
+        bank: accountBank.value,
+        type: accountType.value,
+        currency: accountCurrency.value.trim().toUpperCase(),
       }),
     );
     accountDialog.value?.close();
@@ -314,16 +314,16 @@ async function removeAccount() {
   }
 }
 
-function openSnapshotCreate(accountId?: number) {
+function openSnapshotCreate(accountId?: string) {
   snapshotMode.value = "create";
   snapshotOriginal.value = null;
   snapshotAccountId.value = String(accountId ?? accounts.value[0]?.id ?? "");
   snapshotDate.value = new Date().toISOString().slice(0, 7);
   const selected = accountRows.value.find(
-    (item) => item.account.id === Number(snapshotAccountId.value),
+    (item) => item.account.id === snapshotAccountId.value,
   );
   snapshotBalance.value = selected?.latest
-    ? String(selected.latest.saldo_original ?? selected.latest.saldo)
+    ? String(selected.latest.balance_original ?? selected.latest.balance)
     : "";
   snapshotContribution.value = "";
   snapshotInterest.value = "";
@@ -334,15 +334,15 @@ function openSnapshotCreate(accountId?: number) {
 
 function openSnapshotEdit(item: SavingsSnapshot) {
   snapshotMode.value = "edit";
-  snapshotOriginal.value = { accountId: item.cuenta_id, date: item.fecha };
-  snapshotAccountId.value = String(item.cuenta_id);
-  snapshotDate.value = item.fecha.slice(0, 7);
-  snapshotBalance.value = String(item.saldo_original ?? item.saldo);
-  snapshotContribution.value = item.aporte_original
-    ? String(item.aporte_original)
+  snapshotOriginal.value = { accountId: item.account_id, date: item.date };
+  snapshotAccountId.value = item.account_id;
+  snapshotDate.value = item.date.slice(0, 7);
+  snapshotBalance.value = String(item.balance_original ?? item.balance);
+  snapshotContribution.value = item.contribution_original
+    ? String(item.contribution_original)
     : "";
-  snapshotInterest.value = item.intereses_original
-    ? String(item.intereses_original)
+  snapshotInterest.value = item.interest_original
+    ? String(item.interest_original)
     : "";
   snapshotError.value = "";
   snapshotDeleteArmed.value = false;
@@ -354,15 +354,15 @@ async function saveSnapshot() {
   snapshotError.value = "";
   try {
     const newDate = monthEndDate(snapshotDate.value);
-    const newAccountId = Number(snapshotAccountId.value);
+    const newAccountId = snapshotAccountId.value;
     await api(
       "/savings/history",
       json("POST", {
-        fecha: newDate,
-        cuenta_id: newAccountId,
-        saldo: Number(snapshotBalance.value),
-        aporte: Number(snapshotContribution.value || 0),
-        intereses: Number(snapshotInterest.value || 0),
+        date: newDate,
+        account_id: newAccountId,
+        balance: Number(snapshotBalance.value),
+        contribution: Number(snapshotContribution.value || 0),
+        interest: Number(snapshotInterest.value || 0),
       }),
     );
     if (
@@ -518,12 +518,12 @@ onMounted(load);
               width: `${totalBalance ? (item.balance / totalBalance) * 100 : 0}%`,
               background: item.color,
             }"
-            :title="`${item.account.nombre}: ${money(item.balance)}`"
+            :title="`${item.account.name}: ${money(item.balance)}`"
           />
         </div>
         <div class="liquidity-legend">
           <span v-for="item in accountRows" :key="item.account.id"
-            ><i :style="{ background: item.color }" />{{ item.account.nombre }}
+            ><i :style="{ background: item.color }" />{{ item.account.name }}
             <strong>{{
               percentage(totalBalance ? item.balance / totalBalance : 0)
             }}</strong></span
@@ -552,19 +552,19 @@ onMounted(load);
                 color: item.color,
                 background: `color-mix(in srgb, ${item.color} 12%, var(--fz-surface-soft))`,
               }"
-              >{{ item.account.nombre.slice(0, 2).toUpperCase() }}</span
+              >{{ item.account.name.slice(0, 2).toUpperCase() }}</span
             >
             <div>
-              <h3>{{ item.account.nombre }}</h3>
+              <h3>{{ item.account.name }}</h3>
               <p>
-                {{ item.account.banco }} ·
-                {{ accountTypeLabel(item.account.tipo) }}
+                {{ item.account.bank }} ·
+                {{ accountTypeLabel(item.account.type) }}
               </p>
             </div>
             <button
               type="button"
               :aria-label="
-                t('savings.actions.editNamed', { name: item.account.nombre })
+                t('savings.actions.editNamed', { name: item.account.name })
               "
               @click="openAccountEdit(item.account)"
             >
@@ -626,7 +626,7 @@ onMounted(load);
             }}</span
             ><small>{{
               t("savings.accounts.updated", {
-                date: displayDate(item.latest?.fecha ?? ""),
+                date: displayDate(item.latest?.date ?? ""),
               })
             }}</small
             ><button type="button" @click="openSnapshotCreate(item.account.id)">
@@ -708,40 +708,42 @@ onMounted(load);
                 :key="item.id"
                 :value="String(item.id)"
               >
-                {{ item.nombre }}
+                {{ item.name }}
               </option>
             </select>
           </header>
           <div class="history-list">
             <button
               v-for="item in displayedHistory.slice(0, 18)"
-              :key="`${item.cuenta_id}:${item.fecha}`"
+              :key="`${item.account_id}:${item.date}`"
               type="button"
               @click="openSnapshotEdit(item)"
             >
-              <i :style="{ background: accountColor(item.cuenta_id) }" />
+              <i :style="{ background: accountColor(item.account_id) }" />
               <span
-                ><strong>{{ accountNameFor(item.cuenta_id) }}</strong
-                ><small>{{ displayDate(item.fecha) }}</small></span
+                ><strong>{{ accountNameFor(item.account_id) }}</strong
+                ><small>{{ displayDate(item.date) }}</small></span
               >
               <span
                 ><small>{{ t("savings.history.balance") }}</small
-                ><strong>{{ money(item.saldo) }}</strong></span
+                ><strong>{{ money(item.balance) }}</strong></span
               >
               <span
                 ><small>{{ t("savings.history.variation") }}</small
                 ><strong
                   :class="{
-                    positive: item.aporte > 0,
-                    negative: item.aporte < 0,
+                    positive: item.contribution > 0,
+                    negative: item.contribution < 0,
                   }"
-                  >{{ item.aporte ? signedMoney(item.aporte) : "—" }}</strong
+                  >{{
+                    item.contribution ? signedMoney(item.contribution) : "—"
+                  }}</strong
                 ></span
               >
               <span
                 ><small>{{ t("savings.history.interest") }}</small
-                ><strong :class="{ positive: item.intereses > 0 }">{{
-                  item.intereses ? money(item.intereses) : "—"
+                ><strong :class="{ positive: item.interest > 0 }">{{
+                  item.interest ? money(item.interest) : "—"
                 }}</strong></span
               >
             </button>
@@ -850,7 +852,7 @@ onMounted(load);
                 :key="item.id"
                 :value="String(item.id)"
               >
-                {{ item.nombre }}
+                {{ item.name }}
               </option>
             </select></label
           ><label

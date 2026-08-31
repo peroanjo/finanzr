@@ -1,6 +1,8 @@
 """OpenAPI serializers for the compatibility API's stable JSON envelopes."""
 
-from typing import Any
+from collections.abc import Mapping
+from decimal import Decimal
+from typing import Any, cast
 
 from rest_framework import serializers
 
@@ -145,6 +147,34 @@ class FinancialAccountUpdateRequestSerializer(FinancialAccountRequestSerializer)
     tipo = serializers.CharField(required=False)
 
 
+class StrictSerializer(serializers.Serializer[dict[str, Any]]):
+    """Serializer base that rejects compatibility-shaped or unknown fields."""
+
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        if not isinstance(data, Mapping):
+            raise serializers.ValidationError("Expected a JSON object")
+        unknown = sorted(set(data) - set(self.fields))
+        if unknown:
+            raise serializers.ValidationError(
+                {"non_field_errors": [f"Unknown field(s): {', '.join(unknown)}"]}
+            )
+        return cast(dict[str, Any], super().to_internal_value(data))
+
+
+class SavingsAccountRequestSerializer(StrictSerializer):
+    name = serializers.CharField(required=True, allow_blank=False, max_length=160)
+    bank = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    type = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    currency = serializers.CharField(required=False, allow_blank=False, max_length=3)
+
+
+class SavingsAccountUpdateRequestSerializer(StrictSerializer):
+    name = serializers.CharField(required=False, allow_blank=False, max_length=160)
+    bank = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    type = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    currency = serializers.CharField(required=False, allow_blank=False, max_length=3)
+
+
 class SnapshotRequestSerializer(serializers.Serializer[dict[str, Any]]):
     cuenta_id = serializers.CharField(required=True)
     fecha = serializers.DateField(required=True)
@@ -153,10 +183,41 @@ class SnapshotRequestSerializer(serializers.Serializer[dict[str, Any]]):
     intereses = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
 
 
-class SavingsSnapshotRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    cuenta_id = serializers.CharField(required=True)
-    fecha = serializers.DateField(required=True)
-    saldo = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+class NativeSavingsSnapshotRequestSerializer(StrictSerializer):
+    account_id = serializers.UUIDField(required=True)
+    date = serializers.DateField(required=True)
+    balance = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+    contribution = serializers.DecimalField(
+        max_digits=24, decimal_places=8, required=False, default=Decimal("0")
+    )
+    interest = serializers.DecimalField(
+        max_digits=24, decimal_places=8, required=False, default=Decimal("0")
+    )
+
+
+class NativeSavingsAccountResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    bank = serializers.CharField()
+    type = serializers.CharField()
+    currency = serializers.CharField()
+
+
+class NativeSavingsSnapshotResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField()
+    account_id = serializers.UUIDField()
+    date = serializers.DateField()
+    balance = serializers.FloatField()
+    balance_original = serializers.FloatField()
+    contribution = serializers.FloatField()
+    contribution_original = serializers.FloatField()
+    interest = serializers.FloatField()
+    interest_original = serializers.FloatField()
+    currency = serializers.CharField()
+    base_currency = serializers.CharField()
+    exchange_rate = serializers.FloatField()
+    exchange_rate_date = serializers.DateField()
+    exchange_rate_source = serializers.CharField()
 
 
 class InvestmentSnapshotRequestSerializer(SnapshotRequestSerializer):

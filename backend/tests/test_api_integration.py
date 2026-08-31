@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from apps.accounts.models import Account, AccountSnapshot
@@ -21,6 +22,7 @@ from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 
@@ -577,15 +579,15 @@ def test_savings_account_can_be_edited(
     response = client.put(
         f"/api/savings/accounts/{account['id']}",
         {
-            "nombre": f"{account['nombre']} principal",
-            "banco": account["banco"],
-            "tipo": account["tipo"],
+            "name": f"{account['name']} principal",
+            "bank": account["bank"],
+            "type": account["type"],
         },
         format="json",
     )
 
     assert response.status_code == 200
-    assert response.json()["nombre"].endswith(" principal")
+    assert response.json()["name"].endswith(" principal")
 
 
 @pytest.mark.django_db(transaction=True)
@@ -598,17 +600,280 @@ def test_savings_snapshot_is_saved_on_last_day_of_month(
     response = client.post(
         "/api/savings/history",
         {
-            "fecha": "2028-02-01",
-            "cuenta_id": account["id"],
-            "saldo": 2500,
-            "aporte": 100,
-            "intereses": 4.5,
+            "date": "2028-02-01",
+            "account_id": account["id"],
+            "balance": 2500,
+            "contribution": 100,
+            "interest": 4.5,
         },
         format="json",
     )
 
     assert response.status_code == 201
-    assert response.json()["fecha"] == "2028-02-29"
+    assert response.json()["date"] == "2028-02-29"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_savings_native_contract_uses_uuid_and_english_fields(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    account = client.get("/api/savings/accounts").json()[0]
+    assert set(account) == {"id", "name", "bank", "type", "currency"}
+    UUID(account["id"])
+
+    assert client.get("/api/savings/accounts/1").status_code == 404
+    assert client.get("/api/savings/history?cuenta_id=1").status_code == 400
+    rejected = client.post(
+        "/api/savings/history",
+        {"fecha": "2028-02-01", "cuenta_id": 1, "saldo": 100},
+        format="json",
+    )
+    assert rejected.status_code == 400
+
+    created = client.post(
+        "/api/savings/accounts",
+        {"name": "Native savings", "bank": "Native Bank", "type": "Cash"},
+        format="json",
+    )
+    assert created.status_code == 201
+    native = created.json()
+    assert set(native) == {"id", "name", "bank", "type", "currency"}
+    UUID(native["id"])
+    assert Account.objects.get(pk=native["id"]).external_id is None
+
+    snapshot = client.post(
+        "/api/savings/history",
+        {
+            "account_id": native["id"],
+            "date": "2028-02-01",
+            "balance": 2500,
+            "contribution": 100,
+            "interest": 4.5,
+        },
+        format="json",
+    )
+    assert snapshot.status_code == 201
+    assert set(snapshot.json()) == {
+        "id",
+        "account_id",
+        "date",
+        "balance",
+        "balance_original",
+        "contribution",
+        "contribution_original",
+        "interest",
+        "interest_original",
+        "currency",
+        "base_currency",
+        "exchange_rate",
+        "exchange_rate_date",
+        "exchange_rate_source",
+    }
+    assert snapshot.json()["account_id"] == native["id"]
+    assert snapshot.json()["date"] == "2028-02-29"
+    assert UUID(snapshot.json()["id"])
+
+    filtered = client.get(f"/api/savings/history?account_id={native['id']}")
+    assert filtered.status_code == 200
+    assert [item["account_id"] for item in filtered.json()] == [native["id"]]
+    assert client.get("/api/summary").json()["total_savings"] == 3500
+
+
+@pytest.mark.django_db(transaction=True)
+def test_savings_native_account_update_delete_and_summary(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    created = client.post(
+        "/api/savings/accounts",
+        {"name": "Temporary savings", "bank": "Bank", "type": "Cash"},
+        format="json",
+    )
+    account_id = created.json()["id"]
+    updated = client.put(
+        f"/api/savings/accounts/{account_id}",
+        {"name": "Updated savings", "currency": "USD"},
+        format="json",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Updated savings"
+    assert updated.json()["currency"] == "USD"
+    assert (
+        client.put(
+            f"/api/savings/accounts/{account_id}",
+            {"nombre": "Rejected"},
+            format="json",
+        ).status_code
+        == 400
+    )
+    assert client.get("/api/summary").status_code == 200
+    assert client.delete(f"/api/savings/accounts/{account_id}").status_code == 200
+    assert not Account.objects.filter(pk=account_id).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_savings_native_snapshot_preserves_currency_conversion(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    monkeypatch.setattr(
+        views,
+        "rate_to_base",
+        lambda *_args, **_kwargs: FxConversion(Decimal("0.9"), date(2026, 7, 31), "synthetic"),
+    )
+    account = client.post(
+        "/api/savings/accounts",
+        {"name": "USD savings", "currency": "USD"},
+        format="json",
+    ).json()
+    response = client.post(
+        "/api/savings/history",
+        {"account_id": account["id"], "date": "2026-07-01", "balance": 100},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["date"] == "2026-07-31"
+    assert response.json()["balance"] == 90
+    assert response.json()["balance_original"] == 100
+    assert response.json()["currency"] == "USD"
+    assert response.json()["base_currency"] == "EUR"
+    assert response.json()["exchange_rate"] == 0.9
+
+
+@pytest.mark.django_db(transaction=True)
+def test_savings_native_rejects_invalid_or_out_of_scope_identifiers(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    account_id = client.get("/api/savings/accounts").json()[0]["id"]
+    fund_id = str(Account.objects.get(kind=Account.Kind.FUNDS).id)
+    foreign_workspace = Workspace.objects.create(
+        name="Foreign workspace", slug="foreign-workspace", base_currency="EUR"
+    )
+    foreign_account = Account.objects.create(
+        workspace=foreign_workspace,
+        name="Foreign savings",
+        kind=Account.Kind.SAVINGS,
+        external_id=None,
+    )
+
+    assert client.get("/api/savings/history?account_id=not-a-uuid").status_code == 400
+    assert client.get("/api/savings/accounts/not-a-uuid").status_code == 404
+    assert (
+        client.put(
+            f"/api/savings/accounts/{fund_id}",
+            {"name": "Wrong type"},
+            format="json",
+        ).status_code
+        == 404
+    )
+    assert (
+        client.put(
+            f"/api/savings/accounts/{foreign_account.id}",
+            {"name": "Wrong workspace"},
+            format="json",
+        ).status_code
+        == 404
+    )
+    invalid_date = client.delete(f"/api/savings/history/{account_id}/2026-02-30")
+    assert invalid_date.status_code == 400
+    assert invalid_date.json()["error"]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_savings_native_account_fields_enforce_model_lengths(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    account_id = client.get("/api/savings/accounts").json()[0]["id"]
+    for field, value in (("name", "N" * 161), ("bank", "B" * 161), ("type", "T" * 81)):
+        created = client.post(
+            "/api/savings/accounts",
+            {"name": "Valid", field: value},
+            format="json",
+        )
+        updated = client.put(
+            f"/api/savings/accounts/{account_id}",
+            {field: value},
+            format="json",
+        )
+        assert created.status_code == 400
+        assert updated.status_code == 400
+
+
+@pytest.mark.django_db(transaction=True)
+def test_workspace_export_includes_legacy_and_native_savings_rows(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    native = client.post(
+        "/api/savings/accounts",
+        {"name": "Native export savings", "bank": "Bank", "type": "Cash"},
+        format="json",
+    ).json()
+    client.post(
+        "/api/savings/history",
+        {"account_id": native["id"], "date": "2026-02-01", "balance": 200},
+        format="json",
+    )
+    archived = client.post(
+        "/api/savings/accounts",
+        {"name": "Archived export savings", "bank": "Bank", "type": "Cash"},
+        format="json",
+    ).json()
+    client.post(
+        "/api/savings/history",
+        {"account_id": archived["id"], "date": "2026-03-01", "balance": 321},
+        format="json",
+    )
+    Account.objects.filter(pk=archived["id"]).update(archived_at=timezone.now())
+    exported = client.get("/api/account/export")
+
+    assert exported.status_code == 200
+    data = exported.json()
+    assert data["format"] == "finanzr-workspace-v2"
+    assert {item["name"] for item in data["savings_accounts"]} == {
+        "Native export savings",
+        "Archived export savings",
+        "Synthetic savings",
+    }
+    assert all(
+        set(item) == {"id", "name", "bank", "type", "currency"} for item in data["savings_accounts"]
+    )
+    assert {item["account_id"] for item in data["savings_history"]} == {
+        native["id"],
+        archived["id"],
+        str(Account.objects.get(external_id="legacy:savings:1").id),
+    }
+    assert {item["account_id"]: item["balance_original"] for item in data["savings_history"]} == {
+        native["id"]: 200,
+        archived["id"]: 321,
+        str(Account.objects.get(external_id="legacy:savings:1").id): 1000,
+    }
+    assert all(
+        set(item)
+        == {
+            "id",
+            "account_id",
+            "date",
+            "balance",
+            "balance_original",
+            "contribution",
+            "contribution_original",
+            "interest",
+            "interest_original",
+            "currency",
+            "base_currency",
+            "exchange_rate",
+            "exchange_rate_date",
+            "exchange_rate_source",
+        }
+        for item in data["savings_history"]
+    )
+    assert data["investment_accounts"][0]["nombre"] == "Synthetic investment"
+    assert client.get("/api/summary").json()["total_savings"] == 1521
 
 
 @pytest.mark.django_db(transaction=True)
@@ -676,14 +941,19 @@ def test_savings_write_persists_to_database(
 
     response = client.post(
         "/api/savings/history",
-        {"fecha": "2026-07-31", "cuenta_id": 1, "saldo": 1234.56, "aporte": 10},
+        {
+            "date": "2026-07-31",
+            "account_id": client.get("/api/savings/accounts").json()[0]["id"],
+            "balance": 1234.56,
+            "contribution": 10,
+        },
         format="json",
     )
 
     assert response.status_code == 201
     assert AccountSnapshot.objects.get(
         date="2026-07-31",
-        account__external_id="legacy:savings:1",
+        account__kind=Account.Kind.SAVINGS,
     ).value == Decimal("1234.56")
 
 

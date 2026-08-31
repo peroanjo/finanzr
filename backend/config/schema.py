@@ -39,6 +39,9 @@ from apps.api.schemas import (
     InvitationSerializer,
     IsinInstrumentRequestSerializer,
     LoginRequestSerializer,
+    NativeSavingsAccountResponseSerializer,
+    NativeSavingsSnapshotRequestSerializer,
+    NativeSavingsSnapshotResponseSerializer,
     OkSerializer,
     PasswordRequestSerializer,
     PasswordResetConfirmRequestSerializer,
@@ -52,7 +55,8 @@ from apps.api.schemas import (
     RealEstateRequestSerializer,
     RealEstateResponseSerializer,
     RealEstateUpdateRequestSerializer,
-    SavingsSnapshotRequestSerializer,
+    SavingsAccountRequestSerializer,
+    SavingsAccountUpdateRequestSerializer,
     SnapshotResponseSerializer,
     StockSplitRequestSerializer,
     StockTransactionRequestSerializer,
@@ -62,6 +66,8 @@ from apps.api.schemas import (
     WorkspaceRequestSerializer,
 )
 from drf_spectacular.openapi import AutoSchema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter
 from rest_framework.generics import GenericAPIView
 from rest_framework.views import APIView
 
@@ -132,6 +138,29 @@ USER_SESSION_PATHS = frozenset(
 class PublicAutoSchema(AutoSchema):
     """Describe every function-based endpoint with explicit typed serializers."""
 
+    def get_override_parameters(self) -> list[Any]:
+        parameters = list(super().get_override_parameters())
+        path = self.path.rstrip("/")
+        if path == "/api/savings/history" and self.method == "GET":
+            parameters.append(
+                OpenApiParameter(
+                    name="account_id",
+                    type=OpenApiTypes.UUID,
+                    location=OpenApiParameter.QUERY,
+                    required=False,
+                )
+            )
+        elif path == "/api/savings/history/{account_id}/{value_date}":
+            parameters.append(
+                OpenApiParameter(
+                    name="value_date",
+                    type=OpenApiTypes.DATE,
+                    location=OpenApiParameter.PATH,
+                    required=True,
+                )
+            )
+        return parameters
+
     def _base_serializer(self) -> Any:
         view = self.view
         if isinstance(view, GenericAPIView):
@@ -194,8 +223,15 @@ class PublicAutoSchema(AutoSchema):
                 if family_path == "/api/cryptos"
                 else IsinInstrumentRequestSerializer()
             )
+        if family_path == "/api/savings/accounts":
+            return (
+                SavingsAccountUpdateRequestSerializer()
+                if "{" in path
+                else SavingsAccountRequestSerializer()
+            )
+        if family_path == "/api/savings/history":
+            return NativeSavingsSnapshotRequestSerializer()
         if family_path in {
-            "/api/savings/accounts",
             "/api/investments/accounts",
             "/api/fund-accounts",
             "/api/stock-accounts",
@@ -204,8 +240,6 @@ class PublicAutoSchema(AutoSchema):
             if "{" in path:
                 return FinancialAccountUpdateRequestSerializer()
             return FinancialAccountRequestSerializer()
-        if family_path == "/api/savings/history":
-            return SavingsSnapshotRequestSerializer()
         if family_path == "/api/investments/history":
             return InvestmentSnapshotRequestSerializer()
         if family_path == "/api/portfolio":
@@ -267,15 +301,18 @@ class PublicAutoSchema(AutoSchema):
             response = InstrumentSerializer(many=self.method == "GET")
         elif family_path == "/api/calculator":
             response = CalculatorResponseSerializer(many=self.method == "GET")
+        elif family_path == "/api/savings/accounts":
+            response = NativeSavingsAccountResponseSerializer(many=self.method == "GET")
+        elif family_path == "/api/savings/history":
+            response = NativeSavingsSnapshotResponseSerializer(many=self.method == "GET")
         elif family_path in {
-            "/api/savings/accounts",
             "/api/investments/accounts",
             "/api/fund-accounts",
             "/api/stock-accounts",
             "/api/crypto-accounts",
         }:
             response = AccountResponseSerializer(many=self.method == "GET")
-        elif family_path in {"/api/savings/history", "/api/investments/history"}:
+        elif family_path == "/api/investments/history":
             response = SnapshotResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/portfolio":
             response = PortfolioResponseSerializer(many=self.method == "GET")
