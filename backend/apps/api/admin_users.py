@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from rest_framework.decorators import api_view
 from rest_framework.request import Request
@@ -15,7 +16,8 @@ from rest_framework.response import Response
 from apps.api.views import active_membership, payload
 from apps.audit.models import AuditEvent
 from apps.users.models import User
-from apps.workspaces.models import WorkspaceMembership
+from apps.workspaces.models import Workspace, WorkspaceMembership
+from apps.workspaces.services import provision_personal_workspace
 
 
 def serialize_user(user: User, actor: User) -> dict[str, Any]:
@@ -88,11 +90,7 @@ def users(request: Request) -> Response:
             display_name=display_name,
             role=role,
         )
-        WorkspaceMembership.objects.create(
-            workspace=membership.workspace,
-            user=user,
-            role=WorkspaceMembership.Role.EDITOR,
-        )
+        provision_personal_workspace(user)
         AuditEvent.objects.create(
             workspace=membership.workspace,
             actor=actor,
@@ -188,20 +186,35 @@ def user_detail(request: Request, user_id: str) -> Response:
         )
         return Response(serialize_user(target, actor))
 
-    if target.memberships.filter(role=WorkspaceMembership.Role.OWNER).exists():
-        return Response(
-            {"error": _("An account that owns a workspace cannot be deleted")},
-            status=409,
+    with transaction.atomic():
+        locked_target = User.objects.select_for_update().get(pk=target.pk)
+        owned_workspace_ids = list(
+            locked_target.memberships.filter(role=WorkspaceMembership.Role.OWNER).values_list(
+                "workspace_id", flat=True
+            )
         )
-    target_id = target.id
-    target_email = target.email
-    target.delete()
-    AuditEvent.objects.create(
-        workspace=membership.workspace,
-        actor=actor,
-        event_type="user.deleted",
-        object_type="user",
-        object_id=target_id,
-        metadata={"email": target_email},
-    )
+        owned_workspaces = list(
+            Workspace.objects.select_for_update().filter(pk__in=owned_workspace_ids)
+        )
+        if any(
+            owned_workspace.memberships.exclude(user=locked_target).exists()
+            for owned_workspace in owned_workspaces
+        ):
+            return Response(
+                {"error": _("An account that owns a workspace cannot be deleted")},
+                status=409,
+            )
+        target_id = locked_target.id
+        target_email = locked_target.email
+        archived_at = timezone.now()
+        Workspace.objects.filter(pk__in=owned_workspace_ids).update(archived_at=archived_at)
+        locked_target.delete()
+        AuditEvent.objects.create(
+            workspace=membership.workspace,
+            actor=actor,
+            event_type="user.deleted",
+            object_type="user",
+            object_id=target_id,
+            metadata={"email": target_email},
+        )
     return Response(status=204)

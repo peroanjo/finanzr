@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
+
+from apps.workspaces.services import provision_personal_workspace
 
 from .models import User
 
@@ -37,3 +40,14 @@ class UserAdmin(DjangoUserAdmin):  # type: ignore[type-arg]
             },
         ),
     )
+
+    def save_model(
+        self,
+        request: HttpRequest,
+        obj: User,
+        form: object,
+        change: bool,
+    ) -> None:
+        super().save_model(request, obj, form, change)
+        if not change:
+            provision_personal_workspace(obj)
