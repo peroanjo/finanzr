@@ -71,6 +71,19 @@ ImportContext(
 A parser analyzes and normalizes. It must not write to the database, deduplicate
 against persisted data, or return HTTP responses.
 
+### Uploaded byte decoding
+
+The HTTP upload adapter reads the file as raw bytes and passes those bytes and
+the normalized lowercase extension to the importer's public `decode(raw,
+extension)` hook before parsing. `BaseImporter.decode` strictly decodes
+UTF-8, removing an optional UTF-8 BOM. An importer may override the hook only
+for a format that explicitly owns another encoding or needs format validation;
+the fund broker importer does this for Inversis `.xls`/`.html` exports, which
+are HTML tables and may be UTF-8 or Windows-1252. Binary Excel workbooks and
+non-HTML content are rejected by that importer. Keep CSV and other importer
+decoding strict UTF-8, and do not decode uploaded bytes in the parser or API
+view itself.
+
 ## Template for a Column-Based CSV
 
 The HTTP adapter may use pandas or `csv.DictReader` to convert a CSV into

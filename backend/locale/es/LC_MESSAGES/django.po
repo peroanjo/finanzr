@@ -94,6 +94,9 @@ msgstr "Administrador"
 msgid "Amount"
 msgstr "Importe"
 
+msgid "Binary Excel workbooks are not supported; upload the Inversis HTML export saved as .xls or .html"
+msgstr "Los libros Excel binarios no son compatibles; sube la exportación HTML de Inversis guardada como .xls o .html"
+
 #: finanzr/importers/kraken.py:74
 msgid "Amount purchased or sold."
 msgstr "Cantidad comprada o vendida."
@@ -717,6 +720,12 @@ msgstr "El archivo supera el límite de %(max_rows)s filas"
 #: backend/apps/api/uploads.py:130
 msgid "The file must be UTF-8 encoded"
 msgstr "El archivo debe estar codificado como UTF-8"
+
+msgid "The Inversis HTML export must be encoded as UTF-8 or Windows-1252"
+msgstr "La exportación HTML de Inversis debe estar codificada como UTF-8 o Windows-1252"
+
+msgid "The uploaded %(extension)s file is not a valid Inversis HTML table export"
+msgstr "El archivo %(extension)s subido no es una exportación HTML de Inversis válida con tabla"
 
 #: backend/apps/api/views.py:665
 msgid "The identifier already belongs to another asset type"
