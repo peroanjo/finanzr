@@ -378,16 +378,9 @@ Constraints and indexes:
 | `source_note` | varchar(240) nullable | explanation |
 | `created_at` | timestamptz | audit |
 
-Initial capital migration:
-
-- `capital_nuevo` creates an external `contribution` flow.
-- `capital_inicial - capital_nuevo` creates an internal `reinvestment` flow.
-- `capital_devuelto` creates `capital_return` on `fecha_devolucion`.
-- `beneficio_obtenido` creates `profit`; if no date is known, it is flagged for review.
-
-Live capital is calculated from dated flows. Legacy rows without
-`fecha_devolucion` retain the current historical behavior and generate a
-migration warning.
+Live capital is calculated from dated flows. In monthly projections, capital
+returns reduce live capital from their effective month onward and do not change
+prior months.
 
 ### `ManualAsset`
 
@@ -575,8 +568,9 @@ query/service that combines:
 4. `ManualAsset`.
 
 This structurally eliminates the possibility of counting the same real-estate
-project twice. During legacy import, no data is deleted without confirmation:
-possible duplicates are shown in the `dry-run` report.
+project twice. The projection excludes a manual asset only when its name and
+current value match a canonical real-estate project (and its provider also
+matches when both are present); otherwise the manual asset remains visible.
 
 ## Recommended Implementation Order
 
