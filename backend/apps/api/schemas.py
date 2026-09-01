@@ -175,14 +175,6 @@ class SavingsAccountUpdateRequestSerializer(StrictSerializer):
     currency = serializers.CharField(required=False, allow_blank=False, max_length=3)
 
 
-class SnapshotRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    cuenta_id = serializers.CharField(required=True)
-    fecha = serializers.DateField(required=True)
-    valor = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
-    aporte = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    intereses = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-
-
 class NativeSavingsSnapshotRequestSerializer(StrictSerializer):
     account_id = serializers.UUIDField(required=True)
     date = serializers.DateField(required=True)
@@ -220,8 +212,53 @@ class NativeSavingsSnapshotResponseSerializer(serializers.Serializer[dict[str, A
     exchange_rate_source = serializers.CharField()
 
 
-class InvestmentSnapshotRequestSerializer(SnapshotRequestSerializer):
-    pass
+class InvestmentAccountRequestSerializer(StrictSerializer):
+    name = serializers.CharField(required=True, allow_blank=False, max_length=160)
+    platform = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    type = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    currency = serializers.CharField(required=False, allow_blank=False, max_length=3)
+
+
+class InvestmentAccountUpdateRequestSerializer(StrictSerializer):
+    name = serializers.CharField(required=False, allow_blank=False, max_length=160)
+    platform = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    type = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    currency = serializers.CharField(required=False, allow_blank=False, max_length=3)
+
+
+class NativeInvestmentSnapshotRequestSerializer(StrictSerializer):
+    account_id = serializers.UUIDField(required=True)
+    date = serializers.DateField(required=True)
+    value = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+    contribution = serializers.DecimalField(
+        max_digits=24, decimal_places=8, required=False, default=Decimal("0")
+    )
+    interest = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
+
+
+class NativeInvestmentAccountResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    platform = serializers.CharField()
+    type = serializers.CharField()
+    currency = serializers.CharField()
+
+
+class NativeInvestmentSnapshotResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField()
+    account_id = serializers.UUIDField()
+    date = serializers.DateField()
+    value = serializers.FloatField()
+    value_original = serializers.FloatField()
+    contribution = serializers.FloatField()
+    contribution_original = serializers.FloatField()
+    interest = serializers.FloatField()
+    interest_original = serializers.FloatField()
+    currency = serializers.CharField()
+    base_currency = serializers.CharField()
+    exchange_rate = serializers.FloatField()
+    exchange_rate_date = serializers.DateField()
+    exchange_rate_source = serializers.CharField()
 
 
 class PortfolioRequestSerializer(serializers.Serializer[dict[str, Any]]):
@@ -415,25 +452,6 @@ class AccountResponseSerializer(serializers.Serializer[dict[str, Any]]):
     moneda = serializers.CharField(required=False)
     banco = serializers.CharField(required=False)
     plataforma = serializers.CharField(required=False)
-
-
-class SnapshotResponseSerializer(serializers.Serializer[dict[str, Any]]):
-    id = serializers.IntegerField(required=False)
-    fecha = serializers.DateField(required=False)
-    saldo = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    saldo_original = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    valor = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    valor_original = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    aporte = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    aporte_original = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    intereses = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    intereses_original = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    cuenta_id = serializers.CharField(required=False)
-    moneda = serializers.CharField(required=False)
-    moneda_base = serializers.CharField(required=False)
-    tipo_cambio = serializers.DecimalField(max_digits=24, decimal_places=12, required=False)
-    fecha_tipo_cambio = serializers.DateField(required=False)
-    fuente_tipo_cambio = serializers.CharField(required=False)
 
 
 class RealEstateResponseSerializer(FinancialObjectSerializer):

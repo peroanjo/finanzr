@@ -33,12 +33,16 @@ from apps.api.schemas import (
     InstallationPreferencesSerializer,
     InstrumentSerializer,
     InstrumentUpdateRequestSerializer,
-    InvestmentSnapshotRequestSerializer,
+    InvestmentAccountRequestSerializer,
+    InvestmentAccountUpdateRequestSerializer,
     InvitationAcceptRequestSerializer,
     InvitationRequestSerializer,
     InvitationSerializer,
     IsinInstrumentRequestSerializer,
     LoginRequestSerializer,
+    NativeInvestmentAccountResponseSerializer,
+    NativeInvestmentSnapshotRequestSerializer,
+    NativeInvestmentSnapshotResponseSerializer,
     NativeSavingsAccountResponseSerializer,
     NativeSavingsSnapshotRequestSerializer,
     NativeSavingsSnapshotResponseSerializer,
@@ -57,7 +61,6 @@ from apps.api.schemas import (
     RealEstateUpdateRequestSerializer,
     SavingsAccountRequestSerializer,
     SavingsAccountUpdateRequestSerializer,
-    SnapshotResponseSerializer,
     StockSplitRequestSerializer,
     StockTransactionRequestSerializer,
     TransactionResponseSerializer,
@@ -159,6 +162,24 @@ class PublicAutoSchema(AutoSchema):
                     required=True,
                 )
             )
+        elif path == "/api/investments/history" and self.method == "GET":
+            parameters.append(
+                OpenApiParameter(
+                    name="account_id",
+                    type=OpenApiTypes.UUID,
+                    location=OpenApiParameter.QUERY,
+                    required=False,
+                )
+            )
+        elif path == "/api/investments/history/{account_id}/{value_date}":
+            parameters.append(
+                OpenApiParameter(
+                    name="value_date",
+                    type=OpenApiTypes.DATE,
+                    location=OpenApiParameter.PATH,
+                    required=True,
+                )
+            )
         return parameters
 
     def _base_serializer(self) -> Any:
@@ -231,8 +252,15 @@ class PublicAutoSchema(AutoSchema):
             )
         if family_path == "/api/savings/history":
             return NativeSavingsSnapshotRequestSerializer()
+        if family_path == "/api/investments/accounts":
+            return (
+                InvestmentAccountUpdateRequestSerializer()
+                if "{" in path
+                else InvestmentAccountRequestSerializer()
+            )
+        if family_path == "/api/investments/history":
+            return NativeInvestmentSnapshotRequestSerializer()
         if family_path in {
-            "/api/investments/accounts",
             "/api/fund-accounts",
             "/api/stock-accounts",
             "/api/crypto-accounts",
@@ -240,8 +268,6 @@ class PublicAutoSchema(AutoSchema):
             if "{" in path:
                 return FinancialAccountUpdateRequestSerializer()
             return FinancialAccountRequestSerializer()
-        if family_path == "/api/investments/history":
-            return InvestmentSnapshotRequestSerializer()
         if family_path == "/api/portfolio":
             return (
                 PortfolioUpdateRequestSerializer() if "{" in path else PortfolioRequestSerializer()
@@ -305,15 +331,16 @@ class PublicAutoSchema(AutoSchema):
             response = NativeSavingsAccountResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/savings/history":
             response = NativeSavingsSnapshotResponseSerializer(many=self.method == "GET")
+        elif family_path == "/api/investments/accounts":
+            response = NativeInvestmentAccountResponseSerializer(many=self.method == "GET")
+        elif family_path == "/api/investments/history":
+            response = NativeInvestmentSnapshotResponseSerializer(many=self.method == "GET")
         elif family_path in {
-            "/api/investments/accounts",
             "/api/fund-accounts",
             "/api/stock-accounts",
             "/api/crypto-accounts",
         }:
             response = AccountResponseSerializer(many=self.method == "GET")
-        elif family_path == "/api/investments/history":
-            response = SnapshotResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/portfolio":
             response = PortfolioResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/real-estate":

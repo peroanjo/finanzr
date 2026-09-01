@@ -25,34 +25,84 @@ vi.mock("../components/AccountSnapshotChart.vue", () => ({
 const apiMock = vi.mocked(api);
 const accounts = [
   {
-    id: 1,
-    nombre: "Indexados",
-    plataforma: "MyInvestor",
-    tipo: "Fondos indexados",
+    id: "11111111-1111-1111-1111-111111111111",
+    name: "Indexados",
+    platform: "MyInvestor",
+    type: "Fondos indexados",
+    currency: "EUR",
   },
   {
-    id: 2,
-    nombre: "Gestionada",
-    plataforma: "Finizens",
-    tipo: "Cartera gestionada",
+    id: "22222222-2222-2222-2222-222222222222",
+    name: "Gestionada",
+    platform: "Finizens",
+    type: "Cartera gestionada",
+    currency: "EUR",
   },
 ];
 const history = [
-  { fecha: "2026-05-31", cuenta_id: 1, valor: 2000, aporte: 0, intereses: 40 },
-  { fecha: "2026-05-31", cuenta_id: 2, valor: 3000, aporte: 0, intereses: -20 },
   {
-    fecha: "2026-06-30",
-    cuenta_id: 1,
-    valor: 2500,
-    aporte: 450,
-    intereses: 50,
+    id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    account_id: "11111111-1111-1111-1111-111111111111",
+    date: "2026-05-31",
+    value: 2000,
+    value_original: 2000,
+    contribution: 0,
+    contribution_original: 0,
+    interest: 40,
+    interest_original: 40,
+    currency: "EUR",
+    base_currency: "EUR",
+    exchange_rate: 1,
+    exchange_rate_date: "2026-05-31",
+    exchange_rate_source: "identity",
   },
   {
-    fecha: "2026-06-30",
-    cuenta_id: 2,
-    valor: 3200,
-    aporte: 250,
-    intereses: -50,
+    id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    account_id: "22222222-2222-2222-2222-222222222222",
+    date: "2026-05-31",
+    value: 3000,
+    value_original: 3000,
+    contribution: 0,
+    contribution_original: 0,
+    interest: -20,
+    interest_original: -20,
+    currency: "EUR",
+    base_currency: "EUR",
+    exchange_rate: 1,
+    exchange_rate_date: "2026-05-31",
+    exchange_rate_source: "identity",
+  },
+  {
+    id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    account_id: "11111111-1111-1111-1111-111111111111",
+    date: "2026-06-30",
+    value: 2500,
+    value_original: 2500,
+    contribution: 450,
+    contribution_original: 450,
+    interest: 50,
+    interest_original: 50,
+    currency: "EUR",
+    base_currency: "EUR",
+    exchange_rate: 1,
+    exchange_rate_date: "2026-06-30",
+    exchange_rate_source: "identity",
+  },
+  {
+    id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+    account_id: "22222222-2222-2222-2222-222222222222",
+    date: "2026-06-30",
+    value: 3200,
+    value_original: 3200,
+    contribution: 250,
+    contribution_original: 250,
+    interest: -50,
+    interest_original: -50,
+    currency: "EUR",
+    base_currency: "EUR",
+    exchange_rate: 1,
+    exchange_rate_date: "2026-06-30",
+    exchange_rate_source: "identity",
   },
 ];
 
@@ -110,8 +160,12 @@ describe("InvestmentBalancesView", () => {
         path === "/investments/history" && init?.method === "POST",
     );
     const payload = JSON.parse(String(saveCall?.[1]?.body));
-    expect(payload).toMatchObject({ fecha: "2028-02-29", valor: 2800 });
-    expect(payload).not.toHaveProperty("intereses");
+    expect(payload).toMatchObject({
+      date: "2028-02-29",
+      account_id: accounts[0].id,
+      value: 2800,
+    });
+    expect(payload).not.toHaveProperty("interest");
   });
 
   it("renders the view in English", async () => {
