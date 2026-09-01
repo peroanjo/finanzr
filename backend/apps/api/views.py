@@ -330,8 +330,8 @@ def investment_accounts(request: Request) -> Response:
         account_currency = normalize_currency(
             data.get("currency") or workspace(request).base_currency
         )
-    except CurrencyConversionError as exc:
-        return Response({"error": str(exc)}, status=400)
+    except CurrencyConversionError:
+        return Response({"error": _("The currency code is invalid")}, status=400)
     provider, provider_label = resolve_provider(str(data.get("platform", "")))
     item = Account.objects.create(
         workspace=workspace(request),
@@ -367,8 +367,8 @@ def investment_account(request: Request, account_id: UUID) -> Response:
     if "currency" in data:
         try:
             item.currency = normalize_currency(data.get("currency") or item.currency)
-        except CurrencyConversionError as exc:
-            return Response({"error": str(exc)}, status=400)
+        except CurrencyConversionError:
+            return Response({"error": _("The currency code is invalid")}, status=400)
     provider, provider_label = resolve_provider(str(data.get("platform", provider_name(item))))
     item.provider = provider
     item.provider_label = provider_label
@@ -524,8 +524,10 @@ def investment_history(request: Request) -> Response:
             snapshot_date,
             workspace=account.workspace,
         )
-    except CurrencyConversionError as exc:
-        return Response({"error": str(exc)}, status=400)
+    except CurrencyConversionError:
+        return Response(
+            {"error": _("Currency conversion is unavailable for this date")}, status=400
+        )
     item, _created = AccountSnapshot.objects.update_or_create(
         account=account,
         date=snapshot_date,

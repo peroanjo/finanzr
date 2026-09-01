@@ -992,8 +992,10 @@ def test_manual_investment_account_and_snapshot_can_be_updated(
     assert closed.status_code == 201
     assert closed.json()["date"] == "2028-02-29"
     assert isinstance(closed.json()["interest"], float)
-    assert client.delete(f"/api/investments/history/{account['id']}/2028-02-29").status_code == 200
-    assert client.delete(f"/api/investments/accounts/{account['id']}").status_code == 200
+    deleted_history = client.delete(f"/api/investments/history/{account['id']}/2028-02-29")
+    assert deleted_history.status_code == 200
+    deleted_account = client.delete(f"/api/investments/accounts/{account['id']}")
+    assert deleted_account.status_code == 200
     assert not Account.objects.filter(pk=account["id"]).exists()
 
 
