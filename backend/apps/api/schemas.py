@@ -261,17 +261,20 @@ class NativeInvestmentSnapshotResponseSerializer(serializers.Serializer[dict[str
     exchange_rate_source = serializers.CharField()
 
 
-class PortfolioRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    nombre = serializers.CharField(required=True)
-    tipo_renta = serializers.CharField(required=False)
-    subtipo = serializers.CharField(required=False)
-    plataforma = serializers.CharField(required=False)
-    efectivo = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+class ManualAssetRequestSerializer(StrictSerializer):
+    name = serializers.CharField(required=True, allow_blank=False, max_length=200)
+    asset_class = serializers.CharField(required=True, allow_blank=False, max_length=80)
+    subtype = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    platform = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    value = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
 
 
-class PortfolioUpdateRequestSerializer(PortfolioRequestSerializer):
-    nombre = serializers.CharField(required=False)
-    efectivo = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
+class ManualAssetUpdateRequestSerializer(StrictSerializer):
+    name = serializers.CharField(required=False, allow_blank=False, max_length=200)
+    asset_class = serializers.CharField(required=False, allow_blank=False, max_length=80)
+    subtype = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    platform = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    value = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
 
 
 class RealEstateRequestSerializer(serializers.Serializer[dict[str, Any]]):
@@ -386,14 +389,14 @@ class CalculatorResponseSerializer(serializers.Serializer[dict[str, Any]]):
     aportar = serializers.BooleanField()
 
 
-class PortfolioResponseSerializer(serializers.Serializer[dict[str, Any]]):
-    id = serializers.IntegerField()
-    nombre = serializers.CharField()
-    tipo_renta = serializers.CharField()
-    subtipo = serializers.CharField()
-    plataforma = serializers.CharField()
-    efectivo = serializers.DecimalField(max_digits=24, decimal_places=8)
-    moneda = serializers.CharField()
+class ManualAssetResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    asset_class = serializers.CharField()
+    subtype = serializers.CharField()
+    platform = serializers.CharField()
+    value = serializers.FloatField()
+    currency = serializers.CharField()
 
 
 class TransactionResponseSerializer(serializers.Serializer[dict[str, Any]]):

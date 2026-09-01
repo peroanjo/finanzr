@@ -32,10 +32,13 @@ from apps.api.legacy import (
     real_estate_row,
     transaction_row,
 )
+from apps.api.portfolio_projection import manual_asset_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.api.schemas import (
     InvestmentAccountRequestSerializer,
     InvestmentAccountUpdateRequestSerializer,
+    ManualAssetRequestSerializer,
+    ManualAssetUpdateRequestSerializer,
     NativeInvestmentSnapshotRequestSerializer,
     NativeSavingsSnapshotRequestSerializer,
     SavingsAccountRequestSerializer,
@@ -999,57 +1002,54 @@ def net_worth_history(request: Request) -> Response:
 @api_view(["GET", "POST"])
 def portfolio(request: Request) -> Response:
     current_workspace = workspace(request)
-    items = ManualAsset.objects.filter(workspace=current_workspace, archived_at__isnull=True)
+    items = ManualAsset.objects.filter(
+        workspace=current_workspace, archived_at__isnull=True
+    ).select_related("provider")
     if request.method == "POST":
         if denied := forbidden_if_readonly(request):
             return denied
-        data = payload(request)
+        serializer = ManualAssetRequestSerializer(data=payload(request))
+        if not serializer.is_valid():
+            return Response({"error": serializer.errors}, status=400)
+        data = serializer.validated_data
+        provider, provider_label = resolve_provider(str(data.get("platform", "")))
         item = ManualAsset.objects.create(
             workspace=current_workspace,
-            legacy_id=next_legacy_id(items),
-            name=str(data["nombre"]),
-            asset_class=str(data.get("tipo_renta", "")),
-            subtype=str(data.get("subtipo", "")),
-            provider_label=str(data.get("plataforma", "")),
-            value=decimal(data["efectivo"]),
+            name=data["name"].strip(),
+            asset_class=data["asset_class"].strip(),
+            subtype=str(data.get("subtype", "")).strip(),
+            provider=provider,
+            provider_label=provider_label,
+            value=data["value"],
             currency=normalize_currency(current_workspace.base_currency),
             valued_at=date.today(),
         )
         return Response(manual_asset_row(item), status=201)
-    return Response([manual_asset_row(item) for item in items.order_by("legacy_id")])
-
-
-def manual_asset_row(item: ManualAsset) -> dict[str, Any]:
-    return {
-        "id": item.legacy_id,
-        "nombre": item.name,
-        "tipo_renta": item.asset_class,
-        "subtipo": item.subtype,
-        "plataforma": provider_name(item),
-        "efectivo": number(item.value),
-        "moneda": item.currency,
-    }
+    return Response([manual_asset_row(item) for item in items.order_by("name", "id")])
 
 
 @api_view(["PUT", "DELETE"])
-def portfolio_detail(request: Request, legacy_id: int) -> Response:
+def portfolio_detail(request: Request, asset_id: UUID) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    item = get_object_or_404(ManualAsset, workspace=workspace(request), legacy_id=legacy_id)
+    item = get_object_or_404(ManualAsset, workspace=workspace(request), pk=asset_id)
     if request.method == "DELETE":
         item.delete()
         return Response({"ok": True})
-    data = payload(request)
-    for source, target in (
-        ("nombre", "name"),
-        ("tipo_renta", "asset_class"),
-        ("subtipo", "subtype"),
-        ("plataforma", "provider_label"),
-    ):
-        if source in data:
-            setattr(item, target, str(data[source]))
-    if "efectivo" in data:
-        item.value = decimal(data["efectivo"])
+    serializer = ManualAssetUpdateRequestSerializer(data=payload(request))
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
+    if "name" in data:
+        item.name = data["name"].strip()
+    if "asset_class" in data:
+        item.asset_class = data["asset_class"].strip()
+    if "subtype" in data:
+        item.subtype = data["subtype"].strip()
+    if "platform" in data:
+        item.provider, item.provider_label = resolve_provider(str(data["platform"]))
+    if "value" in data:
+        item.value = data["value"]
     item.save()
     return Response(manual_asset_row(item))
 
@@ -1957,13 +1957,13 @@ def portfolio_analysis(request: Request) -> Response:
         platform = provider_name(item)
         result.append(
             {
-                "id": f"manual:{item.legacy_id}",
+                "id": f"manual:{item.pk}",
                 "nombre": item.name,
                 "identificador": "",
                 "clase": item.asset_class or "Otros",
                 "subtipo": item.subtype or "Posición manual",
                 "cuenta": platform or "Posiciones manuales",
-                "cuenta_id": f"manual:{item.legacy_id}",
+                "cuenta_id": f"manual:{item.pk}",
                 "plataforma": platform or "Manual",
                 "valor": value,
                 "origen": "manual",
