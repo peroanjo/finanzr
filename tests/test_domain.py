@@ -2,6 +2,7 @@
 
 import math
 import unittest
+from uuid import UUID
 
 from finanzr.domain.account_performance import calculate_account_performance
 from finanzr.domain.crypto import calculate_crypto_positions
@@ -50,6 +51,27 @@ class TestNetWorthDomain(unittest.TestCase):
         result = monthly_pnl(
             history,
             account_id=1,
+            date="2026-02-28",
+            value="1250",
+            contribution="100",
+            explicit_pnl=None,
+        )
+
+        self.assertEqual(result, 150.0)
+
+    def test_monthly_investment_pnl_accepts_uuid_native_account_ids(self):
+        account_id = UUID("11111111-1111-1111-1111-111111111111")
+        history = [
+            {
+                "fecha": "2026-01-31",
+                "cuenta_id": str(account_id),
+                "valor": "1000",
+            }
+        ]
+
+        result = monthly_pnl(
+            history,
+            account_id=account_id,
             date="2026-02-28",
             value="1250",
             contribution="100",

@@ -1,5 +1,6 @@
 from decimal import Decimal
 from io import StringIO
+from uuid import UUID
 
 import pytest
 from apps.accounts.models import Account
@@ -43,7 +44,34 @@ def test_seed_demo_data_is_idempotent_and_serves_representative_sections() -> No
     assert login.status_code == 200
     assert login.json()["role"] == "demo"
     assert len(client.get("/api/savings/accounts").json()) == 3
-    assert len(client.get("/api/investments/accounts").json()) == 3
+    investment_accounts = client.get("/api/investments/accounts").json()
+    assert len(investment_accounts) == 3
+    assert all(
+        set(item) == {"id", "name", "platform", "type", "currency"} and UUID(item["id"])
+        for item in investment_accounts
+    )
+    investment_history = client.get("/api/investments/history").json()
+    assert investment_history
+    assert all(
+        set(item)
+        == {
+            "id",
+            "account_id",
+            "date",
+            "value",
+            "value_original",
+            "contribution",
+            "contribution_original",
+            "interest",
+            "interest_original",
+            "currency",
+            "base_currency",
+            "exchange_rate",
+            "exchange_rate_date",
+            "exchange_rate_source",
+        }
+        for item in investment_history
+    )
     assert len(client.get("/api/fund-analysis").json()) == 4
     assert len(client.get("/api/stock-analysis").json()) == 4
     assert len(client.get("/api/crypto-analysis").json()) == 2

@@ -19,6 +19,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
+from apps.api.investment_projection import investment_account_row, investment_snapshot_row
 from apps.api.legacy import (
     account_id,
     account_row,
@@ -29,11 +30,13 @@ from apps.api.legacy import (
     price_row,
     provider_name,
     real_estate_row,
-    snapshot_row,
     transaction_row,
 )
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.api.schemas import (
+    InvestmentAccountRequestSerializer,
+    InvestmentAccountUpdateRequestSerializer,
+    NativeInvestmentSnapshotRequestSerializer,
     NativeSavingsSnapshotRequestSerializer,
     SavingsAccountRequestSerializer,
     SavingsAccountUpdateRequestSerializer,
@@ -153,6 +156,10 @@ def find_account(request: Request, kind: str, legacy_id: int) -> Account:
 
 def find_savings_account(request: Request, account_id: UUID) -> Account:
     return get_object_or_404(kind_accounts(request, Account.Kind.SAVINGS), pk=account_id)
+
+
+def find_manual_investment_account(request: Request, account_id: UUID) -> Account:
+    return get_object_or_404(kind_accounts(request, Account.Kind.MANUAL_INVESTMENT), pk=account_id)
 
 
 def resolve_provider(label: str) -> tuple[FinancialProvider | None, str]:
@@ -310,12 +317,64 @@ def savings_account(request: Request, account_id: UUID) -> Response:
 
 @api_view(["GET", "POST"])
 def investment_accounts(request: Request) -> Response:
-    return account_collection(request, Account.Kind.MANUAL_INVESTMENT, "plataforma")
+    accounts = kind_accounts(request, Account.Kind.MANUAL_INVESTMENT)
+    if request.method == "GET":
+        return Response([investment_account_row(item) for item in accounts])
+    if denied := forbidden_if_readonly(request):
+        return denied
+    serializer = InvestmentAccountRequestSerializer(data=payload(request))
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
+    try:
+        account_currency = normalize_currency(
+            data.get("currency") or workspace(request).base_currency
+        )
+    except CurrencyConversionError as exc:
+        return Response({"error": str(exc)}, status=400)
+    provider, provider_label = resolve_provider(str(data.get("platform", "")))
+    item = Account.objects.create(
+        workspace=workspace(request),
+        name=data["name"].strip(),
+        kind=Account.Kind.MANUAL_INVESTMENT,
+        subtype=str(data.get("type", "")).strip(),
+        provider=provider,
+        provider_label=provider_label,
+        currency=account_currency,
+        external_id=None,
+    )
+    cache.clear()
+    return Response(investment_account_row(item), status=201)
 
 
 @api_view(["PUT", "DELETE"])
-def investment_account(request: Request, legacy_id: int) -> Response:
-    return account_detail(request, Account.Kind.MANUAL_INVESTMENT, legacy_id, "plataforma")
+def investment_account(request: Request, account_id: UUID) -> Response:
+    if denied := forbidden_if_readonly(request):
+        return denied
+    item = find_manual_investment_account(request, account_id)
+    if request.method == "DELETE":
+        item.transactions.all().delete()
+        item.snapshots.all().delete()
+        item.delete()
+        cache.clear()
+        return Response({"ok": True})
+    serializer = InvestmentAccountUpdateRequestSerializer(data=payload(request))
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
+    item.name = str(data.get("name", item.name)).strip()
+    item.subtype = str(data.get("type", item.subtype)).strip()
+    if "currency" in data:
+        try:
+            item.currency = normalize_currency(data.get("currency") or item.currency)
+        except CurrencyConversionError as exc:
+            return Response({"error": str(exc)}, status=400)
+    provider, provider_label = resolve_provider(str(data.get("platform", provider_name(item))))
+    item.provider = provider
+    item.provider_label = provider_label
+    item.save()
+    cache.clear()
+    return Response(investment_account_row(item))
 
 
 @api_view(["GET", "POST"])
@@ -346,79 +405,6 @@ def crypto_accounts(request: Request) -> Response:
 @api_view(["PUT", "DELETE"])
 def crypto_account(request: Request, legacy_id: int) -> Response:
     return account_detail(request, Account.Kind.CRYPTO, legacy_id, "plataforma")
-
-
-def snapshots(request: Request, kind: str) -> Response:
-    queryset = AccountSnapshot.objects.select_related("account").filter(
-        account__workspace=workspace(request), account__kind=kind
-    )
-    account_filter = request.query_params.get("cuenta_id")
-    if account_filter:
-        queryset = queryset.filter(account=find_account(request, kind, int(account_filter)))
-    if request.method == "GET":
-        return Response([snapshot_row(item) for item in queryset.order_by("date")])
-    if denied := forbidden_if_readonly(request):
-        return denied
-    data = payload(request)
-    account = find_account(request, kind, int(data["cuenta_id"]))
-    value_key = "saldo" if kind == Account.Kind.SAVINGS else "valor"
-    value = decimal(data[value_key])
-    contribution = decimal(data.get("aporte"))
-    earnings = data.get("intereses")
-    snapshot_date = date.fromisoformat(str(data["fecha"])[:10])
-    if kind in {Account.Kind.SAVINGS, Account.Kind.MANUAL_INVESTMENT}:
-        snapshot_date = snapshot_date.replace(
-            day=monthrange(snapshot_date.year, snapshot_date.month)[1]
-        )
-    if kind == Account.Kind.MANUAL_INVESTMENT and earnings in (None, ""):
-        records = [
-            {
-                "fecha": item.date.isoformat(),
-                "cuenta_id": account_id(item.account),
-                "valor": number(item.value),
-                "aporte": number(item.contribution),
-                "intereses": number(item.earnings),
-            }
-            for item in queryset.filter(account=account)
-        ]
-        earnings = monthly_pnl(
-            records,
-            account_id=account_id(account),
-            date=snapshot_date.isoformat(),
-            value=float(value),
-            contribution=float(contribution),
-            explicit_pnl=None,
-        )
-    try:
-        conversion = rate_to_base(
-            account.currency,
-            account.workspace.base_currency,
-            snapshot_date,
-            workspace=account.workspace,
-        )
-    except CurrencyConversionError as exc:
-        return Response({"error": str(exc)}, status=400)
-    base_value = value * conversion.rate
-    base_contribution = contribution * conversion.rate
-    base_earnings = decimal(earnings) * conversion.rate
-    item, _ = AccountSnapshot.objects.update_or_create(
-        account=account,
-        date=snapshot_date,
-        defaults={
-            "value": value,
-            "contribution": contribution,
-            "earnings": decimal(earnings),
-            "currency": normalize_currency(account.currency),
-            "base_currency": normalize_currency(account.workspace.base_currency),
-            "base_value": base_value,
-            "base_contribution": base_contribution,
-            "base_earnings": base_earnings,
-            "fx_rate_to_base": conversion.rate,
-            "fx_rate_date": conversion.rate_date,
-            "fx_source": conversion.source,
-        },
-    )
-    return Response(snapshot_row(item), status=201)
 
 
 @api_view(["GET", "POST"])
@@ -482,15 +468,94 @@ def savings_history(request: Request) -> Response:
 
 @api_view(["GET", "POST"])
 def investment_history(request: Request) -> Response:
-    return snapshots(request, Account.Kind.MANUAL_INVESTMENT)
+    queryset = AccountSnapshot.objects.select_related("account").filter(
+        account__workspace=workspace(request), account__kind=Account.Kind.MANUAL_INVESTMENT
+    )
+    if "cuenta_id" in request.query_params:
+        return Response({"error": _("Use account_id for account filtering")}, status=400)
+    account_filter = request.query_params.get("account_id")
+    if account_filter:
+        try:
+            account_uuid = UUID(account_filter)
+        except ValueError:
+            return Response({"error": _("A valid account ID was expected")}, status=400)
+        account = find_manual_investment_account(request, account_uuid)
+        queryset = queryset.filter(account=account)
+    if request.method == "GET":
+        return Response([investment_snapshot_row(item) for item in queryset.order_by("date")])
+    if denied := forbidden_if_readonly(request):
+        return denied
+    serializer = NativeInvestmentSnapshotRequestSerializer(data=payload(request))
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
+    account = find_manual_investment_account(request, data["account_id"])
+    snapshot_date = data["date"].replace(day=monthrange(data["date"].year, data["date"].month)[1])
+    value = data["value"]
+    contribution = data["contribution"]
+    if "interest" in data:
+        earnings = data["interest"]
+    else:
+        records = [
+            {
+                "fecha": item.date.isoformat(),
+                "cuenta_id": str(item.account_id),
+                "valor": item.value,
+                "aporte": item.contribution,
+            }
+            for item in queryset.filter(account=account)
+        ]
+        earnings = Decimal(
+            str(
+                monthly_pnl(
+                    records,
+                    account_id=account.id,
+                    date=snapshot_date.isoformat(),
+                    value=value,
+                    contribution=contribution,
+                    explicit_pnl=None,
+                )
+            )
+        )
+    try:
+        conversion = rate_to_base(
+            account.currency,
+            account.workspace.base_currency,
+            snapshot_date,
+            workspace=account.workspace,
+        )
+    except CurrencyConversionError as exc:
+        return Response({"error": str(exc)}, status=400)
+    item, _created = AccountSnapshot.objects.update_or_create(
+        account=account,
+        date=snapshot_date,
+        defaults={
+            "value": value,
+            "contribution": contribution,
+            "earnings": earnings,
+            "currency": normalize_currency(account.currency),
+            "base_currency": normalize_currency(account.workspace.base_currency),
+            "base_value": value * conversion.rate,
+            "base_contribution": contribution * conversion.rate,
+            "base_earnings": earnings * conversion.rate,
+            "fx_rate_to_base": conversion.rate,
+            "fx_rate_date": conversion.rate_date,
+            "fx_source": conversion.source,
+        },
+    )
+    return Response(investment_snapshot_row(item), status=201)
 
 
 @api_view(["DELETE"])
-def snapshot_detail(request: Request, kind: str, legacy_id: int, value_date: str) -> Response:
+def investment_snapshot_detail(request: Request, account_id: UUID, value_date: str) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
+    try:
+        snapshot_date = date.fromisoformat(value_date)
+    except ValueError:
+        return Response({"error": _("A valid date was expected")}, status=400)
     AccountSnapshot.objects.filter(
-        account=find_account(request, kind, legacy_id), date=value_date
+        account=find_manual_investment_account(request, account_id), date=snapshot_date
     ).delete()
     return Response({"ok": True})
 

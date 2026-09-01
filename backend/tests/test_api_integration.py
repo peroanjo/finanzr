@@ -830,6 +830,39 @@ def test_workspace_export_includes_legacy_and_native_savings_rows(
         format="json",
     )
     Account.objects.filter(pk=archived["id"]).update(archived_at=timezone.now())
+    native_investment = client.post(
+        "/api/investments/accounts",
+        {"name": "Native export investment", "platform": "Broker", "type": "Managed"},
+        format="json",
+    ).json()
+    client.post(
+        "/api/investments/history",
+        {
+            "account_id": native_investment["id"],
+            "date": "2026-02-01",
+            "value": 700,
+            "contribution": 100,
+            "interest": 10,
+        },
+        format="json",
+    )
+    archived_investment = client.post(
+        "/api/investments/accounts",
+        {"name": "Archived export investment", "platform": "Broker", "type": "Managed"},
+        format="json",
+    ).json()
+    client.post(
+        "/api/investments/history",
+        {
+            "account_id": archived_investment["id"],
+            "date": "2026-03-01",
+            "value": 321,
+            "contribution": 20,
+            "interest": -2,
+        },
+        format="json",
+    )
+    Account.objects.filter(pk=archived_investment["id"]).update(archived_at=timezone.now())
     exported = client.get("/api/account/export")
 
     assert exported.status_code == 200
@@ -873,7 +906,47 @@ def test_workspace_export_includes_legacy_and_native_savings_rows(
         }
         for item in data["savings_history"]
     )
-    assert data["investment_accounts"][0]["nombre"] == "Synthetic investment"
+    investment_legacy = Account.objects.get(external_id="legacy:manual_investment:1")
+    assert {item["name"] for item in data["investment_accounts"]} == {
+        "Synthetic investment",
+        "Native export investment",
+        "Archived export investment",
+    }
+    assert all(
+        set(item) == {"id", "name", "platform", "type", "currency"}
+        for item in data["investment_accounts"]
+    )
+    assert {item["account_id"] for item in data["investment_history"]} == {
+        str(investment_legacy.id),
+        native_investment["id"],
+        archived_investment["id"],
+    }
+    assert {item["account_id"]: item["value_original"] for item in data["investment_history"]} == {
+        str(investment_legacy.id): 500,
+        native_investment["id"]: 700,
+        archived_investment["id"]: 321,
+    }
+    assert all(
+        set(item)
+        == {
+            "id",
+            "account_id",
+            "date",
+            "value",
+            "value_original",
+            "contribution",
+            "contribution_original",
+            "interest",
+            "interest_original",
+            "currency",
+            "base_currency",
+            "exchange_rate",
+            "exchange_rate_date",
+            "exchange_rate_source",
+        }
+        for item in data["investment_history"]
+    )
+    assert client.get("/api/summary").json()["total_investments"] == 1521
     assert client.get("/api/summary").json()["total_savings"] == 1521
 
 
@@ -883,32 +956,293 @@ def test_manual_investment_account_and_snapshot_can_be_updated(
 ) -> None:
     client, _ = api_context
     account = client.get("/api/investments/accounts").json()[0]
+    assert set(account) == {"id", "name", "platform", "type", "currency"}
+    UUID(account["id"])
+    assert (
+        client.post(
+            "/api/investments/accounts",
+            {"nombre": "Legacy account"},
+            format="json",
+        ).status_code
+        == 400
+    )
 
     edited = client.put(
         f"/api/investments/accounts/{account['id']}",
         {
-            "nombre": f"{account['nombre']} manual",
-            "plataforma": account["plataforma"],
-            "tipo": account["tipo"],
+            "name": f"{account['name']} manual",
+            "platform": account["platform"],
+            "type": account["type"],
         },
         format="json",
     )
     closed = client.post(
         "/api/investments/history",
         {
-            "fecha": "2028-02-01",
-            "cuenta_id": account["id"],
-            "valor": 40000,
-            "aporte": 500,
+            "date": "2028-02-01",
+            "account_id": account["id"],
+            "value": 40000,
+            "contribution": 500,
         },
         format="json",
     )
 
     assert edited.status_code == 200
-    assert edited.json()["nombre"].endswith(" manual")
+    assert edited.json()["name"].endswith(" manual")
     assert closed.status_code == 201
-    assert closed.json()["fecha"] == "2028-02-29"
-    assert isinstance(closed.json()["intereses"], float)
+    assert closed.json()["date"] == "2028-02-29"
+    assert isinstance(closed.json()["interest"], float)
+    assert client.delete(f"/api/investments/history/{account['id']}/2028-02-29").status_code == 200
+    assert client.delete(f"/api/investments/accounts/{account['id']}").status_code == 200
+    assert not Account.objects.filter(pk=account["id"]).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_investment_native_contract_calculates_or_accepts_interest(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    created = client.post(
+        "/api/investments/accounts",
+        {"name": "Native investment", "platform": "Broker", "type": "Managed"},
+        format="json",
+    )
+    assert created.status_code == 201
+    account = created.json()
+    assert set(account) == {"id", "name", "platform", "type", "currency"}
+    UUID(account["id"])
+    assert Account.objects.get(pk=account["id"]).external_id is None
+
+    first = client.post(
+        "/api/investments/history",
+        {"account_id": account["id"], "date": "2028-01-01", "value": 1000},
+        format="json",
+    )
+    calculated = client.post(
+        "/api/investments/history",
+        {
+            "account_id": account["id"],
+            "date": "2028-02-01",
+            "value": 1250,
+            "contribution": 100,
+        },
+        format="json",
+    )
+    explicit = client.post(
+        "/api/investments/history",
+        {
+            "account_id": account["id"],
+            "date": "2028-03-01",
+            "value": 1300,
+            "contribution": 20,
+            "interest": -7.5,
+        },
+        format="json",
+    )
+
+    assert first.status_code == calculated.status_code == explicit.status_code == 201
+    assert set(calculated.json()) == {
+        "id",
+        "account_id",
+        "date",
+        "value",
+        "value_original",
+        "contribution",
+        "contribution_original",
+        "interest",
+        "interest_original",
+        "currency",
+        "base_currency",
+        "exchange_rate",
+        "exchange_rate_date",
+        "exchange_rate_source",
+    }
+    assert calculated.json()["interest_original"] == 150
+    assert explicit.json()["interest_original"] == -7.5
+    assert client.get("/api/investments/history?cuenta_id=1").status_code == 400
+    filtered = client.get(f"/api/investments/history?account_id={account['id']}")
+    assert filtered.status_code == 200
+    assert {row["account_id"] for row in filtered.json()} == {account["id"]}
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_investment_native_distinguishes_implicit_zero_and_upserts_stably(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    account = client.post(
+        "/api/investments/accounts",
+        {"name": "Decimal investment", "platform": "Broker"},
+        format="json",
+    ).json()
+
+    seed = client.post(
+        "/api/investments/history",
+        {
+            "account_id": account["id"],
+            "date": "2028-01-01",
+            "value": "1000.005",
+            "contribution": "0.005",
+            "interest": 0,
+        },
+        format="json",
+    )
+    implicit = client.post(
+        "/api/investments/history",
+        {
+            "account_id": account["id"],
+            "date": "2028-02-01",
+            "value": "1100.016",
+            "contribution": "100.005",
+        },
+        format="json",
+    )
+    explicit_zero = client.post(
+        "/api/investments/history",
+        {
+            "account_id": account["id"],
+            "date": "2028-02-15",
+            "value": "1100.026",
+            "contribution": "100.005",
+            "interest": 0,
+        },
+        format="json",
+    )
+
+    assert seed.status_code == implicit.status_code == explicit_zero.status_code == 201
+    assert seed.json()["value_original"] == pytest.approx(1000.005)
+    assert seed.json()["interest_original"] == 0
+    assert implicit.json()["date"] == "2028-02-29"
+    assert implicit.json()["value_original"] == pytest.approx(1100.016)
+    assert implicit.json()["contribution_original"] == pytest.approx(100.005)
+    assert implicit.json()["interest_original"] == pytest.approx(0.01)
+
+    assert explicit_zero.json()["date"] == "2028-02-29"
+    assert explicit_zero.json()["id"] == implicit.json()["id"]
+    assert explicit_zero.json()["value_original"] == pytest.approx(1100.026)
+    assert explicit_zero.json()["interest_original"] == 0
+    assert AccountSnapshot.objects.filter(account_id=account["id"], date="2028-02-29").count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_investment_native_snapshot_preserves_currency_conversion(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    monkeypatch.setattr(
+        views,
+        "rate_to_base",
+        lambda *_args, **_kwargs: FxConversion(Decimal("0.9"), date(2028, 1, 31), "synthetic"),
+    )
+    account = client.post(
+        "/api/investments/accounts",
+        {"name": "USD investment", "platform": "Broker", "currency": "USD"},
+        format="json",
+    ).json()
+    response = client.post(
+        "/api/investments/history",
+        {
+            "account_id": account["id"],
+            "date": "2028-01-01",
+            "value": 100,
+            "contribution": 10,
+            "interest": 5,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["value"] == 90
+    assert response.json()["value_original"] == 100
+    assert response.json()["contribution"] == 9
+    assert response.json()["interest"] == 4.5
+    assert response.json()["currency"] == "USD"
+    assert response.json()["base_currency"] == "EUR"
+    assert response.json()["exchange_rate"] == 0.9
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_investment_native_rejects_legacy_and_out_of_scope_identifiers(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    account_id = client.get("/api/investments/accounts").json()[0]["id"]
+    savings_id = client.get("/api/savings/accounts").json()[0]["id"]
+    foreign_workspace = Workspace.objects.create(
+        name="Foreign investment workspace", slug="foreign-investment", base_currency="EUR"
+    )
+    foreign_account = Account.objects.create(
+        workspace=foreign_workspace,
+        name="Foreign investment",
+        kind=Account.Kind.MANUAL_INVESTMENT,
+        external_id=None,
+    )
+
+    assert client.get("/api/investments/history?account_id=not-a-uuid").status_code == 400
+    assert client.get("/api/investments/accounts/1").status_code == 404
+    assert (
+        client.put(
+            f"/api/investments/accounts/{savings_id}",
+            {"name": "Wrong type"},
+            format="json",
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/investments/history",
+            {"account_id": savings_id, "date": "2028-01-01", "value": 100},
+            format="json",
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(f"/api/investments/history?account_id={foreign_account.id}").status_code == 404
+    )
+    assert (
+        client.put(
+            f"/api/investments/accounts/{foreign_account.id}",
+            {"name": "Should remain hidden"},
+            format="json",
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/investments/history",
+            {"fecha": "2028-01-01", "cuenta_id": account_id, "valor": 100},
+            format="json",
+        ).status_code
+        == 400
+    )
+    invalid_date = client.delete(f"/api/investments/history/{account_id}/2028-02-30")
+    assert invalid_date.status_code == 400
+    assert invalid_date.json()["error"]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_investment_native_account_fields_enforce_model_lengths(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    account_id = client.get("/api/investments/accounts").json()[0]["id"]
+    for field, value in (
+        ("name", "N" * 161),
+        ("platform", "P" * 161),
+        ("type", "T" * 81),
+    ):
+        created = client.post(
+            "/api/investments/accounts",
+            {"name": "Valid", field: value},
+            format="json",
+        )
+        updated = client.put(
+            f"/api/investments/accounts/{account_id}",
+            {field: value},
+            format="json",
+        )
+        assert created.status_code == 400
+        assert updated.status_code == 400
 
 
 @pytest.mark.django_db(transaction=True)

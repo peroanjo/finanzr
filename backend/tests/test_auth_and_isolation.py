@@ -184,6 +184,31 @@ def test_viewer_cannot_write_and_editor_can() -> None:
         == 403
     )
 
+    client.force_authenticate(editor)
+    investment = client.post(
+        "/api/investments/accounts",
+        {"name": "Investment account", "platform": "Broker", "type": "Managed"},
+        format="json",
+    )
+    assert investment.status_code == 201
+    client.force_authenticate(viewer)
+    assert (
+        client.post(
+            "/api/investments/history",
+            {"account_id": investment.json()["id"], "date": "2026-07-31", "value": 100},
+            format="json",
+        ).status_code
+        == 403
+    )
+    assert (
+        client.put(
+            f"/api/investments/accounts/{investment.json()['id']}",
+            {"name": "No update"},
+            format="json",
+        ).status_code
+        == 403
+    )
+
 
 @pytest.mark.django_db
 def test_user_can_change_own_email_and_password_but_demo_cannot() -> None:
