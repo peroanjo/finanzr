@@ -64,12 +64,12 @@ or a deployment secret store, never through fixtures or source control.
    language, with English as the technical fallback.
 
 The workspace export is currently `finanzr-workspace-v2`. This document-level
-version records the savings and manual-investment API cutovers: savings and
-manual-investment accounts and snapshots use UUID identifiers and English
-fields, including legacy rows read from the database, while retaining archived
-history for complete exports. The remaining fund, stock and crypto sections
-retain their existing export shapes until their own reviewed API migrations;
-there is no parallel HTTP compatibility route.
+version records the savings, manual-investment, and manual-portfolio API
+cutovers: these resources use UUID identifiers and English fields, including
+legacy rows read from the database, while retaining archived history for
+complete exports. The remaining fund, stock and crypto sections retain their
+existing export shapes until their own reviewed API migrations; there is no
+parallel HTTP compatibility route.
 
 ## Deployment shape
 

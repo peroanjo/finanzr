@@ -40,7 +40,7 @@ urlpatterns = [
         views.investment_snapshot_detail,
     ),
     path("portfolio", views.portfolio),
-    path("portfolio/<int:legacy_id>", views.portfolio_detail),
+    path("portfolio/<uuid:asset_id>", views.portfolio_detail),
     path("portfolio-analysis", views.portfolio_analysis),
     path("real-estate", views.real_estate),
     path("real-estate/<int:legacy_id>", views.real_estate_detail),

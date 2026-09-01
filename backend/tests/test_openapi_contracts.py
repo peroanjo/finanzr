@@ -181,6 +181,41 @@ class OpenApiMutationContractTests(SimpleTestCase):
         )
         assert investment_value_date["schema"] == {"type": "string", "format": "date"}
 
+        portfolio = self._request_schema(document, "/api/portfolio", "post")
+        assert set(portfolio["required"]) == {"name", "asset_class", "value"}
+        assert set(portfolio["properties"]) == {
+            "name",
+            "asset_class",
+            "subtype",
+            "platform",
+            "value",
+        }
+        assert portfolio["properties"]["name"]["maxLength"] == 200
+        assert portfolio["properties"]["asset_class"]["maxLength"] == 80
+        assert portfolio["properties"]["subtype"]["maxLength"] == 120
+        assert portfolio["properties"]["platform"]["maxLength"] == 160
+        assert "required" not in self._request_schema(document, "/api/portfolio/{asset_id}", "put")
+        portfolio_parameter = document["paths"]["/api/portfolio/{asset_id}"]["put"]["parameters"][0]
+        assert portfolio_parameter["name"] == "asset_id"
+        assert portfolio_parameter["schema"] == {"type": "string", "format": "uuid"}
+        portfolio_response = document["paths"]["/api/portfolio"]["get"]["responses"]["200"]
+        portfolio_response_schema = self._resolve(
+            document, portfolio_response["content"]["application/json"]["schema"]["items"]
+        )
+        assert set(portfolio_response_schema["properties"]) == {
+            "id",
+            "name",
+            "asset_class",
+            "subtype",
+            "platform",
+            "value",
+            "currency",
+        }
+        assert portfolio_response_schema["properties"]["id"] == {
+            "type": "string",
+            "format": "uuid",
+        }
+
         calculator = document["paths"]["/api/calculator"]["post"]
         calculator_properties = self._resolve(
             document, calculator["requestBody"]["content"]["application/json"]["schema"]

@@ -40,6 +40,9 @@ from apps.api.schemas import (
     InvitationSerializer,
     IsinInstrumentRequestSerializer,
     LoginRequestSerializer,
+    ManualAssetRequestSerializer,
+    ManualAssetResponseSerializer,
+    ManualAssetUpdateRequestSerializer,
     NativeInvestmentAccountResponseSerializer,
     NativeInvestmentSnapshotRequestSerializer,
     NativeInvestmentSnapshotResponseSerializer,
@@ -50,9 +53,6 @@ from apps.api.schemas import (
     PasswordRequestSerializer,
     PasswordResetConfirmRequestSerializer,
     PasswordResetRequestSerializer,
-    PortfolioRequestSerializer,
-    PortfolioResponseSerializer,
-    PortfolioUpdateRequestSerializer,
     PreferencesRequestSerializer,
     PriceRequestSerializer,
     PriceResponseSerializer,
@@ -270,7 +270,9 @@ class PublicAutoSchema(AutoSchema):
             return FinancialAccountRequestSerializer()
         if family_path == "/api/portfolio":
             return (
-                PortfolioUpdateRequestSerializer() if "{" in path else PortfolioRequestSerializer()
+                ManualAssetUpdateRequestSerializer()
+                if "{" in path
+                else ManualAssetRequestSerializer()
             )
         if family_path == "/api/real-estate":
             return (
@@ -342,7 +344,7 @@ class PublicAutoSchema(AutoSchema):
         }:
             response = AccountResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/portfolio":
-            response = PortfolioResponseSerializer(many=self.method == "GET")
+            response = ManualAssetResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/real-estate":
             response = RealEstateResponseSerializer(many=self.method == "GET")
         elif family_path in {"/api/orders", "/api/stock-orders", "/api/crypto-orders"}:

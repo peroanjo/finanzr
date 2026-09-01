@@ -75,7 +75,7 @@ def test_implicit_amounts_are_labeled_with_the_workspace_currency() -> None:
 
     portfolio = client.post(
         "/api/portfolio",
-        {"nombre": "Emergency fund", "tipo_renta": "Cash", "efectivo": 500},
+        {"name": "Emergency fund", "asset_class": "Cash", "value": 500},
         format="json",
     )
     budget = client.put(
@@ -96,7 +96,7 @@ def test_implicit_amounts_are_labeled_with_the_workspace_currency() -> None:
 
     assert portfolio.status_code == real_estate.status_code == 201
     assert budget.status_code == 200
-    assert portfolio.json()["moneda"] == "USD"
+    assert portfolio.json()["currency"] == "USD"
     assert budget.json()[0]["moneda"] == "USD"
     assert real_estate.json()["moneda"] == "USD"
     assert ManualAsset.objects.get(workspace=workspace).currency == "USD"

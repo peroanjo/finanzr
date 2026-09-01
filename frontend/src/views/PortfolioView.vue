@@ -4,6 +4,8 @@ import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
 import AllocationChart from "../components/AllocationChart.vue";
 import type {
+  ManualAsset,
+  ManualAssetRequest,
   PortfolioAnalysisItem,
   PortfolioAnalysisResponse,
 } from "../types/api";
@@ -22,11 +24,11 @@ interface GroupedExposure {
 }
 
 interface ManualForm {
-  nombre: string;
-  tipo_renta: string;
-  subtipo: string;
-  plataforma: string;
-  efectivo: string;
+  name: string;
+  asset_class: string;
+  subtype: string;
+  platform: string;
+  value: string;
 }
 
 const palette = [
@@ -101,16 +103,16 @@ const platformFilter = ref("all");
 const sort = ref<Sort>("value");
 const manualDialog = ref<HTMLDialogElement>();
 const manualMode = ref<"create" | "edit">("create");
-const manualId = ref<number | null>(null);
+const manualId = ref<string | null>(null);
 const manualBusy = ref(false);
 const manualError = ref("");
 const manualDeleteArmed = ref(false);
 const manualForm = ref<ManualForm>({
-  nombre: "",
-  tipo_renta: "",
-  subtipo: "",
-  plataforma: "",
-  efectivo: "",
+  name: "",
+  asset_class: "",
+  subtype: "",
+  platform: "",
+  value: "",
 });
 
 const items = computed(() => portfolio.value?.items ?? []);
@@ -298,11 +300,11 @@ function openManualCreate() {
   manualMode.value = "create";
   manualId.value = null;
   manualForm.value = {
-    nombre: "",
-    tipo_renta: "",
-    subtipo: "",
-    plataforma: "",
-    efectivo: "",
+    name: "",
+    asset_class: "",
+    subtype: "",
+    platform: "",
+    value: "",
   };
   manualError.value = "";
   manualDeleteArmed.value = false;
@@ -311,14 +313,16 @@ function openManualCreate() {
 
 function openManualEdit(item: PortfolioAnalysisItem) {
   if (item.origen !== "manual") return;
+  const assetId = item.id.startsWith("manual:") ? item.id.slice(7) : "";
+  if (!assetId) return;
   manualMode.value = "edit";
-  manualId.value = Number(item.id.split(":")[1]);
+  manualId.value = assetId;
   manualForm.value = {
-    nombre: item.nombre,
-    tipo_renta: item.clase,
-    subtipo: item.subtipo,
-    plataforma: item.plataforma === "Manual" ? "" : item.plataforma,
-    efectivo: String(item.valor),
+    name: item.nombre,
+    asset_class: item.clase,
+    subtype: item.subtipo,
+    platform: item.plataforma === "Manual" ? "" : item.plataforma,
+    value: String(item.valor),
   };
   manualError.value = "";
   manualDeleteArmed.value = false;
@@ -328,15 +332,18 @@ function openManualEdit(item: PortfolioAnalysisItem) {
 async function saveManual() {
   manualBusy.value = true;
   manualError.value = "";
-  const payload = {
-    ...manualForm.value,
-    efectivo: Number(manualForm.value.efectivo),
+  const payload: ManualAssetRequest = {
+    name: manualForm.value.name,
+    asset_class: manualForm.value.asset_class,
+    subtype: manualForm.value.subtype,
+    platform: manualForm.value.platform,
+    value: Number(manualForm.value.value),
   };
   try {
     const path =
       manualId.value === null ? "/portfolio" : `/portfolio/${manualId.value}`;
     const method = manualId.value === null ? "POST" : "PUT";
-    await api(path, json(method, payload));
+    await api<ManualAsset>(path, json(method, payload));
     manualDialog.value?.close();
     await load();
   } catch (reason) {
@@ -749,29 +756,29 @@ onMounted(load);
         <div class="manual-fields">
           <label class="wide"
             ><span>{{ t("common.name") }}</span
-            ><input v-model="manualForm.nombre" required
+            ><input v-model="manualForm.name" required
           /></label>
           <label
             ><span>{{ t("portfolio.manualDialog.assetType") }}</span
             ><input
-              v-model="manualForm.tipo_renta"
+              v-model="manualForm.asset_class"
               required
               :placeholder="t('portfolio.manualDialog.assetTypePlaceholder')"
           /></label>
           <label
             ><span>{{ t("portfolio.manualDialog.subtype") }}</span
             ><input
-              v-model="manualForm.subtipo"
+              v-model="manualForm.subtype"
               :placeholder="t('portfolio.manualDialog.subtypePlaceholder')"
           /></label>
           <label
             ><span>{{ t("portfolio.manualDialog.platform") }}</span
-            ><input v-model="manualForm.plataforma"
+            ><input v-model="manualForm.platform"
           /></label>
           <label
             ><span>{{ t("portfolio.manualDialog.currentValue") }}</span
             ><input
-              v-model="manualForm.efectivo"
+              v-model="manualForm.value"
               type="number"
               min="0"
               step="0.01"

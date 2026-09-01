@@ -140,6 +140,22 @@ export interface PortfolioAnalysisResponse {
   total: number;
   items: PortfolioAnalysisItem[];
 }
+export interface ManualAsset {
+  id: string;
+  name: string;
+  asset_class: string;
+  subtype: string;
+  platform: string;
+  value: number;
+  currency: string;
+}
+export interface ManualAssetRequest {
+  name: string;
+  asset_class: string;
+  subtype?: string;
+  platform?: string;
+  value: number;
+}
 export interface SavingsAccount {
   id: string;
   name: string;
