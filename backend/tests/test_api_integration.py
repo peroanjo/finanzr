@@ -1452,7 +1452,8 @@ def test_portfolio_native_contract_isolates_uuid_scope_and_types(
     assert client.get("/api/portfolio/not-a-uuid").status_code == 404
     assert client.get("/api/portfolio/1").status_code == 404
     assert client.put("/api/portfolio/1", {}, format="json").status_code == 404
-    assert client.delete("/api/portfolio/1").status_code == 404
+    deleted_legacy_id = client.delete("/api/portfolio/1")
+    assert deleted_legacy_id.status_code == 404
     assert client.put("/api/portfolio/not-a-uuid", {}, format="json").status_code == 404
     assert (
         client.put(

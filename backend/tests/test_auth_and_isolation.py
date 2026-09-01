@@ -113,9 +113,11 @@ def test_workspace_data_is_horizontally_isolated() -> None:
         ).status_code
         == 404
     )
-    assert client.delete(f"/api/portfolio/{foreign_asset.id}").status_code == 404
+    deleted_foreign = client.delete(f"/api/portfolio/{foreign_asset.id}")
+    assert deleted_foreign.status_code == 404
     assert ManualAsset.objects.filter(pk=foreign_asset.id).exists()
-    assert client.delete(f"/api/portfolio/{own_asset.id}").status_code == 200
+    deleted_own = client.delete(f"/api/portfolio/{own_asset.id}")
+    assert deleted_own.status_code == 200
     assert not ManualAsset.objects.filter(pk=own_asset.id).exists()
 
 
@@ -259,10 +261,12 @@ def test_viewer_cannot_write_and_editor_can() -> None:
         ).status_code
         == 403
     )
-    assert client.delete(f"/api/portfolio/{manual_id}").status_code == 403
+    denied_delete = client.delete(f"/api/portfolio/{manual_id}")
+    assert denied_delete.status_code == 403
     assert ManualAsset.objects.filter(pk=manual_id).exists()
     client.force_authenticate(editor)
-    assert client.delete(f"/api/portfolio/{manual_id}").status_code == 200
+    allowed_delete = client.delete(f"/api/portfolio/{manual_id}")
+    assert allowed_delete.status_code == 200
     assert not ManualAsset.objects.filter(pk=manual_id).exists()
 
 
