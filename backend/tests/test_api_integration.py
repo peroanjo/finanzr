@@ -708,7 +708,8 @@ def test_savings_native_account_update_delete_and_summary(
         == 400
     )
     assert client.get("/api/summary").status_code == 200
-    assert client.delete(f"/api/savings/accounts/{account_id}").status_code == 200
+    deleted = client.delete(f"/api/savings/accounts/{account_id}")
+    assert deleted.status_code == 200
     assert not Account.objects.filter(pk=account_id).exists()
 
 

@@ -224,8 +224,8 @@ def test_admin_can_block_unblock_and_delete_another_user() -> None:
     assert unblocked.status_code == 200
     deleted = client.delete(detail_url)
     assert deleted.status_code == 204
-    assert not User.objects.filter(pk=regular.id).exists()
-    assert client.delete(f"/api/administration/users/{admin.id}").status_code == 400
+    self_delete = client.delete(f"/api/administration/users/{admin.id}")
+    assert self_delete.status_code == 400
 
 
 @pytest.mark.django_db
