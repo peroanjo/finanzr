@@ -141,26 +141,27 @@ export interface PortfolioAnalysisResponse {
   items: PortfolioAnalysisItem[];
 }
 export interface SavingsAccount {
-  id: number;
-  nombre: string;
-  banco: string;
-  tipo: string;
-  moneda?: string;
+  id: string;
+  name: string;
+  bank: string;
+  type: string;
+  currency: string;
 }
 export interface SavingsSnapshot {
-  fecha: string;
-  cuenta_id: number;
-  saldo: number;
-  saldo_original?: number;
-  aporte: number;
-  aporte_original?: number;
-  intereses: number;
-  intereses_original?: number;
-  moneda?: string;
-  moneda_base?: string;
-  tipo_cambio?: number;
-  fecha_tipo_cambio?: string;
-  fuente_tipo_cambio?: string;
+  id: string;
+  account_id: string;
+  date: string;
+  balance: number;
+  balance_original: number;
+  contribution: number;
+  contribution_original: number;
+  interest: number;
+  interest_original: number;
+  currency: string;
+  base_currency: string;
+  exchange_rate: number;
+  exchange_rate_date: string;
+  exchange_rate_source: string;
 }
 export interface AccountChartSeries {
   label: string;

@@ -50,7 +50,7 @@ def test_seed_demo_data_is_idempotent_and_serves_representative_sections() -> No
     assert len(client.get("/api/real-estate").json()) == 2
     blocked_write = client.post(
         "/api/savings/accounts",
-        {"nombre": "No persistir", "banco": "Demo", "tipo": "Corriente"},
+        {"name": "No persistir", "bank": "Demo", "type": "Current"},
         format="json",
     )
     assert blocked_write.status_code == 403

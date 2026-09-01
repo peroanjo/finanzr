@@ -76,7 +76,7 @@ def test_workspace_data_is_horizontally_isolated() -> None:
     Account.objects.create(
         workspace=own, name="Visible", kind="savings", external_id="legacy:savings:1"
     )
-    Account.objects.create(
+    foreign_account = Account.objects.create(
         workspace=foreign, name="Secreto", kind="savings", external_id="legacy:savings:1"
     )
     client = APIClient()
@@ -85,7 +85,15 @@ def test_workspace_data_is_horizontally_isolated() -> None:
     response = client.get("/api/savings/accounts")
 
     assert response.status_code == 200
-    assert [item["nombre"] for item in response.json()] == ["Visible"]
+    assert [item["name"] for item in response.json()] == ["Visible"]
+    assert (
+        client.put(
+            f"/api/savings/accounts/{foreign_account.id}",
+            {"name": "Should remain hidden"},
+            format="json",
+        ).status_code
+        == 404
+    )
 
 
 @pytest.mark.django_db
@@ -151,7 +159,7 @@ def test_viewer_cannot_write_and_editor_can() -> None:
     viewer = member(workspace, "viewer@example.com", "viewer")
     editor = member(workspace, "editor@example.com", "editor")
     client = APIClient()
-    body = {"nombre": "Cuenta", "banco": "Banco", "tipo": "Corriente"}
+    body = {"name": "Cuenta", "bank": "Banco", "type": "Corriente"}
 
     client.force_authenticate(viewer)
     assert client.post("/api/savings/accounts", body, format="json").status_code == 403
@@ -161,6 +169,20 @@ def test_viewer_cannot_write_and_editor_can() -> None:
     assert response.status_code == 201
     assert response["Content-Security-Policy"].startswith("default-src 'self'")
     assert AuditEvent.objects.filter(workspace=workspace, actor=editor).count() == 1
+
+    client.force_authenticate(viewer)
+    assert (
+        client.post(
+            "/api/savings/history",
+            {
+                "account_id": response.json()["id"],
+                "date": "2026-07-31",
+                "balance": 100,
+            },
+            format="json",
+        ).status_code
+        == 403
+    )
 
 
 @pytest.mark.django_db
