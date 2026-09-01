@@ -39,7 +39,7 @@ const historyAccount = ref("all");
 const accountDialog = ref<HTMLDialogElement>();
 const closeDialog = ref<HTMLDialogElement>();
 const accountMode = ref<"create" | "edit">("create");
-const editingAccountId = ref<number | null>(null);
+const editingAccountId = ref<string | null>(null);
 const accountName = ref("");
 const accountPlatform = ref("");
 const accountType = ref("Cartera gestionada");
@@ -48,7 +48,7 @@ const accountBusy = ref(false);
 const accountError = ref("");
 const accountDeleteArmed = ref(false);
 const closeMode = ref<"create" | "edit">("create");
-const closeOriginal = ref<{ accountId: number; date: string } | null>(null);
+const closeOriginal = ref<{ accountId: string; date: string } | null>(null);
 const closeAccountId = ref("");
 const closeMonth = ref(new Date().toISOString().slice(0, 7));
 const closeValue = ref("");
@@ -59,7 +59,7 @@ const closeError = ref("");
 const closeDeleteArmed = ref(false);
 
 const months = computed(() =>
-  [...new Set(history.value.map((item) => item.fecha.slice(0, 7)))].sort(),
+  [...new Set(history.value.map((item) => item.date.slice(0, 7)))].sort(),
 );
 const visibleMonths = computed(() => {
   const amount = ranges.value.find((item) => item.key === range.value)?.months;
@@ -78,20 +78,20 @@ function accountTypeLabel(value: string) {
 const rows = computed(() =>
   accounts.value.map((account, index) => {
     const snapshots = history.value
-      .filter((item) => item.cuenta_id === account.id)
-      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+      .filter((item) => item.account_id === account.id)
+      .sort((a, b) => a.date.localeCompare(b.date));
     const latest = snapshots.at(-1) ?? null;
     const previous = snapshots.at(-2) ?? null;
     const pnlTotal = snapshots.reduce(
-      (total, item) => total + item.intereses,
+      (total, item) => total + item.interest,
       0,
     );
     const contributionTotal = snapshots.reduce(
-      (total, item) => total + item.aporte,
+      (total, item) => total + item.contribution,
       0,
     );
     const base = previous
-      ? previous.valor + Math.max(latest?.aporte ?? 0, 0)
+      ? previous.value + Math.max(latest?.contribution ?? 0, 0)
       : 0;
     return {
       account,
@@ -99,13 +99,13 @@ const rows = computed(() =>
       snapshots,
       latest,
       previous,
-      value: latest?.valor ?? 0,
-      contribution: latest?.aporte ?? 0,
-      pnl: latest?.intereses ?? 0,
+      value: latest?.value ?? 0,
+      contribution: latest?.contribution ?? 0,
+      pnl: latest?.interest ?? 0,
       pnlTotal,
       contributionTotal,
-      returnRate: base ? (latest?.intereses ?? 0) / base : 0,
-      upToDate: latest?.fecha.slice(0, 7) === latestMonth.value,
+      returnRate: base ? (latest?.interest ?? 0) / base : 0,
+      upToDate: latest?.date.slice(0, 7) === latestMonth.value,
     };
   }),
 );
@@ -114,23 +114,23 @@ const totalValue = computed(() =>
 );
 const monthContribution = computed(() =>
   rows.value
-    .filter((item) => item.latest?.fecha.slice(0, 7) === latestMonth.value)
+    .filter((item) => item.latest?.date.slice(0, 7) === latestMonth.value)
     .reduce((total, item) => total + item.contribution, 0),
 );
 const monthPnl = computed(() =>
   rows.value
-    .filter((item) => item.latest?.fecha.slice(0, 7) === latestMonth.value)
+    .filter((item) => item.latest?.date.slice(0, 7) === latestMonth.value)
     .reduce((total, item) => total + item.pnl, 0),
 );
 const previousCapital = computed(() =>
-  rows.value.reduce((total, item) => total + (item.previous?.valor ?? 0), 0),
+  rows.value.reduce((total, item) => total + (item.previous?.value ?? 0), 0),
 );
 const monthReturn = computed(() => {
   const base = previousCapital.value + Math.max(monthContribution.value, 0);
   return base ? monthPnl.value / base : 0;
 });
 const accumulatedPnl = computed(() =>
-  history.value.reduce((total, item) => total + item.intereses, 0),
+  history.value.reduce((total, item) => total + item.interest, 0),
 );
 const pendingAccounts = computed(
   () => rows.value.filter((item) => !item.upToDate).length,
@@ -138,19 +138,19 @@ const pendingAccounts = computed(
 const chartLabels = computed(() => visibleMonths.value.map(monthLabel));
 const valueSeries = computed<AccountChartSeries[]>(() =>
   rows.value.map((item) => ({
-    label: item.account.nombre,
+    label: item.account.name,
     color: item.color,
     values: visibleMonths.value.map((month) => valueAt(item.snapshots, month)),
   })),
 );
 const pnlSeries = computed<AccountChartSeries[]>(() =>
   rows.value.map((item) => ({
-    label: item.account.nombre,
+    label: item.account.name,
     color: item.color,
     values: visibleMonths.value.map((month) =>
       item.snapshots
-        .filter((snapshot) => snapshot.fecha.startsWith(month))
-        .reduce((total, snapshot) => total + snapshot.intereses, 0),
+        .filter((snapshot) => snapshot.date.startsWith(month))
+        .reduce((total, snapshot) => total + snapshot.interest, 0),
     ),
   })),
 );
@@ -159,22 +159,22 @@ const displayedHistory = computed(() =>
     .filter(
       (item) =>
         historyAccount.value === "all" ||
-        String(item.cuenta_id) === historyAccount.value,
+        item.account_id === historyAccount.value,
     )
-    .sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    .sort((a, b) => b.date.localeCompare(a.date)),
 );
 const projectedPnl = computed(() => {
   if (closePnl.value !== "") return Number(closePnl.value);
   const account = rows.value.find(
-    (item) => item.account.id === Number(closeAccountId.value),
+    (item) => item.account.id === closeAccountId.value,
   );
   const closingDate = monthEndDate(closeMonth.value);
   const previous = account?.snapshots
-    .filter((item) => item.fecha < closingDate)
+    .filter((item) => item.date < closingDate)
     .at(-1);
   return (
     Number(closeValue.value || 0) -
-    (previous?.valor ?? 0) -
+    (previous?.value ?? 0) -
     Number(closeContribution.value || 0)
   );
 });
@@ -184,8 +184,8 @@ const percentage = (value: number) => n(value, "percent");
 
 function valueAt(snapshots: InvestmentSnapshot[], month: string) {
   return (
-    [...snapshots].reverse().find((item) => item.fecha.slice(0, 7) <= month)
-      ?.valor ?? 0
+    [...snapshots].reverse().find((item) => item.date.slice(0, 7) <= month)
+      ?.value ?? 0
   );
 }
 
@@ -215,14 +215,14 @@ function signedMoney(value: number) {
   return `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
 }
 
-function accountNameFor(id: number) {
+function accountNameFor(id: string) {
   return (
-    accounts.value.find((item) => item.id === id)?.nombre ??
+    accounts.value.find((item) => item.id === id)?.name ??
     t("investmentBalances.accountFallback", { id })
   );
 }
 
-function accountColor(id: number) {
+function accountColor(id: string) {
   return rows.value.find((item) => item.account.id === id)?.color ?? colors[0];
 }
 
@@ -241,10 +241,10 @@ function openAccountCreate() {
 function openAccountEdit(account: InvestmentAccount) {
   accountMode.value = "edit";
   editingAccountId.value = account.id;
-  accountName.value = account.nombre;
-  accountPlatform.value = account.plataforma;
-  accountType.value = account.tipo;
-  accountCurrency.value = account.moneda || "EUR";
+  accountName.value = account.name;
+  accountPlatform.value = account.platform;
+  accountType.value = account.type;
+  accountCurrency.value = account.currency || "EUR";
   accountError.value = "";
   accountDeleteArmed.value = false;
   accountDialog.value?.showModal();
@@ -261,10 +261,10 @@ async function saveAccount() {
     await api(
       path,
       json(editingAccountId.value === null ? "POST" : "PUT", {
-        nombre: accountName.value,
-        plataforma: accountPlatform.value,
-        tipo: accountType.value,
-        moneda: accountCurrency.value.trim().toUpperCase(),
+        name: accountName.value,
+        platform: accountPlatform.value,
+        type: accountType.value,
+        currency: accountCurrency.value.trim().toUpperCase(),
       }),
     );
     accountDialog.value?.close();
@@ -302,16 +302,16 @@ async function removeAccount() {
   }
 }
 
-function openCloseCreate(accountId?: number) {
+function openCloseCreate(accountId?: string) {
   closeMode.value = "create";
   closeOriginal.value = null;
   closeAccountId.value = String(accountId ?? accounts.value[0]?.id ?? "");
   closeMonth.value = new Date().toISOString().slice(0, 7);
   const account = rows.value.find(
-    (item) => item.account.id === Number(closeAccountId.value),
+    (item) => item.account.id === closeAccountId.value,
   );
   closeValue.value = account?.latest
-    ? String(account.latest.valor_original ?? account.latest.valor)
+    ? String(account.latest.value_original ?? account.latest.value)
     : "";
   closeContribution.value = "";
   closePnl.value = "";
@@ -323,10 +323,10 @@ function openCloseCreate(accountId?: number) {
 function seedCloseFromAccount() {
   if (closeMode.value !== "create") return;
   const account = rows.value.find(
-    (item) => item.account.id === Number(closeAccountId.value),
+    (item) => item.account.id === closeAccountId.value,
   );
   closeValue.value = account?.latest
-    ? String(account.latest.valor_original ?? account.latest.valor)
+    ? String(account.latest.value_original ?? account.latest.value)
     : "";
   closeContribution.value = "";
   closePnl.value = "";
@@ -334,14 +334,14 @@ function seedCloseFromAccount() {
 
 function openCloseEdit(item: InvestmentSnapshot) {
   closeMode.value = "edit";
-  closeOriginal.value = { accountId: item.cuenta_id, date: item.fecha };
-  closeAccountId.value = String(item.cuenta_id);
-  closeMonth.value = item.fecha.slice(0, 7);
-  closeValue.value = String(item.valor_original ?? item.valor);
-  closeContribution.value = item.aporte_original
-    ? String(item.aporte_original)
+  closeOriginal.value = { accountId: item.account_id, date: item.date };
+  closeAccountId.value = item.account_id;
+  closeMonth.value = item.date.slice(0, 7);
+  closeValue.value = String(item.value_original ?? item.value);
+  closeContribution.value = item.contribution_original
+    ? String(item.contribution_original)
     : "";
-  closePnl.value = String(item.intereses_original ?? item.intereses);
+  closePnl.value = String(item.interest_original ?? item.interest);
   closeError.value = "";
   closeDeleteArmed.value = false;
   closeDialog.value?.showModal();
@@ -352,14 +352,14 @@ async function saveClose() {
   closeError.value = "";
   try {
     const date = monthEndDate(closeMonth.value);
-    const accountId = Number(closeAccountId.value);
+    const accountId = closeAccountId.value;
     const payload: Record<string, number | string> = {
-      fecha: date,
-      cuenta_id: accountId,
-      valor: Number(closeValue.value),
-      aporte: Number(closeContribution.value || 0),
+      date,
+      account_id: accountId,
+      value: Number(closeValue.value),
+      contribution: Number(closeContribution.value || 0),
     };
-    if (closePnl.value !== "") payload.intereses = Number(closePnl.value);
+    if (closePnl.value !== "") payload.interest = Number(closePnl.value);
     await api("/investments/history", json("POST", payload));
     if (
       closeOriginal.value &&
@@ -544,20 +544,20 @@ onMounted(load);
                 color: item.color,
                 background: `color-mix(in srgb, ${item.color} 12%, var(--fz-surface-soft))`,
               }"
-              >{{ item.account.nombre.slice(0, 2).toUpperCase() }}</span
+              >{{ item.account.name.slice(0, 2).toUpperCase() }}</span
             >
             <div>
-              <h3>{{ item.account.nombre }}</h3>
+              <h3>{{ item.account.name }}</h3>
               <p>
-                {{ item.account.plataforma }} ·
-                {{ accountTypeLabel(item.account.tipo) }}
+                {{ item.account.platform }} ·
+                {{ accountTypeLabel(item.account.type) }}
               </p>
             </div>
             <button
               type="button"
               :aria-label="
                 t('investmentBalances.actions.editNamed', {
-                  name: item.account.nombre,
+                  name: item.account.name,
                 })
               "
               @click="openAccountEdit(item.account)"
@@ -574,7 +574,7 @@ onMounted(load);
             ><strong>{{ money(item.value) }}</strong
             ><small>{{
               item.latest
-                ? displayDate(item.latest.fecha)
+                ? displayDate(item.latest.date)
                 : t("investmentBalances.accounts.noCloses")
             }}</small>
           </div>
@@ -709,41 +709,41 @@ onMounted(load);
                 :key="item.id"
                 :value="String(item.id)"
               >
-                {{ item.nombre }}
+                {{ item.name }}
               </option>
             </select>
           </header>
           <div class="history-list">
             <button
               v-for="item in displayedHistory.slice(0, 18)"
-              :key="`${item.cuenta_id}:${item.fecha}`"
+              :key="`${item.account_id}:${item.date}`"
               type="button"
               @click="openCloseEdit(item)"
             >
-              <i :style="{ background: accountColor(item.cuenta_id) }" />
+              <i :style="{ background: accountColor(item.account_id) }" />
               <span
-                ><strong>{{ accountNameFor(item.cuenta_id) }}</strong
-                ><small>{{ displayDate(item.fecha) }}</small></span
+                ><strong>{{ accountNameFor(item.account_id) }}</strong
+                ><small>{{ displayDate(item.date) }}</small></span
               >
               <span
                 ><small>{{ t("investmentBalances.history.balance") }}</small
-                ><strong>{{ money(item.valor) }}</strong></span
+                ><strong>{{ money(item.value) }}</strong></span
               >
               <span
                 ><small>{{ t("investmentBalances.contribution") }}</small
                 ><strong>{{
-                  item.aporte ? signedMoney(item.aporte) : "—"
+                  item.contribution ? signedMoney(item.contribution) : "—"
                 }}</strong></span
               >
               <span
                 ><small>{{ t("investmentBalances.pnl") }}</small
                 ><strong
                   :class="{
-                    positive: item.intereses > 0,
-                    negative: item.intereses < 0,
+                    positive: item.interest > 0,
+                    negative: item.interest < 0,
                   }"
                   >{{
-                    item.intereses ? signedMoney(item.intereses) : "—"
+                    item.interest ? signedMoney(item.interest) : "—"
                   }}</strong
                 ></span
               >
@@ -848,7 +848,7 @@ onMounted(load);
                 :key="item.id"
                 :value="String(item.id)"
               >
-                {{ item.nombre }}
+                {{ item.name }}
               </option>
             </select></label
           ><label

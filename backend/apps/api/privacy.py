@@ -13,8 +13,11 @@ from rest_framework.response import Response
 from apps.accounts.models import Account, AccountSnapshot
 from apps.api import views
 from apps.api.auth import user_payload
+from apps.api.investment_projection import investment_account_row, investment_snapshot_row
+from apps.api.portfolio_projection import manual_asset_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.audit.models import AuditEvent
+from apps.portfolio.models import ManualAsset
 from apps.users.models import User
 from apps.workspaces.models import WorkspaceMembership
 
@@ -46,19 +49,52 @@ def _native_savings_sections(
     )
 
 
+def _native_investment_sections(
+    request: Request,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Serialize every manual investment row for the workspace export."""
+
+    accounts = list(
+        Account.objects.filter(
+            workspace=views.workspace(request),
+            kind=Account.Kind.MANUAL_INVESTMENT,
+        )
+        .select_related("provider")
+        .order_by("name")
+    )
+    snapshots = AccountSnapshot.objects.select_related("account", "account__workspace").filter(
+        account__in=accounts
+    )
+    return (
+        [investment_account_row(account) for account in accounts],
+        [investment_snapshot_row(snapshot) for snapshot in snapshots.order_by("date")],
+    )
+
+
+def _native_portfolio_section(request: Request) -> list[dict[str, object]]:
+    """Serialize every manual asset so the v2 export is complete."""
+
+    assets = ManualAsset.objects.filter(workspace=views.workspace(request)).select_related(
+        "provider"
+    )
+    return [manual_asset_row(asset) for asset in assets.order_by("name", "id")]
+
+
 def export_payload(request: Request) -> dict[str, object]:
     user = cast(User, request.user)
     savings_accounts, savings_history = _native_savings_sections(request)
+    investment_accounts, investment_history = _native_investment_sections(request)
     return {
-        # v2 is a document-level cutover for savings' UUID-native contract.
+        # v2 is a document-level cutover for savings, manual investments, and
+        # manual portfolio assets.
         "format": "finanzr-workspace-v2",
         "workspace": user_payload(user, request),
         "summary": views._overview_calculation(request)[0],
         "savings_accounts": savings_accounts,
         "savings_history": savings_history,
-        "investment_accounts": _view_data(views.investment_accounts, request),
-        "investment_history": _view_data(views.investment_history, request),
-        "portfolio": _view_data(views.portfolio, request),
+        "investment_accounts": investment_accounts,
+        "investment_history": investment_history,
+        "portfolio": _native_portfolio_section(request),
         "real_estate": _view_data(views.real_estate, request),
         "calculator": _view_data(views.calculator, request),
         "budget": _view_data(views.budget, request),

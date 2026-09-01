@@ -140,6 +140,22 @@ export interface PortfolioAnalysisResponse {
   total: number;
   items: PortfolioAnalysisItem[];
 }
+export interface ManualAsset {
+  id: string;
+  name: string;
+  asset_class: string;
+  subtype: string;
+  platform: string;
+  value: number;
+  currency: string;
+}
+export interface ManualAssetRequest {
+  name: string;
+  asset_class: string;
+  subtype?: string;
+  platform?: string;
+  value: number;
+}
 export interface SavingsAccount {
   id: string;
   name: string;
@@ -169,26 +185,27 @@ export interface AccountChartSeries {
   values: number[];
 }
 export interface InvestmentAccount {
-  id: number;
-  nombre: string;
-  plataforma: string;
-  tipo: string;
-  moneda?: string;
+  id: string;
+  name: string;
+  platform: string;
+  type: string;
+  currency: string;
 }
 export interface InvestmentSnapshot {
-  fecha: string;
-  cuenta_id: number;
-  valor: number;
-  valor_original?: number;
-  aporte: number;
-  aporte_original?: number;
-  intereses: number;
-  intereses_original?: number;
-  moneda?: string;
-  moneda_base?: string;
-  tipo_cambio?: number;
-  fecha_tipo_cambio?: string;
-  fuente_tipo_cambio?: string;
+  id: string;
+  account_id: string;
+  date: string;
+  value: number;
+  value_original: number;
+  contribution: number;
+  contribution_original: number;
+  interest: number;
+  interest_original: number;
+  currency: string;
+  base_currency: string;
+  exchange_rate: number;
+  exchange_rate_date: string;
+  exchange_rate_source: string;
 }
 export interface CryptoPosition {
   symbol: string;

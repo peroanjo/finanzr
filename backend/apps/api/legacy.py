@@ -70,37 +70,6 @@ def account_row(account: Account, provider_field: str = "plataforma") -> dict[st
     return row
 
 
-def snapshot_row(snapshot: Any) -> dict[str, Any]:
-    value_key = "saldo" if snapshot.account.kind == Account.Kind.SAVINGS else "valor"
-    return {
-        "fecha": snapshot.date.isoformat(),
-        "cuenta_id": account_id(snapshot.account),
-        value_key: number(
-            snapshot.base_value if snapshot.base_value is not None else snapshot.value
-        ),
-        f"{value_key}_original": number(snapshot.value),
-        "aporte": number(
-            snapshot.base_contribution
-            if snapshot.base_contribution is not None
-            else snapshot.contribution
-        ),
-        "aporte_original": number(snapshot.contribution),
-        "intereses": number(
-            snapshot.base_earnings if snapshot.base_earnings is not None else snapshot.earnings
-        ),
-        "intereses_original": number(snapshot.earnings),
-        "moneda": snapshot.currency or snapshot.account.currency,
-        "moneda_base": snapshot.base_currency,
-        "tipo_cambio": number(snapshot.fx_rate_to_base or 1),
-        "fecha_tipo_cambio": (
-            snapshot.fx_rate_date.isoformat()
-            if snapshot.fx_rate_date
-            else snapshot.date.isoformat()
-        ),
-        "fuente_tipo_cambio": snapshot.fx_source or "legacy",
-    }
-
-
 def instrument_row(instrument: Instrument) -> dict[str, Any]:
     scheme = (
         InstrumentIdentifier.Scheme.CRYPTO_SYMBOL

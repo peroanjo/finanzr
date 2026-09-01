@@ -67,6 +67,26 @@ const response = {
     },
   ],
 };
+const manualId = "550e8400-e29b-41d4-a716-446655440000";
+const responseWithManual = {
+  total: 5400,
+  items: [
+    ...response.items,
+    {
+      id: `manual:${manualId}`,
+      nombre: "Native reserve",
+      identificador: "",
+      clase: "Cash",
+      subtipo: "Liquid",
+      cuenta: "Synthetic bank",
+      cuenta_id: `manual:${manualId}`,
+      plataforma: "Synthetic bank",
+      valor: 100,
+      peso: 100 / 5400,
+      origen: "manual" as const,
+    },
+  ],
+};
 
 describe("PortfolioView", () => {
   beforeEach(() => {
@@ -140,5 +160,79 @@ describe("PortfolioView", () => {
     expect(wrapper.get('input[type="search"]').attributes("aria-label")).toBe(
       "Search the portfolio",
     );
+  });
+
+  it("creates, edits, and deletes manual assets using UUID native payloads", async () => {
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/portfolio-analysis") return responseWithManual;
+      if (path === "/portfolio") return responseWithManual.items.at(-1);
+      if (path === `/portfolio/${manualId}`)
+        return responseWithManual.items.at(-1);
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    const wrapper = mount(PortfolioView);
+    await flushPromises();
+
+    await wrapper.get(".manual-action").trigger("click");
+    const fields = wrapper.findAll(".manual-fields input");
+    await fields[0].setValue("Native reserve");
+    await fields[1].setValue("Cash");
+    await fields[2].setValue("Liquid");
+    await fields[3].setValue("Synthetic bank");
+    await fields[4].setValue("100");
+    await wrapper.get(".manual-dialog form").trigger("submit");
+    await flushPromises();
+
+    const createCall = apiMock.mock.calls.find(
+      ([path]) => path === "/portfolio",
+    );
+    expect(createCall?.[1]).toEqual({
+      method: "POST",
+      body: JSON.stringify({
+        name: "Native reserve",
+        asset_class: "Cash",
+        subtype: "Liquid",
+        platform: "Synthetic bank",
+        value: 100,
+      }),
+    });
+
+    const manualRow = wrapper
+      .findAll(".position-row")
+      .find((row) => row.text().includes("Native reserve"));
+    await manualRow!.get("button").trigger("click");
+    await wrapper.get(".manual-dialog form").trigger("submit");
+    await flushPromises();
+
+    const updateCall = apiMock.mock.calls.find(
+      ([path, options]) =>
+        path === `/portfolio/${manualId}` && options?.method === "PUT",
+    );
+    expect(updateCall?.[1]).toEqual({
+      method: "PUT",
+      body: JSON.stringify({
+        name: "Native reserve",
+        asset_class: "Cash",
+        subtype: "Liquid",
+        platform: "Synthetic bank",
+        value: 100,
+      }),
+    });
+
+    const reloadedRow = wrapper
+      .findAll(".position-row")
+      .find((row) => row.text().includes("Native reserve"));
+    await reloadedRow!.get("button").trigger("click");
+    await wrapper.get(".manual-dialog .danger").trigger("click");
+    await wrapper.get(".manual-dialog .danger").trigger("click");
+    await flushPromises();
+
+    expect(
+      apiMock.mock.calls.some(
+        ([path, options]) =>
+          path === `/portfolio/${manualId}` && options?.method === "DELETE",
+      ),
+    ).toBe(true);
   });
 });

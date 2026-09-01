@@ -90,9 +90,131 @@ class OpenApiMutationContractTests(SimpleTestCase):
             parameter for parameter in delete_parameters if parameter["name"] == "value_date"
         )
         assert value_date_parameter["schema"] == {"type": "string", "format": "date"}
+        investment_account = self._request_schema(document, "/api/investments/accounts", "post")
+        assert investment_account["required"] == ["name"]
+        assert {"platform", "currency", "type"} <= set(investment_account["properties"])
+        assert investment_account["properties"]["name"]["maxLength"] == 160
+        assert investment_account["properties"]["platform"]["maxLength"] == 160
+        assert investment_account["properties"]["type"]["maxLength"] == 80
+        assert investment_account["properties"]["currency"]["maxLength"] == 3
+        assert not {"nombre", "plataforma", "moneda", "tipo"} & set(
+            investment_account["properties"]
+        )
+        assert "required" not in self._request_schema(
+            document, "/api/investments/accounts/{account_id}", "put"
+        )
+        investment_account_parameter = document["paths"]["/api/investments/accounts/{account_id}"][
+            "put"
+        ]["parameters"][0]
+        assert investment_account_parameter["name"] == "account_id"
+        assert investment_account_parameter["schema"] == {"type": "string", "format": "uuid"}
+        investment_account_response = document["paths"]["/api/investments/accounts"]["get"][
+            "responses"
+        ]["200"]
+        investment_account_response_schema = self._resolve(
+            document,
+            investment_account_response["content"]["application/json"]["schema"]["items"],
+        )
+        assert set(investment_account_response_schema["properties"]) == {
+            "id",
+            "name",
+            "platform",
+            "type",
+            "currency",
+        }
+
         investment_snapshot = self._request_schema(document, "/api/investments/history", "post")
-        assert set(investment_snapshot["required"]) == {"cuenta_id", "fecha", "valor"}
-        assert {"aporte", "intereses"} <= set(investment_snapshot["properties"])
+        assert set(investment_snapshot["required"]) == {"account_id", "date", "value"}
+        assert {"contribution", "interest"} <= set(investment_snapshot["properties"])
+        assert not {"cuenta_id", "fecha", "valor", "aporte", "intereses"} & set(
+            investment_snapshot["properties"]
+        )
+        assert investment_snapshot["properties"]["account_id"] == {
+            "type": "string",
+            "format": "uuid",
+        }
+        assert investment_snapshot["properties"]["date"] == {
+            "type": "string",
+            "format": "date",
+        }
+        investment_snapshot_response = document["paths"]["/api/investments/history"]["get"][
+            "responses"
+        ]["200"]
+        investment_snapshot_response_schema = self._resolve(
+            document,
+            investment_snapshot_response["content"]["application/json"]["schema"]["items"],
+        )
+        assert {
+            "id",
+            "account_id",
+            "date",
+            "value",
+            "value_original",
+            "contribution",
+            "contribution_original",
+            "interest",
+            "interest_original",
+            "currency",
+            "base_currency",
+            "exchange_rate",
+            "exchange_rate_date",
+            "exchange_rate_source",
+        } == set(investment_snapshot_response_schema["properties"])
+        investment_history_parameters = document["paths"]["/api/investments/history"]["get"][
+            "parameters"
+        ]
+        investment_account_filter = next(
+            parameter
+            for parameter in investment_history_parameters
+            if parameter["name"] == "account_id"
+        )
+        assert investment_account_filter["in"] == "query"
+        assert investment_account_filter["schema"] == {"type": "string", "format": "uuid"}
+        assert "parameters" not in document["paths"]["/api/investments/history"]["post"]
+        investment_delete_parameters = document["paths"][
+            "/api/investments/history/{account_id}/{value_date}"
+        ]["delete"]["parameters"]
+        investment_value_date = next(
+            parameter
+            for parameter in investment_delete_parameters
+            if parameter["name"] == "value_date"
+        )
+        assert investment_value_date["schema"] == {"type": "string", "format": "date"}
+
+        portfolio = self._request_schema(document, "/api/portfolio", "post")
+        assert set(portfolio["required"]) == {"name", "asset_class", "value"}
+        assert set(portfolio["properties"]) == {
+            "name",
+            "asset_class",
+            "subtype",
+            "platform",
+            "value",
+        }
+        assert portfolio["properties"]["name"]["maxLength"] == 200
+        assert portfolio["properties"]["asset_class"]["maxLength"] == 80
+        assert portfolio["properties"]["subtype"]["maxLength"] == 120
+        assert portfolio["properties"]["platform"]["maxLength"] == 160
+        assert "required" not in self._request_schema(document, "/api/portfolio/{asset_id}", "put")
+        portfolio_parameter = document["paths"]["/api/portfolio/{asset_id}"]["put"]["parameters"][0]
+        assert portfolio_parameter["name"] == "asset_id"
+        assert portfolio_parameter["schema"] == {"type": "string", "format": "uuid"}
+        portfolio_response = document["paths"]["/api/portfolio"]["get"]["responses"]["200"]
+        portfolio_response_schema = self._resolve(
+            document, portfolio_response["content"]["application/json"]["schema"]["items"]
+        )
+        assert set(portfolio_response_schema["properties"]) == {
+            "id",
+            "name",
+            "asset_class",
+            "subtype",
+            "platform",
+            "value",
+            "currency",
+        }
+        assert portfolio_response_schema["properties"]["id"] == {
+            "type": "string",
+            "format": "uuid",
+        }
 
         calculator = document["paths"]["/api/calculator"]["post"]
         calculator_properties = self._resolve(
