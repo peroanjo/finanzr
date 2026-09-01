@@ -1,8 +1,11 @@
+from datetime import date
+
 import pytest
 from apps.accounts.models import Account
 from apps.api.uploads import instrument as imported_instrument
 from apps.audit.models import AuditEvent
 from apps.market_data.models import Instrument, InstrumentIdentifier
+from apps.portfolio.models import ManualAsset
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
 from rest_framework.test import APIClient
@@ -79,6 +82,22 @@ def test_workspace_data_is_horizontally_isolated() -> None:
     foreign_account = Account.objects.create(
         workspace=foreign, name="Secreto", kind="savings", external_id="legacy:savings:1"
     )
+    own_asset = ManualAsset.objects.create(
+        workspace=own,
+        name="Own asset",
+        asset_class="Cash",
+        value=100,
+        currency="EUR",
+        valued_at=date(2028, 1, 31),
+    )
+    foreign_asset = ManualAsset.objects.create(
+        workspace=foreign,
+        name="Foreign asset",
+        asset_class="Cash",
+        value=100,
+        currency="EUR",
+        valued_at=date(2028, 1, 31),
+    )
     client = APIClient()
     client.force_authenticate(user)
 
@@ -94,6 +113,12 @@ def test_workspace_data_is_horizontally_isolated() -> None:
         ).status_code
         == 404
     )
+    deleted_foreign = client.delete(f"/api/portfolio/{foreign_asset.id}")
+    assert deleted_foreign.status_code == 404
+    assert ManualAsset.objects.filter(pk=foreign_asset.id).exists()
+    deleted_own = client.delete(f"/api/portfolio/{own_asset.id}")
+    assert deleted_own.status_code == 200
+    assert not ManualAsset.objects.filter(pk=own_asset.id).exists()
 
 
 @pytest.mark.django_db
@@ -208,6 +233,41 @@ def test_viewer_cannot_write_and_editor_can() -> None:
         ).status_code
         == 403
     )
+
+    client.force_authenticate(viewer)
+    assert (
+        client.post(
+            "/api/portfolio",
+            {"name": "Viewer position", "asset_class": "Cash", "value": 100},
+            format="json",
+        ).status_code
+        == 403
+    )
+    client.force_authenticate(editor)
+    manual = client.post(
+        "/api/portfolio",
+        {"name": "Editor position", "asset_class": "Cash", "value": 100},
+        format="json",
+    )
+    assert manual.status_code == 201
+    manual_id = manual.json()["id"]
+    assert ManualAsset.objects.get(pk=manual_id).legacy_id is None
+    client.force_authenticate(viewer)
+    assert (
+        client.put(
+            f"/api/portfolio/{manual_id}",
+            {"name": "No update"},
+            format="json",
+        ).status_code
+        == 403
+    )
+    denied_delete = client.delete(f"/api/portfolio/{manual_id}")
+    assert denied_delete.status_code == 403
+    assert ManualAsset.objects.filter(pk=manual_id).exists()
+    client.force_authenticate(editor)
+    allowed_delete = client.delete(f"/api/portfolio/{manual_id}")
+    assert allowed_delete.status_code == 200
+    assert not ManualAsset.objects.filter(pk=manual_id).exists()
 
 
 @pytest.mark.django_db

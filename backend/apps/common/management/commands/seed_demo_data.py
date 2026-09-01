@@ -93,7 +93,6 @@ class Command(BaseCommand):
         self._seed_real_estate(workspace, providers)
         ManualAsset.objects.create(
             workspace=workspace,
-            legacy_id=1,
             provider_label="Cooperativa local",
             name="Participación energética",
             asset_class="Alternativos",
