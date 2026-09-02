@@ -102,7 +102,7 @@ const positions = [
 ];
 const orders = [
   {
-    operacion_id: "btc-1",
+    id: "btc-1",
     fecha_operacion: "2026-01-10",
     titulos: 0.01234567,
     importe_neto: 1200,
@@ -117,7 +117,7 @@ const orders = [
     moneda: "EUR",
   },
   {
-    operacion_id: "eth-1",
+    id: "eth-1",
     fecha_operacion: "2026-05-10",
     titulos: 0.5,
     importe_neto: 1499,
@@ -258,7 +258,7 @@ function installApiMock() {
     if (path === "/crypto-orders" && method === "POST") {
       const body = requestBody(init);
       const created: CryptoOrder = {
-        operacion_id: `created-${mockOrders.length + 1}`,
+        id: `created-${mockOrders.length + 1}`,
         fecha_operacion: String(body.fecha_operacion ?? ""),
         titulos: Number(body.titulos ?? 0),
         importe_neto: Number(body.importe_neto ?? 0),
@@ -281,13 +281,13 @@ function installApiMock() {
       const id = path.split("/").at(-1);
       const body = requestBody(init);
       mockOrders = mockOrders.map((order) =>
-        order.operacion_id === id ? { ...order, ...body } : order,
+        order.id === id ? { ...order, ...body } : order,
       );
-      return mockOrders.find((order) => order.operacion_id === id);
+      return mockOrders.find((order) => order.id === id);
     }
     if (path.startsWith("/crypto-orders/") && method === "DELETE") {
       const id = path.split("?")[0].split("/").at(-1);
-      mockOrders = mockOrders.filter((order) => order.operacion_id !== id);
+      mockOrders = mockOrders.filter((order) => order.id !== id);
       return undefined;
     }
     if (path === "/cryptos" && method === "GET") return mockInstruments;
@@ -634,7 +634,7 @@ describe("CryptoView canonical migration", () => {
       ...orders,
       ...Array.from({ length: 14 }, (_, index) => ({
         ...orders[0],
-        operacion_id: `page-${index}`,
+        id: `page-${index}`,
         fecha_operacion: `2026-02-${String(index + 1).padStart(2, "0")}`,
       })),
     ];

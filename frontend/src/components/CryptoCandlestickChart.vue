@@ -361,7 +361,7 @@ const operationMarkers = computed(() => {
     );
     const operation = {
       ...firstOperation,
-      operacion_id: group.map((item) => item.operation.operacion_id).join(":"),
+      id: group.map((item) => item.operation.id).join(":"),
       titulos: titles,
       importe_neto: group.reduce(
         (total, item) => total + item.operation.importe_neto,
@@ -403,7 +403,7 @@ const operationMarkers = computed(() => {
 });
 const operationTooltip = computed(() => {
   const marker = operationMarkers.value.find(
-    (operation) => operation.operacion_id === hoveredOperationId.value,
+    (operation) => operation.id === hoveredOperationId.value,
   );
   if (!marker) return null;
   const grouped = marker.operationCount > 1;
@@ -662,12 +662,12 @@ function handlePointerLeave(event: PointerEvent) {
         <g class="operation-markers">
           <g
             v-for="marker in operationMarkers"
-            :key="marker.operacion_id"
+            :key="marker.id"
             class="operation-marker"
             :class="{
               buy: marker.buy,
               sell: !marker.buy,
-              active: hoveredOperationId === marker.operacion_id,
+              active: hoveredOperationId === marker.id,
             }"
             :data-marker-shape="operationMarkerShape"
             :data-direction="marker.buy ? 'buy' : 'sell'"
@@ -677,11 +677,11 @@ function handlePointerLeave(event: PointerEvent) {
             :data-candle-high-y="marker.candleHighY ?? undefined"
             :data-connector-candle-y="marker.connectorCandleY ?? undefined"
             :data-connector-pin-y="marker.connectorPinY"
-            :data-operation-id="marker.operacion_id"
+            :data-operation-id="marker.id"
             :data-adjustment="marker.chartAdjustment?.id"
             @pointerdown.stop
             @pointermove.stop
-            @pointerenter="showOperation(marker.operacion_id)"
+            @pointerenter="showOperation(marker.id)"
             @pointerleave="hideOperation"
           >
             <circle
@@ -786,7 +786,7 @@ function handlePointerLeave(event: PointerEvent) {
             <template v-if="operationTooltip.grouped">
               <g
                 v-for="row in operationTooltip.rows"
-                :key="row.operation.operacion_id"
+                :key="row.operation.id"
                 class="operation-tooltip-row"
               >
                 <line

@@ -326,7 +326,7 @@ export function adaptFundMovement(
   const amount = number(value.importe_base, number(value.importe_neto));
   return {
     kind: "fund",
-    id: text(value.operacion_id),
+    id: text(value.id),
     assetId,
     assetKey: assetKey("fund", assetId),
     date: text(value.fecha_operacion),
@@ -356,7 +356,7 @@ export function adaptStockMovement(
   const saveback = boolean(value.es_saveback);
   return {
     kind: "stock",
-    id: text(value.operacion_id),
+    id: text(value.id),
     assetId,
     assetKey: assetKey("stock", assetId),
     date: text(value.fecha_operacion),
@@ -387,7 +387,7 @@ export function adaptCryptoMovement(
   const amount = number(value.importe_base, number(value.importe_neto));
   return {
     kind: "crypto",
-    id: text(value.operacion_id),
+    id: text(value.id),
     assetId,
     assetKey: assetKey("crypto", assetId),
     date: text(value.fecha_operacion),

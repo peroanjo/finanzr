@@ -75,6 +75,11 @@ def _is_saveback(record: Record) -> bool:
     return "trade republic" in provider.casefold()
 
 
+def _record_sort_key(record: Record) -> tuple[str, str]:
+    """Sort same-day records by their stable public transaction UUID."""
+    return _record_date(record), _text(record.get("id"))
+
+
 def _split_factor(
     asset: str, order_date: str, as_of: str, splits: Mapping[str, Iterable[Record]]
 ) -> Decimal:
@@ -136,7 +141,7 @@ def calculate_investment_performance(
     }
     # Preserve source order only as a deterministic tie breaker for same-day
     # transactions.  The series itself is driven by available market dates.
-    selected.sort(key=lambda record: (_record_date(record), _text(record.get("operacion_id"))))
+    selected.sort(key=_record_sort_key)
     usable_assets = {
         _asset(record, kind)
         for record in selected

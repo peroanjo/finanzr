@@ -67,8 +67,9 @@ The workspace export is currently `finanzr-workspace-v2`. This document-level
 version records the native UUID/English account projections for savings,
 manual investments, funds, stocks, and crypto, including legacy-origin rows
 and archived history for complete exports. Traded orders retain their
-transitional Spanish envelope, but their `cuenta_id` values are native account
-UUIDs. There is no parallel HTTP compatibility route.
+transitional Spanish envelope, but their `id` values are native transaction
+UUIDs and provider `external_id` values remain private import keys. There is no
+parallel HTTP compatibility route.
 
 ## Deployment shape
 

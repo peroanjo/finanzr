@@ -23,6 +23,7 @@ from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -1753,6 +1754,12 @@ def test_registered_parser_upload_is_persisted_and_deduplicated(
     assert response.status_code == 200
     assert response.json()["imported"] == 1
     assert Transaction.objects.filter(external_id="new-tx").exists()
+    imported = Transaction.objects.get(external_id="new-tx")
+    assert UUID(str(imported.id))
+    listed = client.get("/api/crypto-orders")
+    assert listed.status_code == 200
+    listed_row = next(row for row in listed.json() if row["id"] == str(imported.id))
+    assert "operacion_id" not in listed_row
 
     duplicate = SimpleUploadedFile("again.csv", content, content_type="text/csv")
     response = client.post(
@@ -1828,6 +1835,7 @@ def test_traded_account_delete_removes_import_dependents_atomically(
     )
     assert imported.status_code == 200
     batch = ImportBatch.objects.get(account=account)
+    imported_transaction = Transaction.objects.get(external_id="delete-me")
     issue = ImportIssue.objects.create(
         batch=batch,
         severity=ImportIssue.Severity.WARNING,
@@ -1841,9 +1849,8 @@ def test_traded_account_delete_removes_import_dependents_atomically(
         format="json",
     ).json()
     moved = client.put(
-        "/api/crypto-orders/delete-me",
+        f"/api/crypto-orders/{imported_transaction.id}",
         {
-            "original_account_id": account_id,
             "account_id": destination["id"],
             "symbol": "BTC",
             "fecha_operacion": "2026-07-22",
@@ -1872,7 +1879,7 @@ def test_traded_account_delete_removes_import_dependents_atomically(
 
 
 @pytest.mark.django_db(transaction=True)
-def test_transaction_detail_is_scoped_by_native_account_identity(
+def test_transaction_detail_is_scoped_by_uuid_and_workspace_kind(
     api_context: tuple[APIClient, User],
 ) -> None:
     client, _ = api_context
@@ -1903,7 +1910,6 @@ def test_transaction_detail_is_scoped_by_native_account_identity(
     source.save(update_fields=("external_id",))
     isin = source.instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
     update_payload = {
-        "original_account_id": str(first_account.id),
         "account_id": str(first_account.id),
         "isin": isin,
         "fecha_operacion": "2026-02-02",
@@ -1915,33 +1921,277 @@ def test_transaction_detail_is_scoped_by_native_account_identity(
         "divisa": "EUR",
     }
 
-    assert (
-        client.put(
-            f"/api/stock-orders/{source.external_id}",
-            {key: value for key, value in update_payload.items() if key != "original_account_id"},
-            format="json",
-        ).status_code
-        == 400
-    )
-    updated = client.put(f"/api/stock-orders/{source.external_id}", update_payload, format="json")
+    updated = client.put(f"/api/stock-orders/{source.id}", update_payload, format="json")
     assert updated.status_code == 200
     source.refresh_from_db()
     duplicate.refresh_from_db()
     assert source.trade_date.isoformat() == "2026-02-02"
     assert duplicate.trade_date.isoformat() == "2026-01-01"
 
-    ambiguous_delete = client.delete(f"/api/stock-orders/{source.external_id}")
-    assert ambiguous_delete.status_code == 400
-    invalid_account_delete = client.delete(
-        f"/api/stock-orders/{source.external_id}?account_id=not-a-uuid"
-    )
-    assert invalid_account_delete.status_code == 400
-    deleted = client.delete(
-        f"/api/stock-orders/{source.external_id}?account_id={second_account.id}"
-    )
+    deleted = client.delete(f"/api/stock-orders/{duplicate.id}")
     assert deleted.status_code == 200
     assert Transaction.objects.filter(pk=source.pk).exists()
-    assert not Transaction.objects.filter(pk=duplicate.pk).exists()
+    deleted_source = client.delete(f"/api/stock-orders/{source.id}")
+    assert deleted_source.status_code == 200
+    assert not Transaction.objects.filter(pk=source.pk).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_transaction_move_rejects_duplicate_external_id_without_mutation(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
+    assert source is not None
+    source_account = source.account
+    target_account = Account.objects.create(
+        workspace=source_account.workspace,
+        name="Duplicate target account",
+        kind=Account.Kind.STOCKS,
+        currency="EUR",
+    )
+    source.external_id = "shared-provider-move"
+    source_batch = ImportBatch.objects.create(
+        workspace=source_account.workspace,
+        account=source_account,
+        importer_slug="synthetic",
+        source_filename="source.csv",
+        content_sha256="a" * 64,
+        status=ImportBatch.Status.COMPLETED,
+        source_rows=1,
+        imported_rows=1,
+    )
+    source.import_batch = source_batch
+    source.save(update_fields=("external_id", "import_batch"))
+    target_batch = ImportBatch.objects.create(
+        workspace=target_account.workspace,
+        account=target_account,
+        importer_slug="synthetic",
+        source_filename="target.csv",
+        content_sha256="b" * 64,
+        status=ImportBatch.Status.COMPLETED,
+        source_rows=1,
+        imported_rows=1,
+    )
+    duplicate = Transaction.objects.create(
+        account=target_account,
+        instrument=source.instrument,
+        import_batch=target_batch,
+        external_id=source.external_id,
+        trade_date=source.trade_date,
+        operation_type=source.operation_type,
+        cash_flow_type=source.cash_flow_type,
+        quantity=source.quantity,
+        unit_price=source.unit_price,
+        net_amount=source.net_amount,
+        fee=source.fee,
+        currency="EUR",
+    )
+    isin = source.instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+    failed = client.put(
+        f"/api/stock-orders/{source.id}",
+        {
+            "account_id": str(target_account.id),
+            "isin": isin,
+            "fecha_operacion": "2026-02-02",
+            "tipo_operacion": "Compra",
+            "titulos": "1",
+            "precio_compra": "10",
+            "importe_neto": "10",
+            "comision": "0",
+            "divisa": "EUR",
+        },
+        format="json",
+    )
+
+    assert failed.status_code == 400
+    source.refresh_from_db()
+    duplicate.refresh_from_db()
+    assert source.account_id == source_account.id
+    assert source.import_batch_id == source_batch.id
+    assert source.external_id == "shared-provider-move"
+    assert duplicate.account_id == target_account.id
+    assert duplicate.import_batch_id == target_batch.id
+    assert duplicate.external_id == "shared-provider-move"
+    assert ImportBatch.objects.filter(pk=source_batch.id, account=source_account).exists()
+    assert ImportBatch.objects.filter(pk=target_batch.id, account=target_account).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_transaction_move_handles_raced_external_id_conflict_atomically(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
+    assert source is not None
+    source_account = source.account
+    source_trade_date = source.trade_date
+    source_amount = source.net_amount
+    target_account = Account.objects.create(
+        workspace=source_account.workspace,
+        name="Raced target account",
+        kind=Account.Kind.STOCKS,
+        currency="EUR",
+    )
+    source.external_id = "raced-provider-move"
+    source_batch = ImportBatch.objects.create(
+        workspace=source_account.workspace,
+        account=source_account,
+        importer_slug="synthetic",
+        source_filename="raced-source.csv",
+        content_sha256="c" * 64,
+        status=ImportBatch.Status.COMPLETED,
+        source_rows=1,
+        imported_rows=1,
+    )
+    source.import_batch = source_batch
+    source.save(update_fields=("external_id", "import_batch"))
+
+    def raise_external_id_conflict(*_args: object, **_kwargs: object) -> None:
+        raise IntegrityError(
+            "UNIQUE constraint failed: "
+            f"{Transaction._meta.db_table}.account_id, "
+            f"{Transaction._meta.db_table}.external_id"
+        )
+
+    monkeypatch.setattr(Transaction, "save", raise_external_id_conflict)
+    isin = source.instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+    failed = client.put(
+        f"/api/stock-orders/{source.id}",
+        {
+            "account_id": str(target_account.id),
+            "isin": isin,
+            "fecha_operacion": "2026-02-03",
+            "tipo_operacion": "Compra",
+            "titulos": "2",
+            "precio_compra": "11",
+            "importe_neto": "22",
+            "comision": "0",
+            "divisa": "EUR",
+        },
+        format="json",
+    )
+
+    assert failed.status_code == 400
+    source.refresh_from_db()
+    assert source.account_id == source_account.id
+    assert source.import_batch_id == source_batch.id
+    assert source.external_id == "raced-provider-move"
+    assert source.trade_date == source_trade_date
+    assert source.net_amount == source_amount
+    assert ImportBatch.objects.filter(pk=source_batch.id, account=source_account).exists()
+    assert not Transaction.objects.filter(account=target_account).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_transaction_move_reraises_unrelated_integrity_error_without_mutation(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
+    assert source is not None
+    source_account = source.account
+    source_trade_date = source.trade_date
+    source_amount = source.net_amount
+    target_account = Account.objects.create(
+        workspace=source_account.workspace,
+        name="Unrelated error target account",
+        kind=Account.Kind.STOCKS,
+        currency="EUR",
+    )
+    source.external_id = "unrelated-provider-move"
+    source_batch = ImportBatch.objects.create(
+        workspace=source_account.workspace,
+        account=source_account,
+        importer_slug="synthetic",
+        source_filename="unrelated-source.csv",
+        content_sha256="d" * 64,
+        status=ImportBatch.Status.COMPLETED,
+        source_rows=1,
+        imported_rows=1,
+    )
+    source.import_batch = source_batch
+    source.save(update_fields=("external_id", "import_batch"))
+
+    def raise_unrelated_error(*_args: object, **_kwargs: object) -> None:
+        raise IntegrityError("CHECK constraint failed: transaction_quantity_positive")
+
+    monkeypatch.setattr(Transaction, "save", raise_unrelated_error)
+    isin = source.instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+    with pytest.raises(IntegrityError, match="transaction_quantity_positive"):
+        client.put(
+            f"/api/stock-orders/{source.id}",
+            {
+                "account_id": str(target_account.id),
+                "isin": isin,
+                "fecha_operacion": "2026-02-04",
+                "tipo_operacion": "Compra",
+                "titulos": "3",
+                "precio_compra": "12",
+                "importe_neto": "36",
+                "comision": "0",
+                "divisa": "EUR",
+            },
+            format="json",
+        )
+
+    source.refresh_from_db()
+    assert source.account_id == source_account.id
+    assert source.import_batch_id == source_batch.id
+    assert source.external_id == "unrelated-provider-move"
+    assert source.trade_date == source_trade_date
+    assert source.net_amount == source_amount
+    assert ImportBatch.objects.filter(pk=source_batch.id, account=source_account).exists()
+    assert not Transaction.objects.filter(account=target_account).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_transaction_uuid_detail_enforces_workspace_kind_and_roles(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, user = api_context
+    source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
+    assert source is not None
+    workspace = user.memberships.get().workspace
+    foreign_workspace = Workspace.objects.create(name="Foreign transaction workspace")
+    foreign_account = Account.objects.create(
+        workspace=foreign_workspace,
+        name="Foreign stock account",
+        kind=Account.Kind.STOCKS,
+        currency="EUR",
+    )
+    foreign_transaction = Transaction.objects.create(
+        account=foreign_account,
+        instrument=source.instrument,
+        trade_date=source.trade_date,
+        operation_type=source.operation_type,
+        cash_flow_type=source.cash_flow_type,
+        quantity=source.quantity,
+        unit_price=source.unit_price,
+        net_amount=source.net_amount,
+        fee=source.fee,
+        currency="EUR",
+    )
+
+    unsupported_method = client.get(f"/api/stock-orders/{source.id}")
+    assert unsupported_method.status_code == 405
+    foreign_delete = client.delete(f"/api/stock-orders/{foreign_transaction.id}")
+    assert foreign_delete.status_code == 404
+    cross_kind_delete = client.delete(f"/api/crypto-orders/{source.id}")
+    assert cross_kind_delete.status_code == 404
+    invalid_uuid_delete = client.delete("/api/stock-orders/not-a-uuid")
+    assert invalid_uuid_delete.status_code == 404
+
+    viewer = User.objects.create_user(email="transaction-viewer@example.com")
+    WorkspaceMembership.objects.create(
+        workspace=workspace,
+        user=viewer,
+        role=WorkspaceMembership.Role.VIEWER,
+    )
+    viewer_client = APIClient()
+    viewer_client.force_authenticate(viewer)
+    viewer_delete = viewer_client.delete(f"/api/stock-orders/{source.id}")
+    assert viewer_delete.status_code == 403
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1993,7 +2243,9 @@ def test_manual_traded_transactions_validate_native_typed_contract(
     created = client.post(endpoint, payload, format="json")
 
     assert created.status_code == 201, created.content
-    transaction_row = Transaction.objects.get(external_id=created.json()["operacion_id"])
+    transaction_row = Transaction.objects.get(pk=created.json()["id"])
+    assert "operacion_id" not in created.json()
+    assert transaction_row.external_id is None
     assert transaction_row.account_id == account.id
     assert transaction_row.market == "Synthetic market"
     assert transaction_row.fx_rate_to_base == Decimal("1")
@@ -2239,12 +2491,12 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
     )
 
     assert created_fund.status_code == 201
-    fund_id = created_fund.json()["operacion_id"]
-    assert fund_id.startswith("manual:")
+    fund_id = created_fund.json()["id"]
+    assert UUID(fund_id)
+    assert Transaction.objects.get(pk=fund_id).external_id is None
     updated_fund = client.put(
         f"/api/orders/{fund_id}",
         {
-            "original_account_id": fund_account["id"],
             "account_id": fund_account["id"],
             "isin": fund["isin"],
             "fecha_operacion": "2026-07-25",

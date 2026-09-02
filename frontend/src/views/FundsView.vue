@@ -1463,7 +1463,7 @@ onMounted(loadDashboard);
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="order in displayedOrders" :key="order.operacion_id">
+                <tr v-for="order in displayedOrders" :key="order.id">
                   <td>{{ displayDate(order.fecha_operacion) }}</td>
                   <td>
                     <span

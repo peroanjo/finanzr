@@ -354,7 +354,6 @@ class TransactionRequestSerializer(StrictSerializer):
     importe_neto = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
     comision = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
     account_id = serializers.UUIDField(required=True)
-    original_account_id = serializers.UUIDField(required=False)
     divisa = serializers.CharField(required=False, allow_blank=True, max_length=4)
     moneda = serializers.CharField(required=False, allow_blank=True, max_length=4)
     tipo_cambio = serializers.DecimalField(
@@ -382,15 +381,15 @@ class CryptoTransactionRequestSerializer(TransactionRequestSerializer):
 
 
 class FundTransactionUpdateRequestSerializer(FundTransactionRequestSerializer):
-    original_account_id = serializers.UUIDField(required=True)
+    pass
 
 
 class StockTransactionUpdateRequestSerializer(StockTransactionRequestSerializer):
-    original_account_id = serializers.UUIDField(required=True)
+    pass
 
 
 class CryptoTransactionUpdateRequestSerializer(CryptoTransactionRequestSerializer):
-    original_account_id = serializers.UUIDField(required=True)
+    pass
 
 
 class StockSplitRequestSerializer(serializers.Serializer[dict[str, Any]]):
@@ -426,7 +425,7 @@ class ManualAssetResponseSerializer(serializers.Serializer[dict[str, Any]]):
 
 
 class TransactionResponseSerializer(serializers.Serializer[dict[str, Any]]):
-    id = serializers.CharField(required=False)
+    id = serializers.UUIDField()
     fecha_operacion = serializers.DateField(required=False)
     tipo_operacion = serializers.CharField(required=False)
     titulos = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)

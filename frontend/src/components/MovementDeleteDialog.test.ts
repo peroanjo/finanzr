@@ -19,7 +19,7 @@ describe("MovementDeleteDialog", () => {
   it("scopes deletion by the movement account UUID", async () => {
     const wrapper = mount(MovementDeleteDialog, { props: { kind: "fund" } });
     const movement = {
-      operacion_id: "provider/id",
+      id: "provider/id",
       cuenta_id: "12345678-1234-5678-1234-567812345678",
       nombre_fondo: "Synthetic fund",
       tipo_operacion: "SUSCRIPCION",
@@ -28,9 +28,8 @@ describe("MovementDeleteDialog", () => {
 
     await wrapper.get("form").trigger("submit");
 
-    expect(apiMock).toHaveBeenCalledWith(
-      "/orders/provider%2Fid?account_id=12345678-1234-5678-1234-567812345678",
-      { method: "DELETE" },
-    );
+    expect(apiMock).toHaveBeenCalledWith("/orders/provider%2Fid", {
+      method: "DELETE",
+    });
   });
 });

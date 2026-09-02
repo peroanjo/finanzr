@@ -41,7 +41,10 @@ def transaction_row(item: Transaction) -> dict[str, Any]:
     if base_fee is None and same_currency:
         base_fee = item.fee
     row: dict[str, Any] = {
-        "operacion_id": item.external_id or str(item.id),
+        # Transaction identity is internal UUID-backed identity.  Provider IDs
+        # belong exclusively to import idempotency and must never cross the
+        # public API boundary.
+        "id": str(item.id),
         "fecha_operacion": item.trade_date.isoformat(),
         "titulos": number(item.quantity),
         "importe_neto": number(item.net_amount),

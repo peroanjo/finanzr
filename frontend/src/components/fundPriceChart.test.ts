@@ -117,7 +117,7 @@ afterEach(() => {
 
 function order(id: string, date: string): FundOrder {
   return {
-    operacion_id: id,
+    id,
     fecha_operacion: date,
     fecha_liquidacion: date,
     tipo_operacion: "SUSCRIPCION",
@@ -151,7 +151,7 @@ describe("visibleFundOperationPoints", () => {
     );
 
     expect(points).toHaveLength(1);
-    expect(points[0].order.operacion_id).toBe("inside");
+    expect(points[0].order.id).toBe("inside");
     expect(points[0].x).toBe("2026-07-10");
   });
 

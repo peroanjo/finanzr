@@ -150,7 +150,7 @@ const accountTwoPositions: FundPosition[] = [
 ];
 const orders = [
   {
-    operacion_id: "buy-1",
+    id: "buy-1",
     fecha_operacion: "2026-01-01",
     fecha_liquidacion: "2026-01-02",
     tipo_operacion: "SUSCRIPCION",
@@ -162,7 +162,7 @@ const orders = [
     cuenta_id: accountOneId,
   },
   {
-    operacion_id: "sell-1",
+    id: "sell-1",
     fecha_operacion: "2026-02-01",
     fecha_liquidacion: "2026-02-02",
     tipo_operacion: "REEMBOLSO",
@@ -307,7 +307,7 @@ describe("FundsView", () => {
       if (path === "/fund-prices/TEST" && init?.method === "PUT")
         return { ok: true };
       if (path === "/orders" && init?.method === "POST") {
-        return { ...orders[0], operacion_id: "manual:fund" };
+        return { ...orders[0], id: "manual:fund" };
       }
       if (path === "/orders/buy-1" && init?.method === "PUT")
         return { ...orders[0] };
@@ -1089,10 +1089,9 @@ describe("FundsView", () => {
     expect(dialog.attributes("open")).toBeDefined();
     await dialog.get("form").trigger("submit");
     await flushPromises();
-    expect(apiMock).toHaveBeenCalledWith(
-      `/orders/sell-1?account_id=${accountOneId}`,
-      { method: "DELETE" },
-    );
+    expect(apiMock).toHaveBeenCalledWith("/orders/sell-1", {
+      method: "DELETE",
+    });
   });
 
   it("collapses portfolio funds and movements and remembers both choices", async () => {

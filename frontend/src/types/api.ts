@@ -229,7 +229,7 @@ export interface CryptoAccount {
   importer_name: string;
 }
 export interface CryptoOrder {
-  operacion_id: string;
+  id: string;
   fecha_operacion: string;
   titulos: number;
   importe_neto: number;
@@ -317,7 +317,7 @@ export interface StockAccount {
   importer_name: string;
 }
 export interface StockOrder {
-  operacion_id: string;
+  id: string;
   fecha_operacion: string;
   titulos: number;
   importe_neto: number;
@@ -400,7 +400,7 @@ export interface FundPosition {
   moneda_base?: string;
 }
 export interface FundOrder {
-  operacion_id: string;
+  id: string;
   fecha_operacion: string;
   fecha_liquidacion: string;
   tipo_operacion: string;

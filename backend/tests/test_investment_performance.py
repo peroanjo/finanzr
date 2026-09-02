@@ -13,7 +13,10 @@ from django.core.cache import cache
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
-from finanzr.domain.investment_performance import calculate_investment_performance
+from finanzr.domain.investment_performance import (
+    _record_sort_key,
+    calculate_investment_performance,
+)
 
 
 def _workspace_client(slug: str) -> tuple[Workspace, APIClient]:
@@ -53,6 +56,19 @@ def _record(
         "es_saveback": saveback,
         "plataforma": provider,
     }
+
+
+def test_same_day_records_use_uuid_id_as_deterministic_tie_breaker() -> None:
+    first_id = "00000000-0000-0000-0000-000000000001"
+    second_id = "00000000-0000-0000-0000-000000000002"
+    rows = [
+        {"id": second_id, "fecha_operacion": "2026-01-01"},
+        {"id": first_id, "fecha_operacion": "2026-01-01"},
+    ]
+
+    ordered = sorted(rows, key=_record_sort_key)
+
+    assert [row["id"] for row in ordered] == [first_id, second_id]
 
 
 def test_funds_transfers_are_value_without_external_contribution() -> None:

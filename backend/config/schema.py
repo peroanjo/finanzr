@@ -217,17 +217,34 @@ class PublicAutoSchema(AutoSchema):
         elif (
             path
             in {
-                "/api/orders/{external_id}",
-                "/api/stock-orders/{external_id}",
-                "/api/crypto-orders/{external_id}",
+                "/api/orders/{transaction_id}",
+                "/api/stock-orders/{transaction_id}",
+                "/api/crypto-orders/{transaction_id}",
             }
             and self.method == "DELETE"
         ):
             parameters.append(
                 OpenApiParameter(
-                    name="account_id",
+                    name="transaction_id",
                     type=OpenApiTypes.UUID,
-                    location=OpenApiParameter.QUERY,
+                    location=OpenApiParameter.PATH,
+                    required=True,
+                )
+            )
+        elif (
+            path
+            in {
+                "/api/orders/{transaction_id}",
+                "/api/stock-orders/{transaction_id}",
+                "/api/crypto-orders/{transaction_id}",
+            }
+            and self.method == "PUT"
+        ):
+            parameters.append(
+                OpenApiParameter(
+                    name="transaction_id",
+                    type=OpenApiTypes.UUID,
+                    location=OpenApiParameter.PATH,
                     required=True,
                 )
             )

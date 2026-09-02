@@ -210,7 +210,7 @@ describe("normalized investment adapters", () => {
 
   it("maps fund movements to base amounts while retaining original currency metadata", () => {
     const movement = adaptFundMovement({
-      operacion_id: "fund-1",
+      id: "fund-1",
       fecha_operacion: "2026-01-02",
       fecha_liquidacion: "2026-01-03",
       tipo_operacion: "SUSCRIPCION",
@@ -265,7 +265,7 @@ describe("normalized investment adapters", () => {
 
     const dtoBaseWins = adaptFundMovement(
       {
-        operacion_id: "fund-conflict",
+        id: "fund-conflict",
         fecha_operacion: "2026-01-02",
         fecha_liquidacion: "2026-01-03",
         tipo_operacion: "SUSCRIPCION",
@@ -307,7 +307,7 @@ describe("normalized investment adapters", () => {
 
   it("keeps stock fees, saveback, and split capability metadata", () => {
     const movement = adaptStockMovement({
-      operacion_id: "stock-1",
+      id: "stock-1",
       fecha_operacion: "2026-01-02",
       titulos: 3,
       importe_neto: 300,
@@ -343,7 +343,7 @@ describe("normalized investment adapters", () => {
 
   it("maps crypto fees and leaves saveback and split support disabled", () => {
     const movement = adaptCryptoMovement({
-      operacion_id: "crypto-1",
+      id: "crypto-1",
       fecha_operacion: "2026-01-02",
       titulos: 0.01,
       importe_neto: 500,

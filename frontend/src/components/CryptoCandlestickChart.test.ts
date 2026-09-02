@@ -23,7 +23,7 @@ const points = [
 ];
 const operations = [
   {
-    operacion_id: "btc-buy",
+    id: "btc-buy",
     fecha_operacion: "2026-07-10",
     titulos: 0.001,
     importe_neto: 71.25,
@@ -198,14 +198,14 @@ describe("CryptoCandlestickChart", () => {
   it("renders compact trade pins in local candle lanes", () => {
     const sellOperation = {
       ...operations[0],
-      operacion_id: "btc-sell",
+      id: "btc-sell",
       fecha_operacion: "2026-07-09",
       tipo_operacion: "Venta",
       precio_compra: 69000,
     };
     const earlyBuyOperation = {
       ...operations[0],
-      operacion_id: "btc-buy-early",
+      id: "btc-buy-early",
       fecha_operacion: "2026-07-09",
       precio_compra: 69000,
     };
@@ -274,7 +274,7 @@ describe("CryptoCandlestickChart", () => {
   it("groups same-day operations into a single count pin", async () => {
     const secondBuy = {
       ...operations[0],
-      operacion_id: "btc-buy-second",
+      id: "btc-buy-second",
       titulos: 0.002,
       importe_neto: 142.5,
       comision: 0.5,
@@ -315,7 +315,7 @@ describe("CryptoCandlestickChart", () => {
 
   it("identifies a historical operation adjusted only for the chart", async () => {
     const adjustedOperation = {
-      operacion_id: "byd-pre-split",
+      id: "byd-pre-split",
       fecha_operacion: "2025-02-03",
       titulos: 3,
       importe_neto: 34.07,
