@@ -351,7 +351,7 @@ Constraints and indexes:
 | `id` | UUID | PK |
 | `workspace_id` | FK Workspace | CASCADE on purge |
 | `provider_id` | FK FinancialProvider nullable | PROTECT |
-| `provider_label` | varchar(160) nullable | uncatalogued legacy platform |
+| `provider_label` | varchar(160) nullable | uncatalogued platform |
 | `name` | varchar(200) | required |
 | `status` | enum | `active`, `completed`, `defaulted`, `cancelled` |
 | `start_date` | date | required |
@@ -359,7 +359,8 @@ Constraints and indexes:
 | `expected_profit` | decimal(24, 8) nullable | forecast |
 | `expected_irr` | decimal(12, 8) nullable | fraction, not whole percentage |
 | `expected_term_months` | positive smallint nullable | duration |
-| `origin` | varchar(160) nullable | legacy traceability |
+| `origin` | varchar(160) nullable | user-supplied capital origin |
+| `tax_rate` | decimal(5, 2) nullable | optional withholding override percentage |
 | `currency` | char(3) | workspace base currency |
 | `created_at` | timestamptz | automatic |
 | `archived_at` | timestamptz nullable | logical archive |

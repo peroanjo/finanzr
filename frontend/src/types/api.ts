@@ -94,34 +94,34 @@ export interface NetWorthPoint {
   source_contributions?: Partial<Record<SummarySourceKey, number>>;
 }
 export interface RealEstateInvestment {
-  id: number;
-  nombre: string;
-  plataforma: string;
-  estado: string;
-  capital_inicial: number;
-  capital_nuevo: number;
-  capital_devuelto: number;
-  beneficio_obtenido: number;
-  beneficio_obtenido_neto?: number;
-  beneficio_estimado: number | null;
-  beneficio_estimado_neto?: number;
-  tir: number;
-  meses: number;
-  fecha_inicio: string;
-  fecha_vencimiento: string;
-  fecha_devolucion: string;
-  movimientos: RealEstateMovement[];
-  origen: string;
-  retencion_irpf?: number | null;
-  moneda: string;
+  id: string;
+  name: string;
+  platform: string;
+  status: "active" | "completed" | "defaulted" | "cancelled";
+  initial_capital: number;
+  new_capital: number;
+  returned_capital: number;
+  realized_profit: number;
+  net_realized_profit: number;
+  expected_profit: number | null;
+  net_expected_profit: number;
+  expected_irr_percent: number;
+  expected_term_months: number;
+  start_date: string;
+  maturity_date: string | null;
+  return_date: string | null;
+  movements: RealEstateMovement[];
+  origin: string;
+  tax_rate: number | null;
+  currency: string;
 }
 export interface RealEstateMovement {
   id: string;
-  tipo: "capital_return" | "profit";
-  fecha: string;
-  importe: number;
-  nota: string;
-  retencion_irpf_aplicada?: number | null;
+  flow_type: "capital_return" | "profit";
+  effective_date: string | null;
+  amount: number;
+  note: string;
+  applied_tax_rate: number | null;
 }
 export interface PortfolioAnalysisItem {
   id: string;

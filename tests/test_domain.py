@@ -1,6 +1,5 @@
 """Pruebas directas del dominio, sin importar dependencias web ni pandas."""
 
-import math
 import unittest
 from uuid import UUID
 
@@ -82,18 +81,18 @@ class TestNetWorthDomain(unittest.TestCase):
 
 
 class TestRealEstateDomain(unittest.TestCase):
-    def test_legacy_invertido_is_used_when_new_columns_are_missing(self):
-        project = {"capital_inicial": math.nan, "invertido": "750.25"}
+    def test_native_capital_fields_drive_current_and_new_capital(self):
+        project = {"initial_capital": "750.25", "new_capital": "700.00"}
 
         self.assertEqual(live_capital(project), 750.25)
-        self.assertEqual(new_capital(project), 750.25)
+        self.assertEqual(new_capital(project), 700.0)
 
     def test_return_date_does_not_reduce_previous_months(self):
         project = {
-            "fecha_inicio": "2026-01-10",
-            "fecha_devolucion": "2026-03-15",
-            "capital_inicial": "1000.00",
-            "capital_devuelto": "400.00",
+            "start_date": "2026-01-10",
+            "return_date": "2026-03-15",
+            "initial_capital": "1000.00",
+            "returned_capital": "400.00",
         }
 
         self.assertEqual(live_capital_for_month(project, "2026-02"), 1000.0)
@@ -101,20 +100,24 @@ class TestRealEstateDomain(unittest.TestCase):
 
     def test_multiple_returns_reduce_capital_on_each_effective_month(self):
         project = {
-            "fecha_inicio": "2025-09-01",
-            "capital_inicial": "1500.00",
-            "capital_devuelto": "1500.00",
-            "movimientos": [
+            "start_date": "2025-09-01",
+            "initial_capital": "1500.00",
+            "returned_capital": "1500.00",
+            "movements": [
                 {
-                    "tipo": "capital_return",
-                    "fecha": "2026-06-22",
-                    "importe": "970.96",
+                    "flow_type": "capital_return",
+                    "effective_date": "2026-06-22",
+                    "amount": "970.96",
                 },
-                {"tipo": "profit", "fecha": "2026-06-22", "importe": "72.18"},
                 {
-                    "tipo": "capital_return",
-                    "fecha": "2026-07-14",
-                    "importe": "529.04",
+                    "flow_type": "profit",
+                    "effective_date": "2026-06-22",
+                    "amount": "72.18",
+                },
+                {
+                    "flow_type": "capital_return",
+                    "effective_date": "2026-07-14",
+                    "amount": "529.04",
                 },
             ],
         }

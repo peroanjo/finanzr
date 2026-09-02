@@ -27,10 +27,10 @@ from apps.api.legacy import (
     number,
     price_row,
     provider_name,
-    real_estate_row,
     transaction_row,
 )
 from apps.api.portfolio_projection import manual_asset_row
+from apps.api.real_estate_projection import real_estate_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.api.schemas import (
     CryptoTransactionRequestSerializer,
@@ -41,6 +41,8 @@ from apps.api.schemas import (
     ManualAssetUpdateRequestSerializer,
     NativeInvestmentSnapshotRequestSerializer,
     NativeSavingsSnapshotRequestSerializer,
+    RealEstateRequestSerializer,
+    RealEstateUpdateRequestSerializer,
     SavingsAccountRequestSerializer,
     SavingsAccountUpdateRequestSerializer,
     StockTransactionRequestSerializer,
@@ -602,7 +604,7 @@ def real_estate_records(request: Request) -> list[dict[str, Any]]:
     items = (
         RealEstateInvestment.objects.filter(workspace=workspace(request), archived_at__isnull=True)
         .prefetch_related("cash_flows", "provider")
-        .order_by("legacy_id")
+        .order_by("-start_date", "name", "id")
     )
     default_tax_rate = InstallationSettings.load().default_crowdfunding_tax_rate
     return [real_estate_row(item, default_tax_rate=default_tax_rate) for item in items]
@@ -627,9 +629,9 @@ def _manual_asset_is_real_estate_duplicate(
     item_provider = _normalized_match_text(provider_name(item))
     item_value = number(item.value)
     for project in properties:
-        if item_name != _normalized_match_text(project.get("nombre")):
+        if item_name != _normalized_match_text(project.get("name")):
             continue
-        project_provider = _normalized_match_text(project.get("plataforma"))
+        project_provider = _normalized_match_text(project.get("platform"))
         if item_provider and project_provider and item_provider != project_provider:
             continue
         if abs(item_value - number(live_capital(project))) <= 0.01:
@@ -1073,82 +1075,63 @@ def portfolio_detail(request: Request, asset_id: UUID) -> Response:
     return Response(manual_asset_row(item))
 
 
-STATUS_IN = {
-    "Activo": "active",
-    "Completado": "completed",
-    "Completada": "completed",
-    "Impagado": "defaulted",
-    "Cancelado": "cancelled",
-}
-
-
 def save_real_estate(item: RealEstateInvestment, data: dict[str, Any]) -> None:
-    item.name = str(data.get("nombre", item.name))
-    item.provider = None
-    item.provider_label = str(data.get("plataforma", item.provider_label))
-    item.status = STATUS_IN.get(str(data.get("estado", "Activo")), item.status)
-    item.start_date = date.fromisoformat(str(data.get("fecha_inicio") or item.start_date)[:10])
-    item.maturity_date = (
-        date.fromisoformat(str(data["fecha_vencimiento"])[:10])
-        if data.get("fecha_vencimiento")
-        else None
-    )
-    item.expected_profit = (
-        None
-        if data.get("beneficio_estimado") in (None, "")
-        else decimal(data["beneficio_estimado"])
-    )
-    item.expected_irr = decimal(data.get("tir")) / 100
-    item.expected_term_months = int(data.get("meses") or 0) or None
-    item.origin = str(data.get("origen", ""))
-    item.tax_rate = (
-        None
-        if data.get("retencion_irpf") in (None, "")
-        else percentage_rate(data["retencion_irpf"])
-    )
+    if "name" in data:
+        item.name = str(data["name"]).strip()
+    if "platform" in data:
+        item.provider = None
+        item.provider_label = str(data["platform"]).strip()
+    if "status" in data:
+        item.status = str(data["status"])
+    if "start_date" in data:
+        item.start_date = data["start_date"]
+    if "maturity_date" in data:
+        item.maturity_date = data["maturity_date"]
+    if "expected_profit" in data:
+        item.expected_profit = data["expected_profit"]
+    if "expected_irr_percent" in data:
+        item.expected_irr = decimal(data["expected_irr_percent"]) / 100
+    if "expected_term_months" in data:
+        item.expected_term_months = int(data["expected_term_months"] or 0) or None
+    if "origin" in data:
+        item.origin = str(data["origin"])
+    if "tax_rate" in data:
+        item.tax_rate = data["tax_rate"]
     item.currency = normalize_currency(item.workspace.base_currency)
     item.save()
-    initial = decimal(data.get("capital_inicial"))
-    new = decimal(data.get("capital_nuevo"), str(initial))
-    movements = data.get("movimientos")
+    existing_flows_list = list(item.cash_flows.all())
+    existing_contribution = sum(
+        (flow.amount for flow in existing_flows_list if flow.flow_type == "contribution"),
+        Decimal("0"),
+    )
+    existing_reinvestment = sum(
+        (flow.amount for flow in existing_flows_list if flow.flow_type == "reinvestment"),
+        Decimal("0"),
+    )
+    initial = decimal(
+        data.get("initial_capital"), str(existing_contribution + existing_reinvestment)
+    )
+    new = decimal(
+        data.get("new_capital"),
+        str(initial if "initial_capital" in data else existing_contribution),
+    )
+    movements = data.get("movements")
     existing_flows = {str(flow.id): flow for flow in item.cash_flows.all()}
     if not isinstance(movements, list):
-        return_date = (
-            date.fromisoformat(str(data["fecha_devolucion"])[:10])
-            if data.get("fecha_devolucion")
-            else None
-        )
-        existing_return = next(
-            (
-                flow
-                for flow in existing_flows.values()
-                if flow.flow_type == RealEstateCashFlow.FlowType.CAPITAL_RETURN
-            ),
-            None,
-        )
-        existing_profit = next(
-            (
-                flow
-                for flow in existing_flows.values()
-                if flow.flow_type == RealEstateCashFlow.FlowType.PROFIT
-            ),
-            None,
-        )
         movements = [
             {
-                "id": str(existing_return.id) if existing_return else "",
-                "tipo": RealEstateCashFlow.FlowType.CAPITAL_RETURN,
-                "importe": decimal(data.get("capital_devuelto")),
-                "fecha": return_date,
-                "nota": "",
-            },
-            {
-                "id": str(existing_profit.id) if existing_profit else "",
-                "tipo": RealEstateCashFlow.FlowType.PROFIT,
-                "importe": decimal(data.get("beneficio_obtenido")),
-                "fecha": return_date,
-                "nota": "",
-            },
+                "id": flow.id,
+                "flow_type": flow.flow_type,
+                "amount": flow.amount,
+                "effective_date": flow.effective_date,
+                "note": flow.source_note,
+            }
+            for flow in existing_flows_list
+            if flow.flow_type
+            in {
+                RealEstateCashFlow.FlowType.CAPITAL_RETURN,
+                RealEstateCashFlow.FlowType.PROFIT,
+            }
         ]
     item.cash_flows.all().delete()
     for flow_type, amount, effective, external in (
@@ -1170,14 +1153,16 @@ def save_real_estate(item: RealEstateInvestment, data: dict[str, Any]) -> None:
     for movement in movements:
         if not isinstance(movement, dict):
             continue
-        flow_type = str(movement.get("tipo", ""))
+        flow_type = str(movement.get("flow_type", ""))
         if flow_type not in allowed_types:
             raise ValueError(_("An invalid real-estate movement type was received"))
-        amount = decimal(movement.get("importe"))
+        amount = decimal(movement.get("amount"))
         if amount <= 0:
             continue
         flow_date: date | None = (
-            date.fromisoformat(str(movement["fecha"])[:10]) if movement.get("fecha") else None
+            movement.get("effective_date")
+            if isinstance(movement.get("effective_date"), date)
+            else None
         )
         existing_flow = existing_flows.get(str(movement.get("id") or ""))
         withholding_rate = (
@@ -1199,7 +1184,7 @@ def save_real_estate(item: RealEstateInvestment, data: dict[str, Any]) -> None:
             effective_date=flow_date,
             withholding_rate=withholding_rate,
             is_external=False,
-            source_note=str(movement.get("nota", ""))[:240],
+            source_note=str(movement.get("note", ""))[:240],
         )
 
 
@@ -1209,13 +1194,14 @@ def real_estate(request: Request) -> Response:
         return Response(real_estate_records(request))
     if denied := forbidden_if_readonly(request):
         return denied
-    data = payload(request)
-    items = RealEstateInvestment.objects.filter(workspace=workspace(request))
+    serializer = RealEstateRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
     item = RealEstateInvestment(
         workspace=workspace(request),
-        legacy_id=next_legacy_id(items),
-        name=str(data["nombre"]),
-        start_date=date.today(),
+        name=str(data["name"]),
+        start_date=data["start_date"],
     )
     try:
         with transaction.atomic():
@@ -1227,19 +1213,20 @@ def real_estate(request: Request) -> Response:
 
 
 @api_view(["PUT", "DELETE"])
-def real_estate_detail(request: Request, legacy_id: int) -> Response:
+def real_estate_detail(request: Request, investment_id: UUID) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    item = get_object_or_404(
-        RealEstateInvestment, workspace=workspace(request), legacy_id=legacy_id
-    )
+    item = get_object_or_404(RealEstateInvestment, workspace=workspace(request), pk=investment_id)
     if request.method == "DELETE":
         item.cash_flows.all().delete()
         item.delete()
         return Response({"ok": True})
+    serializer = RealEstateUpdateRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
     try:
         with transaction.atomic():
-            save_real_estate(item, payload(request))
+            save_real_estate(item, serializer.validated_data)
     except ValueError as exc:
         return Response({"error": str(exc)}, status=400)
     return Response(real_estate_row(item))
@@ -1993,11 +1980,11 @@ def portfolio_analysis(request: Request) -> Response:
         value = live_capital(project)
         if value <= 0:
             continue
-        platform = str(project.get("plataforma") or "Inmobiliario")
+        platform = str(project.get("platform") or "Inmobiliario")
         result.append(
             {
                 "id": f"real-estate:{project['id']}",
-                "nombre": project["nombre"],
+                "nombre": project["name"],
                 "identificador": "",
                 "clase": "Inmobiliario",
                 "subtipo": "Proyecto inmobiliario",

@@ -22,72 +22,72 @@ vi.mock("../api/client", () => ({
 const apiMock = vi.mocked(api);
 const projects = [
   {
-    id: 1,
-    nombre: "Málaga Centro",
-    plataforma: "Urbanitae",
-    estado: "Activo",
-    capital_inicial: 1000,
-    capital_nuevo: 1000,
-    capital_devuelto: 0,
-    beneficio_obtenido: 100,
-    beneficio_estimado: 200,
-    tir: 12,
-    meses: 24,
-    fecha_inicio: "2025-09-01",
-    fecha_vencimiento: "2027-09-01",
-    fecha_devolucion: "",
-    movimientos: [],
-    origen: "",
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "Málaga Centro",
+    platform: "Urbanitae",
+    status: "active",
+    initial_capital: 1000,
+    new_capital: 1000,
+    returned_capital: 0,
+    realized_profit: 100,
+    expected_profit: 200,
+    expected_irr_percent: 12,
+    expected_term_months: 24,
+    start_date: "2025-09-01",
+    maturity_date: "2027-09-01",
+    return_date: null,
+    movements: [],
+    origin: "",
   },
   {
-    id: 2,
-    nombre: "Barcelona",
-    plataforma: "WeCity",
-    estado: "Activo",
-    capital_inicial: 1500,
-    capital_nuevo: 0,
-    capital_devuelto: 500,
-    beneficio_obtenido: 50,
-    beneficio_estimado: null,
-    tir: 10,
-    meses: 12,
-    fecha_inicio: "2025-09-01",
-    fecha_vencimiento: "2027-03-01",
-    fecha_devolucion: "2026-06-22",
-    movimientos: [
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "Barcelona",
+    platform: "WeCity",
+    status: "active",
+    initial_capital: 1500,
+    new_capital: 0,
+    returned_capital: 500,
+    realized_profit: 50,
+    expected_profit: null,
+    expected_irr_percent: 10,
+    expected_term_months: 12,
+    start_date: "2025-09-01",
+    maturity_date: "2027-03-01",
+    return_date: "2026-06-22",
+    movements: [
       {
-        id: "return-1",
-        tipo: "capital_return",
-        fecha: "2026-06-22",
-        importe: 500,
-        nota: "Amortización parcial",
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        flow_type: "capital_return",
+        effective_date: "2026-06-22",
+        amount: 500,
+        note: "Amortización parcial",
       },
       {
-        id: "profit-1",
-        tipo: "profit",
-        fecha: "2026-06-22",
-        importe: 50,
-        nota: "Intereses ordinarios",
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        flow_type: "profit",
+        effective_date: "2026-06-22",
+        amount: 50,
+        note: "Intereses ordinarios",
       },
     ],
-    origen: "Reinversión de un proyecto anterior",
+    origin: "Reinversión de un proyecto anterior",
   },
 ];
 const completedProject = {
   ...projects[0],
-  id: 3,
-  nombre: "Valencia Finalizado",
-  estado: "Completado",
-  capital_devuelto: 1000,
-  fecha_vencimiento: "2027-12-31",
+  id: "33333333-3333-4333-8333-333333333333",
+  name: "Valencia Finalizado",
+  status: "completed",
+  returned_capital: 1000,
+  maturity_date: "2027-12-31",
 };
 const returnedRiskProject = {
   ...projects[0],
-  id: 4,
-  nombre: "Riesgo devuelto",
-  estado: "Impagado",
-  capital_devuelto: 1000,
-  fecha_vencimiento: "2027-11-30",
+  id: "44444444-4444-4444-8444-444444444444",
+  name: "Riesgo devuelto",
+  status: "defaulted",
+  returned_capital: 1000,
+  maturity_date: "2027-11-30",
 };
 
 describe("RealEstateView", () => {
@@ -134,11 +134,11 @@ describe("RealEstateView", () => {
     const customProjects = [
       {
         ...projects[0],
-        retencion_irpf: 0, // 0% tax -> 100 gross = 100 net, 200 expected gross = 200 expected net
+        tax_rate: 0, // 0% tax -> 100 gross = 100 net, 200 expected gross = 200 expected net
       },
       {
         ...projects[1],
-        retencion_irpf: 10, // 10% tax -> 50 gross = 45 net, 100 expected gross = 90 expected net
+        tax_rate: 10, // 10% tax -> 50 gross = 45 net, 100 expected gross = 90 expected net
       },
     ];
     apiMock.mockResolvedValue(customProjects);
@@ -177,9 +177,9 @@ describe("RealEstateView", () => {
     apiMock.mockResolvedValue([
       {
         ...projects[0],
-        retencion_irpf: 30,
-        beneficio_obtenido_neto: 81,
-        beneficio_estimado_neto: 162,
+        tax_rate: 30,
+        net_realized_profit: 81,
+        net_expected_profit: 162,
       },
     ]);
     const wrapper = mount(RealEstateView);
@@ -203,7 +203,8 @@ describe("RealEstateView", () => {
   it("edits returns and profits as dated movements", async () => {
     apiMock.mockImplementation(async (path, options) => {
       if (path === "/real-estate" && !options) return projects;
-      if (path === "/real-estate/2") return projects[1];
+      if (path === "/real-estate/22222222-2222-4222-8222-222222222222")
+        return projects[1];
       throw new Error(`Unexpected path: ${path}`);
     });
     const wrapper = mount(RealEstateView);
@@ -222,11 +223,48 @@ describe("RealEstateView", () => {
     await flushPromises();
 
     const request = apiMock.mock.calls.find(
-      ([path]) => path === "/real-estate/2",
+      ([path]) => path === "/real-estate/22222222-2222-4222-8222-222222222222",
     );
-    const movements = JSON.parse(String(request?.[1]?.body)).movimientos;
+    const movements = JSON.parse(String(request?.[1]?.body)).movements;
     expect(movements).toHaveLength(3);
-    expect(movements[0].id).toBe("return-1");
+    expect(movements[0].id).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  });
+
+  it("preserves a movement without an effective date when editing", async () => {
+    const undatedProject = {
+      ...projects[1],
+      movements: [
+        {
+          ...projects[1].movements[1],
+          effective_date: null,
+        },
+      ],
+    };
+    apiMock.mockImplementation(async (path, options) => {
+      if (path === "/real-estate" && !options) return [undatedProject];
+      if (path === `/real-estate/${undatedProject.id}`) return undatedProject;
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const wrapper = mount(RealEstateView);
+    await flushPromises();
+
+    await wrapper.get(".project-actions button").trigger("click");
+    expect(
+      wrapper.get<HTMLInputElement>('.movement-row input[type="date"]').element
+        .value,
+    ).toBe("");
+    await wrapper.get(".estate-dialog form").trigger("submit");
+    await flushPromises();
+
+    const request = apiMock.mock.calls
+      .filter(
+        ([path, options]) =>
+          path === `/real-estate/${undatedProject.id}` && options,
+      )
+      .at(-1);
+    expect(
+      JSON.parse(String(request?.[1]?.body)).movements[0].effective_date,
+    ).toBeNull();
   });
 
   it("translates statuses, actions, and formats into English", async () => {

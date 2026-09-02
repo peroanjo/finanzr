@@ -24,55 +24,55 @@ const loading = ref(true);
 const error = ref("");
 const editor = ref<HTMLDialogElement>();
 const editorMode = ref<"create" | "edit">("create");
-const editingId = ref<number | null>(null);
+const editingId = ref<string | null>(null);
 const busy = ref(false);
 const editorError = ref("");
 const deleteArmed = ref(false);
 
 interface InvestmentForm {
-  nombre: string;
-  plataforma: string;
-  estado: string;
-  capital_inicial: string;
-  capital_nuevo: string;
-  beneficio_estimado: string;
-  tir: string;
-  meses: string;
-  fecha_inicio: string;
-  fecha_vencimiento: string;
-  retencion_irpf: string;
-  movimientos: EstateMovementForm[];
-  origen: string;
+  name: string;
+  platform: string;
+  status: RealEstateInvestment["status"];
+  initial_capital: string;
+  new_capital: string;
+  expected_profit: string;
+  expected_irr_percent: string;
+  expected_term_months: string;
+  start_date: string;
+  maturity_date: string;
+  tax_rate: string;
+  movements: EstateMovementForm[];
+  origin: string;
 }
 
 interface EstateMovementForm {
   id?: string;
-  tipo: "capital_return" | "profit";
-  fecha: string;
-  importe: string;
-  nota: string;
+  flow_type: "capital_return" | "profit";
+  effective_date: string;
+  amount: string;
+  note: string;
 }
 
 const emptyForm = (): InvestmentForm => ({
-  nombre: "",
-  plataforma: "",
-  estado: "Activo",
-  capital_inicial: "",
-  capital_nuevo: "",
-  beneficio_estimado: "",
-  tir: "",
-  meses: "",
-  fecha_inicio: new Date().toISOString().slice(0, 10),
-  fecha_vencimiento: "",
-  retencion_irpf: "",
-  movimientos: [],
-  origen: "",
+  name: "",
+  platform: "",
+  status: "active",
+  initial_capital: "",
+  new_capital: "",
+  expected_profit: "",
+  expected_irr_percent: "",
+  expected_term_months: "",
+  start_date: new Date().toISOString().slice(0, 10),
+  maturity_date: "",
+  tax_rate: "",
+  movements: [],
+  origin: "",
 });
 const form = ref<InvestmentForm>(emptyForm());
 
 const activeInvestments = computed(() =>
   investments.value.filter(
-    (item) => item.estado === "Activo" && liveCapital(item) > 0,
+    (item) => item.status === "active" && liveCapital(item) > 0,
   ),
 );
 const completedInvestments = computed(() =>
@@ -81,9 +81,9 @@ const completedInvestments = computed(() =>
 const activeProjectCards = computed(() =>
   investments.value.filter((item) => !isCompleted(item)),
 );
-const totalInitial = computed(() => sumBy((item) => item.capital_inicial));
-const totalNewCapital = computed(() => sumBy((item) => item.capital_nuevo));
-const totalReturned = computed(() => sumBy((item) => item.capital_devuelto));
+const totalInitial = computed(() => sumBy((item) => item.initial_capital));
+const totalNewCapital = computed(() => sumBy((item) => item.new_capital));
+const totalReturned = computed(() => sumBy((item) => item.returned_capital));
 const totalLive = computed(() => sumBy(liveCapital));
 const totalProfitNet = computed(() =>
   investments.value.reduce((total, item) => total + realizedNet(item), 0),
@@ -100,7 +100,7 @@ const weightedIrr = computed(() => {
   if (!weight) return 0;
   return (
     activeInvestments.value.reduce(
-      (total, item) => total + item.tir * liveCapital(item),
+      (total, item) => total + item.expected_irr_percent * liveCapital(item),
       0,
     ) / weight
   );
@@ -113,8 +113,10 @@ const returnedShare = computed(() =>
 const liveShare = computed(() => Math.max(0, 100 - returnedShare.value));
 const nextMaturities = computed(() =>
   [...activeInvestments.value]
-    .filter((item) => item.fecha_vencimiento)
-    .sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento))
+    .filter((item) => item.maturity_date)
+    .sort((a, b) =>
+      (a.maturity_date ?? "").localeCompare(b.maturity_date ?? ""),
+    )
     .slice(0, 4),
 );
 
@@ -128,24 +130,23 @@ function sumBy(pick: (item: RealEstateInvestment) => number) {
 function liveCapital(item: RealEstateInvestment) {
   return Math.max(
     0,
-    (item.capital_inicial || 0) - (item.capital_devuelto || 0),
+    (item.initial_capital || 0) - (item.returned_capital || 0),
   );
 }
 
 function estimatedProfit(item: RealEstateInvestment) {
-  if (
-    item.beneficio_estimado !== null &&
-    item.beneficio_estimado !== undefined
-  ) {
-    return item.beneficio_estimado;
+  if (item.expected_profit !== null && item.expected_profit !== undefined) {
+    return item.expected_profit;
   }
   return (
-    (((liveCapital(item) * (item.tir || 0)) / 100) * (item.meses || 0)) / 12
+    (((liveCapital(item) * (item.expected_irr_percent || 0)) / 100) *
+      (item.expected_term_months || 0)) /
+    12
   );
 }
 
 function itemTaxRate(item: RealEstateInvestment) {
-  return item.retencion_irpf ?? defaultTaxRate.value;
+  return item.tax_rate ?? defaultTaxRate.value;
 }
 
 function itemRetention(item: RealEstateInvestment) {
@@ -159,18 +160,15 @@ function projectNet(item: RealEstateInvestment, gross: number) {
 
 function realizedNet(item: RealEstateInvestment) {
   return (
-    item.beneficio_obtenido_neto ??
-    projectNet(item, item.beneficio_obtenido || 0)
+    item.net_realized_profit ?? projectNet(item, item.realized_profit || 0)
   );
 }
 
 function expectedNet(item: RealEstateInvestment) {
-  return (
-    item.beneficio_estimado_neto ?? projectNet(item, estimatedProfit(item))
-  );
+  return item.net_expected_profit ?? projectNet(item, estimatedProfit(item));
 }
 
-function displayDate(value: string) {
+function displayDate(value: string | null) {
   if (!value) return t("realEstate.noDate");
   const [year, month, day] = value.slice(0, 10).split("-");
   return year && month && day
@@ -193,9 +191,9 @@ const money = (value: number) => n(value, "currency");
 
 function projectProgress(item: RealEstateInvestment) {
   if (isCompleted(item)) return 100;
-  if (!item.fecha_inicio || !item.fecha_vencimiento) return 0;
-  const start = Date.parse(`${item.fecha_inicio.slice(0, 10)}T00:00:00`);
-  const end = Date.parse(`${item.fecha_vencimiento.slice(0, 10)}T00:00:00`);
+  if (!item.start_date || !item.maturity_date) return 0;
+  const start = Date.parse(`${item.start_date.slice(0, 10)}T00:00:00`);
+  const end = Date.parse(`${item.maturity_date.slice(0, 10)}T00:00:00`);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
     return 0;
   return Math.min(
@@ -205,10 +203,8 @@ function projectProgress(item: RealEstateInvestment) {
 }
 
 function daysToMaturity(item: RealEstateInvestment) {
-  if (!item.fecha_vencimiento) return null;
-  const maturity = Date.parse(
-    `${item.fecha_vencimiento.slice(0, 10)}T00:00:00`,
-  );
+  if (!item.maturity_date) return null;
+  const maturity = Date.parse(`${item.maturity_date.slice(0, 10)}T00:00:00`);
   return Number.isFinite(maturity)
     ? Math.ceil((maturity - Date.now()) / DAY)
     : null;
@@ -231,16 +227,13 @@ function statusLabel(item: RealEstateInvestment) {
 
 function statusClass(item: RealEstateInvestment) {
   if (isCompleted(item)) return "complete";
-  const status = item.estado.toLowerCase();
-  if (status.includes("impag")) return "risk";
-  if (status.includes("cancel")) return "cancelled";
+  if (item.status === "defaulted") return "risk";
+  if (item.status === "cancelled") return "cancelled";
   return "active";
 }
 
 function isCompleted(item: RealEstateInvestment) {
-  return (
-    item.estado.toLowerCase().includes("complet") || liveCapital(item) === 0
-  );
+  return item.status === "completed" || liveCapital(item) === 0;
 }
 
 const ProjectCard = defineComponent({
@@ -255,10 +248,10 @@ const ProjectCard = defineComponent({
       return h("article", { class: "project-card" }, [
         h("header", [
           h("div", { class: "project-identity" }, [
-            h("span", item.nombre.slice(0, 2).toUpperCase()),
+            h("span", item.name.slice(0, 2).toUpperCase()),
             h("div", [
-              h("h3", item.nombre),
-              h("p", item.plataforma || t("realEstate.projects.noPlatform")),
+              h("h3", item.name),
+              h("p", item.platform || t("realEstate.projects.noPlatform")),
             ]),
           ]),
           h("div", { class: "project-actions" }, [
@@ -272,7 +265,7 @@ const ProjectCard = defineComponent({
               {
                 type: "button",
                 "aria-label": t("realEstate.actions.editNamed", {
-                  name: item.nombre,
+                  name: item.name,
                 }),
                 onClick: () => openEdit(item),
               },
@@ -292,15 +285,15 @@ const ProjectCard = defineComponent({
           h(
             "small",
             t("realEstate.projects.ofInitial", {
-              amount: money(item.capital_inicial),
+              amount: money(item.initial_capital),
             }),
           ),
         ]),
         h("div", { class: "project-progress" }, [
           h("div", [
-            h("span", displayDate(item.fecha_inicio)),
+            h("span", displayDate(item.start_date)),
             h("span", maturityCopy(item)),
-            h("span", displayDate(item.fecha_vencimiento)),
+            h("span", displayDate(item.maturity_date)),
           ]),
           h(
             "div",
@@ -308,7 +301,7 @@ const ProjectCard = defineComponent({
               class: "progress-track",
               role: "progressbar",
               "aria-label": t("realEstate.projects.progressAria", {
-                name: item.nombre,
+                name: item.name,
               }),
               "aria-valuemin": "0",
               "aria-valuemax": "100",
@@ -320,14 +313,14 @@ const ProjectCard = defineComponent({
         h("div", { class: "project-kpis" }, [
           h("div", [
             h("span", t("realEstate.contributedCapital")),
-            h("strong", money(item.capital_nuevo)),
+            h("strong", money(item.new_capital)),
           ]),
           h("div", [
             h("span", t("realEstate.returnedCapital")),
             h(
               "strong",
-              { class: { positive: item.capital_devuelto > 0 } },
-              money(item.capital_devuelto),
+              { class: { positive: item.returned_capital > 0 } },
+              money(item.returned_capital),
             ),
           ]),
           h("div", [
@@ -340,7 +333,7 @@ const ProjectCard = defineComponent({
             h(
               "small",
               t("realEstate.grossAmount", {
-                amount: money(item.beneficio_obtenido),
+                amount: money(item.realized_profit),
               }),
             ),
           ]),
@@ -356,22 +349,24 @@ const ProjectCard = defineComponent({
           ]),
           h("div", [
             h("span", t("realEstate.annualIrr")),
-            h("strong", percent(item.tir, 2)),
+            h("strong", percent(item.expected_irr_percent, 2)),
           ]),
           h("div", [
             h("span", t("realEstate.term")),
             h(
               "strong",
-              item.meses
-                ? t("realEstate.monthCount", { count: item.meses })
+              item.expected_term_months
+                ? t("realEstate.monthCount", {
+                    count: item.expected_term_months,
+                  })
                 : "—",
             ),
           ]),
         ]),
-        item.origen
+        item.origin
           ? h("footer", [
               h("span", t("realEstate.capitalOrigin")),
-              h("p", item.origen),
+              h("p", item.origin),
             ])
           : null,
       ]);
@@ -405,27 +400,34 @@ function openEdit(item: RealEstateInvestment) {
   editorMode.value = "edit";
   editingId.value = item.id;
   form.value = {
-    nombre: item.nombre,
-    plataforma: item.plataforma,
-    estado: item.estado,
-    capital_inicial: String(item.capital_inicial ?? ""),
-    capital_nuevo: String(item.capital_nuevo ?? ""),
-    beneficio_estimado:
-      item.beneficio_estimado === null ? "" : String(item.beneficio_estimado),
-    tir: item.tir ? String(item.tir) : "",
-    meses: item.meses ? String(item.meses) : "",
-    fecha_inicio: item.fecha_inicio,
-    fecha_vencimiento: item.fecha_vencimiento,
-    retencion_irpf:
-      item.retencion_irpf !== null && item.retencion_irpf !== undefined
-        ? String(item.retencion_irpf)
+    name: item.name,
+    platform: item.platform,
+    status: item.status,
+    initial_capital: String(item.initial_capital ?? ""),
+    new_capital: String(item.new_capital ?? ""),
+    expected_profit:
+      item.expected_profit === null ? "" : String(item.expected_profit),
+    expected_irr_percent: item.expected_irr_percent
+      ? String(item.expected_irr_percent)
+      : "",
+    expected_term_months: item.expected_term_months
+      ? String(item.expected_term_months)
+      : "",
+    start_date: item.start_date,
+    maturity_date: item.maturity_date ?? "",
+    tax_rate:
+      item.tax_rate !== null && item.tax_rate !== undefined
+        ? String(item.tax_rate)
         : "",
-    movimientos:
-      item.movimientos?.map((movement) => ({
-        ...movement,
-        importe: String(movement.importe),
+    movements:
+      item.movements?.map((movement) => ({
+        id: movement.id,
+        flow_type: movement.flow_type,
+        effective_date: movement.effective_date ?? "",
+        amount: String(movement.amount),
+        note: movement.note,
       })) ?? [],
-    origen: item.origen,
+    origin: item.origin,
   };
   editorError.value = "";
   deleteArmed.value = false;
@@ -436,51 +438,49 @@ function numberValue(value: string) {
   return value === "" ? 0 : Number(value);
 }
 
-function addMovement(tipo: EstateMovementForm["tipo"]) {
-  form.value.movimientos.push({
-    tipo,
-    fecha: new Date().toISOString().slice(0, 10),
-    importe: "",
-    nota: "",
+function addMovement(flow_type: EstateMovementForm["flow_type"]) {
+  form.value.movements.push({
+    flow_type,
+    effective_date: new Date().toISOString().slice(0, 10),
+    amount: "",
+    note: "",
   });
 }
 
 function removeMovement(index: number) {
-  form.value.movimientos.splice(index, 1);
+  form.value.movements.splice(index, 1);
 }
 
 async function save() {
   busy.value = true;
   editorError.value = "";
   const payload = {
-    nombre: form.value.nombre,
-    plataforma: form.value.plataforma,
-    estado: form.value.estado,
-    capital_inicial: numberValue(form.value.capital_inicial),
-    capital_nuevo:
-      form.value.capital_nuevo === ""
-        ? numberValue(form.value.capital_inicial)
-        : numberValue(form.value.capital_nuevo),
-    beneficio_estimado:
-      form.value.beneficio_estimado === ""
+    name: form.value.name,
+    platform: form.value.platform,
+    status: form.value.status,
+    initial_capital: numberValue(form.value.initial_capital),
+    new_capital:
+      form.value.new_capital === ""
+        ? numberValue(form.value.initial_capital)
+        : numberValue(form.value.new_capital),
+    expected_profit:
+      form.value.expected_profit === ""
         ? null
-        : numberValue(form.value.beneficio_estimado),
-    tir: numberValue(form.value.tir),
-    meses: numberValue(form.value.meses),
-    fecha_inicio: form.value.fecha_inicio,
-    fecha_vencimiento: form.value.fecha_vencimiento,
-    retencion_irpf:
-      form.value.retencion_irpf === ""
-        ? null
-        : numberValue(form.value.retencion_irpf),
-    movimientos: form.value.movimientos.map((movement) => ({
+        : numberValue(form.value.expected_profit),
+    expected_irr_percent: numberValue(form.value.expected_irr_percent),
+    expected_term_months: numberValue(form.value.expected_term_months),
+    start_date: form.value.start_date,
+    maturity_date: form.value.maturity_date || null,
+    tax_rate:
+      form.value.tax_rate === "" ? null : numberValue(form.value.tax_rate),
+    movements: form.value.movements.map((movement) => ({
       id: movement.id,
-      tipo: movement.tipo,
-      fecha: movement.fecha,
-      importe: numberValue(movement.importe),
-      nota: movement.nota,
+      flow_type: movement.flow_type,
+      effective_date: movement.effective_date || null,
+      amount: numberValue(movement.amount),
+      note: movement.note,
     })),
-    origen: form.value.origen,
+    origin: form.value.origin,
   };
   try {
     const path =
@@ -647,11 +647,11 @@ onMounted(load);
               String(index + 1).padStart(2, "0")
             }}</span>
             <span>
-              <strong>{{ maturity.nombre }}</strong>
-              <small>{{ maturity.plataforma }}</small>
+              <strong>{{ maturity.name }}</strong>
+              <small>{{ maturity.platform }}</small>
             </span>
             <span>
-              <strong>{{ displayDate(maturity.fecha_vencimiento) }}</strong>
+              <strong>{{ displayDate(maturity.maturity_date) }}</strong>
               <small>{{ maturityCopy(maturity) }}</small>
             </span>
             <strong>{{ money(liveCapital(maturity)) }}</strong>
@@ -731,28 +731,28 @@ onMounted(load);
         <div class="form-grid">
           <label class="wide"
             ><span>{{ t("realEstate.editor.projectName") }}</span
-            ><input v-model="form.nombre" required
+            ><input v-model="form.name" required
           /></label>
           <label
             ><span>{{ t("realEstate.editor.platform") }}</span
             ><input
-              v-model="form.plataforma"
+              v-model="form.platform"
               required
               :placeholder="t('realEstate.editor.platformPlaceholder')"
           /></label>
           <label
             ><span>{{ t("realEstate.editor.status") }}</span
-            ><select v-model="form.estado">
-              <option value="Activo">
+            ><select v-model="form.status">
+              <option value="active">
                 {{ t("realEstate.status.active") }}
               </option>
-              <option value="Completado">
+              <option value="completed">
                 {{ t("realEstate.status.complete") }}
               </option>
-              <option value="Impagado">
+              <option value="defaulted">
                 {{ t("realEstate.status.risk") }}
               </option>
-              <option value="Cancelado">
+              <option value="cancelled">
                 {{ t("realEstate.status.cancelled") }}
               </option>
             </select></label
@@ -760,7 +760,7 @@ onMounted(load);
           <label
             ><span>{{ t("realEstate.editor.initialCapital") }}</span
             ><input
-              v-model="form.capital_inicial"
+              v-model="form.initial_capital"
               type="number"
               min="0"
               step="0.01"
@@ -769,7 +769,7 @@ onMounted(load);
           <label
             ><span>{{ t("realEstate.editor.newCapital") }}</span
             ><input
-              v-model="form.capital_nuevo"
+              v-model="form.new_capital"
               type="number"
               min="0"
               step="0.01"
@@ -778,7 +778,7 @@ onMounted(load);
           <label
             ><span>{{ t("realEstate.editor.grossProfitEstimated") }}</span
             ><input
-              v-model="form.beneficio_estimado"
+              v-model="form.expected_profit"
               type="number"
               min="0"
               step="0.01"
@@ -786,24 +786,31 @@ onMounted(load);
           /></label>
           <label
             ><span>{{ t("realEstate.editor.annualIrr") }}</span
-            ><input v-model="form.tir" type="number" step="0.01"
+            ><input
+              v-model="form.expected_irr_percent"
+              type="number"
+              step="0.01"
           /></label>
           <label
             ><span>{{ t("realEstate.editor.termMonths") }}</span
-            ><input v-model="form.meses" type="number" min="0" step="1"
+            ><input
+              v-model="form.expected_term_months"
+              type="number"
+              min="0"
+              step="1"
           /></label>
           <label
             ><span>{{ t("realEstate.editor.startDate") }}</span
-            ><input v-model="form.fecha_inicio" type="date" required
+            ><input v-model="form.start_date" type="date" required
           /></label>
           <label
             ><span>{{ t("realEstate.editor.maturityDate") }}</span
-            ><input v-model="form.fecha_vencimiento" type="date"
+            ><input v-model="form.maturity_date" type="date"
           /></label>
           <label
             ><span>{{ t("realEstate.editor.taxRate") }}</span
             ><input
-              v-model="form.retencion_irpf"
+              v-model="form.tax_rate"
               type="number"
               min="0"
               max="100"
@@ -817,7 +824,7 @@ onMounted(load);
           <label class="wide"
             ><span>{{ t("realEstate.capitalOrigin") }}</span
             ><input
-              v-model="form.origen"
+              v-model="form.origin"
               :placeholder="t('realEstate.editor.originPlaceholder')"
           /></label>
         </div>
@@ -837,15 +844,15 @@ onMounted(load);
               </button>
             </span>
           </header>
-          <div v-if="form.movimientos.length" class="movement-list">
+          <div v-if="form.movements.length" class="movement-list">
             <div
-              v-for="(movement, index) in form.movimientos"
+              v-for="(movement, index) in form.movements"
               :key="movement.id ?? index"
               class="movement-row"
             >
               <label>
                 <span>{{ t("common.type") }}</span>
-                <select v-model="movement.tipo">
+                <select v-model="movement.flow_type">
                   <option value="capital_return">
                     {{ t("realEstate.movements.capitalReturn") }}
                   </option>
@@ -856,12 +863,12 @@ onMounted(load);
               </label>
               <label
                 ><span>{{ t("realEstate.movements.date") }}</span
-                ><input v-model="movement.fecha" type="date" required
+                ><input v-model="movement.effective_date" type="date" required
               /></label>
               <label
                 ><span>{{ t("realEstate.movements.grossAmount") }}</span
                 ><input
-                  v-model="movement.importe"
+                  v-model="movement.amount"
                   type="number"
                   min="0"
                   step="0.01"
@@ -870,7 +877,7 @@ onMounted(load);
               <label class="movement-note"
                 ><span>{{ t("realEstate.movements.note") }}</span
                 ><input
-                  v-model="movement.nota"
+                  v-model="movement.note"
                   :placeholder="t('realEstate.movements.notePlaceholder')"
               /></label>
               <button

@@ -712,7 +712,6 @@ class Command(BaseCommand):
         active = RealEstateInvestment.objects.create(
             workspace=workspace,
             provider=providers["real_estate"],
-            legacy_id=1,
             name="Residencial Valencia",
             status=RealEstateInvestment.Status.ACTIVE,
             start_date=date(2026, 2, 15),
@@ -726,7 +725,6 @@ class Command(BaseCommand):
         completed = RealEstateInvestment.objects.create(
             workspace=workspace,
             provider=providers["real_estate"],
-            legacy_id=2,
             name="Rehabilitación Bilbao",
             status=RealEstateInvestment.Status.COMPLETED,
             start_date=date(2025, 3, 10),
