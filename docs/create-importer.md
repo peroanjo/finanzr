@@ -145,26 +145,30 @@ class NewBrokerImporter(BaseImporter):
                 amount = abs(float(row["net_amount"]))
             except (TypeError, ValueError):
                 result.skipped += 1
-                result.issues.append(ImportIssue(
-                    code="invalid_number",
-                    message="Invalid quantity or amount",
-                    row_number=row_number,
-                ))
+                result.issues.append(
+                    ImportIssue(
+                        code="invalid_number",
+                        message="Invalid quantity or amount",
+                        row_number=row_number,
+                    )
+                )
                 continue
 
-            result.records.append({
-                "operacion_id": str(row["operation_id"]),
-                "fecha_operacion": str(row["date"])[:10],
-                "isin": str(row["isin"]),
-                "nombre_activo": str(row.get("name") or row["isin"]),
-                "titulos": quantity,
-                "precio_compra": float(row.get("price") or 0),
-                "importe_neto": amount,
-                "comision": abs(float(row.get("fee") or 0)),
-                "cuenta_id": context.account_id,
-                "tipo_operacion": "Buy" if row["side"] == "buy" else "Sell",
-                "es_saveback": False,
-            })
+            result.records.append(
+                {
+                    "operacion_id": str(row["operation_id"]),
+                    "fecha_operacion": str(row["date"])[:10],
+                    "isin": str(row["isin"]),
+                    "nombre_activo": str(row.get("name") or row["isin"]),
+                    "titulos": quantity,
+                    "precio_compra": float(row.get("price") or 0),
+                    "importe_neto": amount,
+                    "comision": abs(float(row.get("fee") or 0)),
+                    "cuenta_id": context.account_id,
+                    "tipo_operacion": "Buy" if row["side"] == "buy" else "Sell",
+                    "es_saveback": False,
+                }
+            )
 
         return result
 
@@ -260,13 +264,15 @@ A defective row that does not invalidate the rest of the file must produce an
 `ImportIssue`:
 
 ```python
-result.issues.append(ImportIssue(
-    code="unsupported_currency",
-    message="Only EUR operations are supported",
-    severity="warning",
-    row_number=7,
-    value="USD",
-))
+result.issues.append(
+    ImportIssue(
+        code="unsupported_currency",
+        message="Only EUR operations are supported",
+        severity="warning",
+        row_number=7,
+        value="USD",
+    )
+)
 result.skipped += 1
 ```
 
