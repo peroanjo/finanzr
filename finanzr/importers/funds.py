@@ -489,8 +489,9 @@ class FundBrokerImporter(BaseImporter):
                 parser.feed(source)
                 parser.close()
             except (AssertionError, ValueError):
-                pass
-            rows = parser.rows
+                rows = []
+            else:
+                rows = parser.rows
         else:
             rows = [
                 [cell.strip().replace("\xa0", "").strip() for cell in line.split(";")]

@@ -1,5 +1,5 @@
 Django>=5.2.16,<5.3
-djangorestframework>=3.16.1,<3.17
+djangorestframework>=3.17.2,<3.19
 drf-spectacular>=0.28,<0.29
 psycopg[binary]>=3.2,<3.4
 python-json-logger>=4.2.0,<5
