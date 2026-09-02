@@ -251,7 +251,7 @@ def test_viewer_cannot_write_and_editor_can() -> None:
     )
     assert manual.status_code == 201
     manual_id = manual.json()["id"]
-    assert ManualAsset.objects.get(pk=manual_id).legacy_id is None
+    assert str(ManualAsset.objects.get(pk=manual_id).id) == manual_id
     client.force_authenticate(viewer)
     assert (
         client.put(

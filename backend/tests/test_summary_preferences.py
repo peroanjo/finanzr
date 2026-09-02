@@ -44,7 +44,6 @@ def setup_workspace() -> tuple[Workspace, User, User]:
     )
     ManualAsset.objects.create(
         workspace=workspace,
-        legacy_id=1,
         name="Colección",
         asset_class="Alternativos",
         value=40,
@@ -248,10 +247,9 @@ def test_manual_asset_deduplication_requires_project_correlation() -> None:
         amount=300,
         is_external=True,
     )
-    # This exact-name/value row is the known legacy duplication.
+    # This exact-name/value row is the known historical duplication.
     ManualAsset.objects.create(
         workspace=workspace,
-        legacy_id=2,
         name="Proyecto Norte",
         asset_class="Other",
         value=300,
@@ -261,7 +259,6 @@ def test_manual_asset_deduplication_requires_project_correlation() -> None:
     # A property-like label alone is not proof of a duplicate.
     ManualAsset.objects.create(
         workspace=workspace,
-        legacy_id=3,
         name="Mi inmobiliario privado",
         asset_class="Real estate",
         value=50,

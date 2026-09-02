@@ -285,7 +285,6 @@ def api_context() -> tuple[APIClient, User]:
     )
     ManualAsset.objects.create(
         workspace=workspace,
-        legacy_id=1,
         provider_label="Manual",
         name="Synthetic cash",
         asset_class="Efectivo",
@@ -1286,7 +1285,7 @@ def test_portfolio_native_contract_uses_uuid_and_english_fields(
     api_context: tuple[APIClient, User],
 ) -> None:
     client, _ = api_context
-    legacy = ManualAsset.objects.get(legacy_id=1)
+    seeded_asset = ManualAsset.objects.get(name="Synthetic cash")
     assert (
         client.patch(
             "/api/auth/preferences", {"summary_sources": ["manual_assets"]}, format="json"
@@ -1299,7 +1298,7 @@ def test_portfolio_native_contract_uses_uuid_and_english_fields(
     assert listed.status_code == 200
     assert listed.json() == [
         {
-            "id": str(legacy.id),
+            "id": str(seeded_asset.id),
             "name": "Synthetic cash",
             "asset_class": "Efectivo",
             "subtype": "Demo",
@@ -1332,7 +1331,7 @@ def test_portfolio_native_contract_uses_uuid_and_english_fields(
     assert native["value"] == pytest.approx(1234.56789012)
     assert native["currency"] == "EUR"
     stored = ManualAsset.objects.get(pk=native["id"])
-    assert stored.legacy_id is None
+    assert stored.id == UUID(native["id"])
     after = client.get("/api/summary").json()
     assert after["net_worth"] == pytest.approx(before["net_worth"] + 1234.57)
 
@@ -1487,8 +1486,8 @@ def test_portfolio_native_contract_isolates_uuid_scope_and_types(
     assert client.get("/api/portfolio/1").status_code == 404
     put_numeric_id = client.put("/api/portfolio/1", {}, format="json")
     assert put_numeric_id.status_code == 404
-    deleted_legacy_id = client.delete("/api/portfolio/1")
-    assert deleted_legacy_id.status_code == 404
+    deleted_numeric_id = client.delete("/api/portfolio/1")
+    assert deleted_numeric_id.status_code == 404
     put_invalid_uuid = client.put("/api/portfolio/not-a-uuid", {}, format="json")
     assert put_invalid_uuid.status_code == 404
     put_savings_id = client.put(
@@ -1506,11 +1505,11 @@ def test_portfolio_native_contract_isolates_uuid_scope_and_types(
 
 
 @pytest.mark.django_db(transaction=True)
-def test_portfolio_export_includes_legacy_native_and_archived_assets(
+def test_portfolio_export_includes_seeded_native_and_archived_assets(
     api_context: tuple[APIClient, User],
 ) -> None:
     client, _ = api_context
-    legacy = ManualAsset.objects.get(legacy_id=1)
+    seeded_asset = ManualAsset.objects.get(name="Synthetic cash")
     native = client.post(
         "/api/portfolio",
         {
@@ -1523,7 +1522,7 @@ def test_portfolio_export_includes_legacy_native_and_archived_assets(
         format="json",
     ).json()
     archived = ManualAsset.objects.create(
-        workspace=legacy.workspace,
+        workspace=seeded_asset.workspace,
         name="Archived export asset",
         asset_class="Property",
         subtype="Private",
@@ -1541,9 +1540,9 @@ def test_portfolio_export_includes_legacy_native_and_archived_assets(
     data = exported.json()
     assert data["format"] == "finanzr-workspace-v2"
     rows = {item["id"]: item for item in data["portfolio"]}
-    assert set(rows) == {str(legacy.id), native["id"], str(archived.id)}
-    assert rows[str(legacy.id)] == {
-        "id": str(legacy.id),
+    assert set(rows) == {str(seeded_asset.id), native["id"], str(archived.id)}
+    assert rows[str(seeded_asset.id)] == {
+        "id": str(seeded_asset.id),
         "name": "Synthetic cash",
         "asset_class": "Efectivo",
         "subtype": "Demo",
@@ -1687,7 +1686,7 @@ def test_portfolio_analysis_consolidates_positions_by_real_account(
     fund_classes = {item["clase"] for item in payload["items"] if item["origen"] == "fund"}
     assert fund_classes == {"Renta variable"}
     manual = next(item for item in payload["items"] if item["origen"] == "manual")
-    manual_asset = ManualAsset.objects.get(legacy_id=1)
+    manual_asset = ManualAsset.objects.get(name="Synthetic cash")
     assert manual["id"] == f"manual:{manual_asset.id}"
     assert manual["cuenta_id"] == f"manual:{manual_asset.id}"
     account_kinds = {

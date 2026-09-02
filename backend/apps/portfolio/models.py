@@ -6,7 +6,6 @@ from apps.common.models import UUIDModel
 
 
 class ManualAsset(UUIDModel):
-    legacy_id = models.PositiveIntegerField(null=True, blank=True)
     workspace = models.ForeignKey(
         "workspaces.Workspace", on_delete=models.CASCADE, related_name="manual_assets"
     )
@@ -29,11 +28,6 @@ class ManualAsset(UUIDModel):
 
     class Meta:
         ordering = ("name",)
-        constraints = [
-            models.UniqueConstraint(
-                fields=("workspace", "legacy_id"), name="manual_asset_legacy_id_unique"
-            )
-        ]
 
     def __str__(self) -> str:
         return self.name
