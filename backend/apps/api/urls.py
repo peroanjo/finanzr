@@ -44,8 +44,6 @@ urlpatterns = [
     path("portfolio-analysis", views.portfolio_analysis),
     path("real-estate", views.real_estate),
     path("real-estate/<int:legacy_id>", views.real_estate_detail),
-    path("calculator", views.calculator),
-    path("calculator/<int:legacy_id>", views.calculator_detail),
     path("budget", views.budget),
     path("fund-accounts", views.fund_accounts),
     path("fund-accounts/<uuid:account_id>", views.fund_account),

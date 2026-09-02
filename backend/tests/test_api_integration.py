@@ -15,7 +15,7 @@ from apps.market_data.models import (
     StockSplit,
     WorkspaceInstrument,
 )
-from apps.planning.models import AllocationRule, BudgetLine
+from apps.planning.models import BudgetLine
 from apps.portfolio.models import ManualAsset
 from apps.real_estate.models import RealEstateCashFlow, RealEstateInvestment
 from apps.transactions.models import Transaction
@@ -303,18 +303,6 @@ def api_context() -> tuple[APIClient, User]:
         line_type="Necesidad",
         sort_order=0,
     )
-    AllocationRule.objects.create(
-        workspace=workspace,
-        legacy_id=1,
-        provider_label="Manual",
-        name="Synthetic allocation",
-        asset_class="Variable",
-        subtype="Global",
-        target_weight=Decimal("1"),
-        enabled=True,
-        sort_order=0,
-    )
-
     client = APIClient()
     client.force_authenticate(user=user)
     session = client.session
@@ -337,7 +325,6 @@ def test_read_endpoints_are_served_from_django_models(api_context: tuple[APIClie
         "/api/portfolio": list,
         "/api/portfolio-analysis": dict,
         "/api/real-estate": list,
-        "/api/calculator": list,
         "/api/budget": list,
         "/api/fund-accounts": list,
         "/api/stock-accounts": list,
