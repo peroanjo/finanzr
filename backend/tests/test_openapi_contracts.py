@@ -216,16 +216,6 @@ class OpenApiMutationContractTests(SimpleTestCase):
             "format": "uuid",
         }
 
-        calculator = document["paths"]["/api/calculator"]["post"]
-        calculator_properties = self._resolve(
-            document, calculator["requestBody"]["content"]["application/json"]["schema"]
-        )["properties"]
-        assert {"nombre", "tipo_renta", "porcentaje", "aportar"} <= set(calculator_properties)
-        assert self._request_schema(document, "/api/calculator", "post")["required"] == ["nombre"]
-        assert "required" not in self._request_schema(
-            document, "/api/calculator/{legacy_id}", "put"
-        )
-
         budget = document["paths"]["/api/budget"]["put"]
         budget_schema = self._resolve(
             document, budget["requestBody"]["content"]["application/json"]["schema"]

@@ -32,7 +32,6 @@ erDiagram
     WORKSPACE ||--o{ MANUAL_ASSET : owns
     WORKSPACE ||--o{ REAL_ESTATE_INVESTMENT : owns
     WORKSPACE ||--o{ BUDGET_LINE : configures
-    WORKSPACE ||--o{ ALLOCATION_RULE : configures
     WORKSPACE ||--o{ IMPORT_BATCH : imports
     WORKSPACE ||--o{ PROVIDER_CONNECTION : connects
 
@@ -403,7 +402,7 @@ Represents only assets that do not already exist as an account, instrument, or r
 The portfolio summary combines accounts, calculated positions, real estate, and
 `ManualAsset`. A real-estate investment is not copied to `ManualAsset`.
 
-## Budget and Contribution Rules
+## Budget
 
 ### `BudgetLine`
 
@@ -418,27 +417,6 @@ The portfolio summary combines accounts, calculated positions, real estate, and
 | `sort_order` | integer | default 0 |
 
 Case-insensitive unique `(workspace_id, category)`.
-
-### `AllocationRule`
-
-Replaces `calculadora_instrumentos.csv`.
-
-| Field | Type | Rules |
-|---|---|---|
-| `id` | UUID | PK |
-| `workspace_id` | FK Workspace | CASCADE |
-| `account_id` | FK Account nullable | SET_NULL |
-| `provider_id` | FK FinancialProvider nullable | PROTECT |
-| `provider_label` | varchar(160) nullable | uncatalogued private platform |
-| `name` | varchar(160) | required |
-| `asset_class` | varchar(80) | legacy `tipo_renta` |
-| `subtype` | varchar(120) | legacy `subtipo` |
-| `target_weight` | decimal(12, 8) | fraction between 0 and 1 |
-| `enabled` | boolean | legacy `aportar` |
-| `sort_order` | integer | default 0 |
-
-The sum of active weights can be validated in the service layer, but it is not
-forced to 1 in the database because users may edit rules progressively.
 
 ## Imports and Auditing
 

@@ -17,9 +17,6 @@ from apps.api.schemas import (
     ApiPayloadSerializer,
     BudgetRequestSerializer,
     BudgetRowSerializer,
-    CalculatorRequestSerializer,
-    CalculatorResponseSerializer,
-    CalculatorUpdateRequestSerializer,
     CryptoInstrumentRequestSerializer,
     CryptoTransactionRequestSerializer,
     CryptoTransactionUpdateRequestSerializer,
@@ -83,7 +80,6 @@ from rest_framework.views import APIView
 LIST_PATHS = frozenset(
     {
         "/api/audit-events",
-        "/api/calculator",
         "/api/crypto-accounts",
         "/api/crypto-orders",
         "/api/crypto-prices",
@@ -114,7 +110,6 @@ LIST_PATHS = frozenset(
 CREATED_POST_PATHS = frozenset(
     {
         "/api/administration/users",
-        "/api/calculator",
         "/api/crypto-accounts",
         "/api/crypto-orders",
         "/api/cryptos",
@@ -356,12 +351,6 @@ class PublicAutoSchema(AutoSchema):
                 if "{" in path
                 else RealEstateRequestSerializer()
             )
-        if family_path == "/api/calculator":
-            return (
-                CalculatorUpdateRequestSerializer()
-                if "{" in path
-                else CalculatorRequestSerializer()
-            )
         if path == "/api/budget":
             return BudgetRequestSerializer(many=True)
         if family_path in {"/api/orders", "/api/stock-orders", "/api/crypto-orders"}:
@@ -403,8 +392,6 @@ class PublicAutoSchema(AutoSchema):
             response = AdminUserSerializer
         elif family_path in {"/api/funds", "/api/stocks", "/api/cryptos"}:
             response = InstrumentSerializer(many=self.method == "GET")
-        elif family_path == "/api/calculator":
-            response = CalculatorResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/savings/accounts":
             response = NativeSavingsAccountResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/savings/history":
@@ -445,7 +432,6 @@ class PublicAutoSchema(AutoSchema):
             "/api/investments/history",
             "/api/portfolio",
             "/api/real-estate",
-            "/api/calculator",
             "/api/budget",
             "/api/orders",
             "/api/stock-orders",

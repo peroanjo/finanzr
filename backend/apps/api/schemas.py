@@ -312,15 +312,6 @@ class RealEstateUpdateRequestSerializer(RealEstateRequestSerializer):
     nombre = serializers.CharField(required=False)
 
 
-class CalculatorRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    nombre = serializers.CharField(required=True)
-    plataforma = serializers.CharField(required=False)
-    tipo_renta = serializers.CharField(required=False)
-    subtipo = serializers.CharField(required=False)
-    porcentaje = serializers.DecimalField(max_digits=12, decimal_places=6, required=False)
-    aportar = serializers.BooleanField(required=False)
-
-
 class BudgetRowSerializer(serializers.Serializer[dict[str, Any]]):
     categoria = serializers.CharField(required=True)
     cantidad = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
@@ -329,10 +320,6 @@ class BudgetRowSerializer(serializers.Serializer[dict[str, Any]]):
 
 class BudgetRequestSerializer(BudgetRowSerializer):
     pass
-
-
-class CalculatorUpdateRequestSerializer(CalculatorRequestSerializer):
-    nombre = serializers.CharField(required=False)
 
 
 class TransactionRequestSerializer(StrictSerializer):
@@ -402,16 +389,6 @@ class FxRateRequestSerializer(serializers.Serializer[dict[str, Any]]):
 
 class FxRateUpdateRequestSerializer(FxRateRequestSerializer):
     rate = serializers.DecimalField(max_digits=24, decimal_places=12, required=False)
-
-
-class CalculatorResponseSerializer(serializers.Serializer[dict[str, Any]]):
-    id = serializers.IntegerField()
-    nombre = serializers.CharField()
-    plataforma = serializers.CharField()
-    tipo_renta = serializers.CharField()
-    subtipo = serializers.CharField()
-    porcentaje = serializers.DecimalField(max_digits=12, decimal_places=6)
-    aportar = serializers.BooleanField()
 
 
 class ManualAssetResponseSerializer(serializers.Serializer[dict[str, Any]]):

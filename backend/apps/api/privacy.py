@@ -108,7 +108,6 @@ def export_payload(request: Request) -> dict[str, object]:
         "investment_history": investment_history,
         "portfolio": _native_portfolio_section(request),
         "real_estate": _view_data(views.real_estate, request),
-        "calculator": _view_data(views.calculator, request),
         "budget": _view_data(views.budget, request),
         "fund_accounts": _native_traded_accounts(request, Account.Kind.FUNDS),
         "stock_accounts": _native_traded_accounts(request, Account.Kind.STOCKS),

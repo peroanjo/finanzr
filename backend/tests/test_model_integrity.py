@@ -1,9 +1,7 @@
 from datetime import date
-from decimal import Decimal
 
 import pytest
 from apps.accounts.models import Account, AccountSnapshot
-from apps.planning.models import AllocationRule
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
 from django.db import IntegrityError
@@ -56,14 +54,3 @@ def test_account_snapshot_has_one_value_per_date(workspace: Workspace) -> None:
 
     with pytest.raises(IntegrityError):
         AccountSnapshot.objects.create(account=account, date=date(2026, 7, 1), value=200)
-
-
-@pytest.mark.django_db(transaction=True)
-def test_allocation_weight_must_be_a_fraction(workspace: Workspace) -> None:
-    with pytest.raises(IntegrityError):
-        AllocationRule.objects.create(
-            workspace=workspace,
-            name="Fuera de rango",
-            asset_class="variable",
-            target_weight=Decimal("1.01"),
-        )

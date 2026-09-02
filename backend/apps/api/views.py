@@ -75,7 +75,7 @@ from apps.market_data.yahoo import (
 from apps.market_data.yahoo import (
     chart as yahoo_chart,
 )
-from apps.planning.models import AllocationRule, BudgetLine
+from apps.planning.models import BudgetLine
 from apps.portfolio.models import ManualAsset
 from apps.real_estate.models import RealEstateCashFlow, RealEstateInvestment
 from apps.real_estate.withholding import effective_withholding_rate
@@ -1243,66 +1243,6 @@ def real_estate_detail(request: Request, legacy_id: int) -> Response:
     except ValueError as exc:
         return Response({"error": str(exc)}, status=400)
     return Response(real_estate_row(item))
-
-
-def allocation_row(item: AllocationRule) -> dict[str, Any]:
-    return {
-        "id": item.legacy_id,
-        "nombre": item.name,
-        "plataforma": provider_name(item),
-        "tipo_renta": item.asset_class,
-        "subtipo": item.subtype,
-        "porcentaje": number(item.target_weight) * 100,
-        "aportar": item.enabled,
-    }
-
-
-@api_view(["GET", "POST"])
-def calculator(request: Request) -> Response:
-    items = AllocationRule.objects.filter(workspace=workspace(request))
-    if request.method == "POST":
-        if denied := forbidden_if_readonly(request):
-            return denied
-        data = payload(request)
-        item = AllocationRule.objects.create(
-            workspace=workspace(request),
-            legacy_id=next_legacy_id(items),
-            name=str(data["nombre"]),
-            provider_label=str(data.get("plataforma", "")),
-            asset_class=str(data.get("tipo_renta", "")),
-            subtype=str(data.get("subtipo", "")),
-            target_weight=decimal(data.get("porcentaje")) / 100,
-            enabled=bool(data.get("aportar", False)),
-            sort_order=items.count(),
-        )
-        return Response(allocation_row(item), status=201)
-    return Response([allocation_row(item) for item in items])
-
-
-@api_view(["PUT", "DELETE"])
-def calculator_detail(request: Request, legacy_id: int) -> Response:
-    if denied := forbidden_if_readonly(request):
-        return denied
-    item = get_object_or_404(AllocationRule, workspace=workspace(request), legacy_id=legacy_id)
-    if request.method == "DELETE":
-        item.delete()
-        return Response({"ok": True})
-    data = payload(request)
-    mapping = {
-        "nombre": "name",
-        "plataforma": "provider_label",
-        "tipo_renta": "asset_class",
-        "subtipo": "subtype",
-    }
-    for source, target in mapping.items():
-        if source in data:
-            setattr(item, target, str(data[source]))
-    if "porcentaje" in data:
-        item.target_weight = decimal(data["porcentaje"]) / 100
-    if "aportar" in data:
-        item.enabled = bool(data["aportar"])
-    item.save()
-    return Response(allocation_row(item))
 
 
 @api_view(["GET", "PUT"])
