@@ -14,7 +14,7 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.api.legacy import number
+from apps.api.projection import number
 from apps.api.views import decimal, forbidden_if_readonly, payload, workspace
 from apps.market_data.fx import (
     CurrencyConversionError,

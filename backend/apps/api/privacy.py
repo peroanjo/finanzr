@@ -12,9 +12,9 @@ from rest_framework.response import Response
 
 from apps.accounts.models import Account, AccountSnapshot
 from apps.api import views
+from apps.api.account_projection import account_row
 from apps.api.auth import user_payload
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
-from apps.api.legacy import account_row
 from apps.api.portfolio_projection import manual_asset_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.audit.models import AuditEvent
