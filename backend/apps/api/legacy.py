@@ -7,7 +7,6 @@ from typing import Any
 from django.db.models import QuerySet
 
 from apps.accounts.models import Account
-from apps.common.models import InstallationSettings
 from apps.market_data.fx import CurrencyConversionError, normalize_currency
 from apps.market_data.models import (
     Instrument,
@@ -15,8 +14,6 @@ from apps.market_data.models import (
     MarketPrice,
     WorkspaceMarketPriceOverride,
 )
-from apps.real_estate.models import RealEstateCashFlow, RealEstateInvestment
-from apps.real_estate.withholding import effective_withholding_rate, net_profit
 from apps.transactions.models import Transaction
 from finanzr.importers import importers
 
@@ -200,114 +197,3 @@ def price_row(
     if instrument.kind == Instrument.Kind.STOCK:
         row["fecha"] = price.quoted_at.date().isoformat()
     return row
-
-
-def real_estate_amount(item: RealEstateInvestment, flow_type: str) -> Decimal:
-    return sum(
-        (flow.amount for flow in item.cash_flows.all() if flow.flow_type == flow_type),
-        Decimal("0"),
-    )
-
-
-def real_estate_row(
-    item: RealEstateInvestment,
-    *,
-    default_tax_rate: Decimal | None = None,
-) -> dict[str, Any]:
-    contribution = real_estate_amount(item, RealEstateCashFlow.FlowType.CONTRIBUTION)
-    reinvestment = real_estate_amount(item, RealEstateCashFlow.FlowType.REINVESTMENT)
-    returned = real_estate_amount(item, RealEstateCashFlow.FlowType.CAPITAL_RETURN)
-    profit = real_estate_amount(item, RealEstateCashFlow.FlowType.PROFIT)
-    effective_rate = effective_withholding_rate(
-        item,
-        default_tax_rate
-        if default_tax_rate is not None
-        else InstallationSettings.load().default_crowdfunding_tax_rate,
-    )
-    dated_flows = sorted(
-        (
-            flow
-            for flow in item.cash_flows.all()
-            if flow.flow_type
-            in {
-                RealEstateCashFlow.FlowType.CAPITAL_RETURN,
-                RealEstateCashFlow.FlowType.PROFIT,
-            }
-        ),
-        key=lambda flow: (flow.effective_date or date.min, flow.created_at),
-    )
-    return_flows = [
-        flow for flow in dated_flows if flow.flow_type == RealEstateCashFlow.FlowType.CAPITAL_RETURN
-    ]
-    net_profit_obtained = sum(
-        (
-            net_profit(
-                flow.amount,
-                flow.withholding_rate if flow.withholding_rate is not None else effective_rate,
-            )
-            for flow in dated_flows
-            if flow.flow_type == RealEstateCashFlow.FlowType.PROFIT
-        ),
-        Decimal("0"),
-    )
-    estimated_profit = (
-        item.expected_profit
-        if item.expected_profit is not None
-        else max(Decimal("0"), contribution + reinvestment - returned)
-        * (item.expected_irr or Decimal("0"))
-        * (item.expected_term_months or 0)
-        / Decimal("12")
-    )
-    net_estimated_profit = net_profit(estimated_profit, effective_rate)
-    statuses: dict[str, str] = {
-        RealEstateInvestment.Status.ACTIVE: "Activo",
-        RealEstateInvestment.Status.COMPLETED: "Completado",
-        RealEstateInvestment.Status.DEFAULTED: "Impagado",
-        RealEstateInvestment.Status.CANCELLED: "Cancelado",
-    }
-    return {
-        "id": item.legacy_id,
-        "nombre": item.name,
-        "plataforma": provider_name(item),
-        "estado": statuses.get(item.status, item.status),
-        "capital_inicial": number(contribution + reinvestment),
-        "capital_nuevo": number(contribution),
-        "capital_devuelto": number(returned),
-        "beneficio_obtenido": number(profit),
-        "beneficio_obtenido_neto": number(net_profit_obtained),
-        "beneficio_estimado": (
-            number(item.expected_profit) if item.expected_profit is not None else None
-        ),
-        "beneficio_estimado_neto": number(net_estimated_profit),
-        "tir": number(item.expected_irr) * 100,
-        "meses": item.expected_term_months or 0,
-        "fecha_inicio": item.start_date.isoformat(),
-        "fecha_vencimiento": item.maturity_date.isoformat() if item.maturity_date else "",
-        "fecha_devolucion": (
-            return_flows[-1].effective_date.isoformat()
-            if return_flows and return_flows[-1].effective_date
-            else ""
-        ),
-        "movimientos": [
-            {
-                "id": str(flow.id),
-                "tipo": flow.flow_type,
-                "fecha": flow.effective_date.isoformat() if flow.effective_date else "",
-                "importe": number(flow.amount),
-                "nota": flow.source_note,
-                "retencion_irpf_aplicada": (
-                    number(
-                        flow.withholding_rate
-                        if flow.withholding_rate is not None
-                        else effective_rate
-                    )
-                    if flow.flow_type == RealEstateCashFlow.FlowType.PROFIT
-                    else None
-                ),
-            }
-            for flow in dated_flows
-        ],
-        "origen": item.origin,
-        "retencion_irpf": number(item.tax_rate) if item.tax_rate is not None else None,
-        "moneda": item.currency,
-    }

@@ -8,8 +8,6 @@ from apps.common.models import TimeStampedModel, UUIDModel
 
 
 class RealEstateInvestment(TimeStampedModel):
-    legacy_id = models.PositiveIntegerField(null=True, blank=True)
-
     class Status(models.TextChoices):
         ACTIVE = "active", _("Active")
         COMPLETED = "completed", _("Completed")
@@ -48,11 +46,6 @@ class RealEstateInvestment(TimeStampedModel):
 
     class Meta:
         ordering = ("-start_date", "name")
-        constraints = [
-            models.UniqueConstraint(
-                fields=("workspace", "legacy_id"), name="real_estate_legacy_id_unique"
-            )
-        ]
 
     def __str__(self) -> str:
         return self.name

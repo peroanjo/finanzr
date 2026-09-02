@@ -195,14 +195,15 @@ const upcomingCrowdfundingProject = computed(() => {
   deadline.setMonth(deadline.getMonth() + 3);
   return (
     crowdfundingProjects.value
-      .filter((item) => item.estado.toLowerCase().includes("activ"))
+      .filter((item) => item.status === "active")
+      .filter((item) => item.maturity_date !== null)
       .map((item) => ({
         item,
-        maturity: new Date(`${item.fecha_vencimiento.slice(0, 10)}T00:00:00`),
+        maturity: new Date(`${item.maturity_date!.slice(0, 10)}T00:00:00`),
       }))
       .filter(
         ({ item, maturity }) =>
-          item.capital_inicial > item.capital_devuelto &&
+          item.initial_capital > item.returned_capital &&
           Number.isFinite(maturity.getTime()) &&
           maturity >= today &&
           maturity <= deadline,
@@ -560,7 +561,7 @@ onBeforeUnmount(() => {
               <dt>{{ t("overview.upcomingMaturity") }}</dt>
               <dd :class="{ muted: !upcomingCrowdfundingProject }">
                 {{
-                  upcomingCrowdfundingProject?.item.nombre ??
+                  upcomingCrowdfundingProject?.item.name ??
                   t("overview.noUpcomingMaturity")
                 }}
               </dd>

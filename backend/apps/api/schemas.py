@@ -289,27 +289,51 @@ class ManualAssetUpdateRequestSerializer(StrictSerializer):
     value = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
 
 
-class RealEstateRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    nombre = serializers.CharField(required=True)
-    plataforma = serializers.CharField(required=False)
-    estado = serializers.CharField(required=False)
-    fecha_inicio = serializers.DateField(required=False)
-    fecha_vencimiento = serializers.DateField(required=False, allow_null=True)
-    beneficio_estimado = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    tir = serializers.DecimalField(max_digits=12, decimal_places=6, required=False)
-    meses = serializers.IntegerField(required=False)
-    origen = serializers.CharField(required=False)
-    retencion_irpf = serializers.DecimalField(max_digits=12, decimal_places=6, required=False)
-    capital_inicial = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    capital_nuevo = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    capital_devuelto = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    beneficio_obtenido = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    fecha_devolucion = serializers.DateField(required=False, allow_null=True)
-    movimientos = serializers.ListField(required=False)
+class RealEstateMovementRequestSerializer(StrictSerializer):
+    id = serializers.UUIDField(required=False)
+    flow_type = serializers.ChoiceField(choices=("capital_return", "profit"))
+    effective_date = serializers.DateField(required=False, allow_null=True)
+    amount = serializers.DecimalField(max_digits=24, decimal_places=8, min_value=Decimal("0"))
+    note = serializers.CharField(required=False, allow_blank=True, max_length=240)
+
+
+class RealEstateRequestSerializer(StrictSerializer):
+    name = serializers.CharField(required=True, allow_blank=False, max_length=200)
+    platform = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    status = serializers.ChoiceField(
+        choices=("active", "completed", "defaulted", "cancelled"), required=False
+    )
+    start_date = serializers.DateField(required=True)
+    maturity_date = serializers.DateField(required=False, allow_null=True)
+    expected_profit = serializers.DecimalField(
+        max_digits=24, decimal_places=8, required=False, allow_null=True
+    )
+    expected_irr_percent = serializers.DecimalField(max_digits=12, decimal_places=6, required=False)
+    expected_term_months = serializers.IntegerField(required=False, min_value=0)
+    origin = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    tax_rate = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=Decimal("0"),
+        max_value=Decimal("100"),
+    )
+    initial_capital = serializers.DecimalField(
+        max_digits=24, decimal_places=8, min_value=Decimal("0")
+    )
+    new_capital = serializers.DecimalField(
+        max_digits=24, decimal_places=8, required=False, min_value=Decimal("0")
+    )
+    movements = RealEstateMovementRequestSerializer(many=True, required=False)
 
 
 class RealEstateUpdateRequestSerializer(RealEstateRequestSerializer):
-    nombre = serializers.CharField(required=False)
+    name = serializers.CharField(required=False, allow_blank=False, max_length=200)
+    start_date = serializers.DateField(required=False)
+    initial_capital = serializers.DecimalField(
+        max_digits=24, decimal_places=8, required=False, min_value=Decimal("0")
+    )
 
 
 class BudgetRowSerializer(serializers.Serializer[dict[str, Any]]):
@@ -509,13 +533,36 @@ class InvestmentPerformanceResponseSerializer(serializers.Serializer[dict[str, A
     data = cast(Any, serializers.ListField(child=serializers.JSONField()))
 
 
-class RealEstateResponseSerializer(FinancialObjectSerializer):
-    fecha_inicio = serializers.DateField(required=False)
-    fecha_vencimiento = serializers.DateField(required=False, allow_null=True)
-    beneficio_estimado = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    capital_inicial = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    capital_nuevo = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    movimientos = serializers.ListField(required=False)
+class RealEstateMovementResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField()
+    flow_type = serializers.ChoiceField(choices=("capital_return", "profit"))
+    effective_date = serializers.DateField(allow_null=True)
+    amount = serializers.DecimalField(max_digits=24, decimal_places=8)
+    note = serializers.CharField()
+    applied_tax_rate = serializers.DecimalField(max_digits=5, decimal_places=2, allow_null=True)
+
+
+class RealEstateResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    platform = serializers.CharField()
+    status = serializers.ChoiceField(choices=("active", "completed", "defaulted", "cancelled"))
+    initial_capital = serializers.DecimalField(max_digits=24, decimal_places=8)
+    new_capital = serializers.DecimalField(max_digits=24, decimal_places=8)
+    returned_capital = serializers.DecimalField(max_digits=24, decimal_places=8)
+    realized_profit = serializers.DecimalField(max_digits=24, decimal_places=8)
+    net_realized_profit = serializers.DecimalField(max_digits=24, decimal_places=8)
+    expected_profit = serializers.DecimalField(max_digits=24, decimal_places=8, allow_null=True)
+    net_expected_profit = serializers.DecimalField(max_digits=24, decimal_places=8)
+    expected_irr_percent = serializers.DecimalField(max_digits=12, decimal_places=6)
+    expected_term_months = serializers.IntegerField()
+    start_date = serializers.DateField()
+    maturity_date = serializers.DateField(allow_null=True)
+    return_date = serializers.DateField(allow_null=True)
+    movements = RealEstateMovementResponseSerializer(many=True)
+    origin = serializers.CharField()
+    tax_rate = serializers.DecimalField(max_digits=5, decimal_places=2, allow_null=True)
+    currency = serializers.CharField()
 
 
 class ApiObjectSerializer(serializers.Serializer[dict[str, Any]]):

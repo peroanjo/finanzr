@@ -64,9 +64,8 @@ def monthly_history(
     """Build the complete monthly history with carried-forward balances.
 
     ``source_series`` contains optional summary sources as records with
-    ``fecha``, ``cuenta_id`` and ``valor``. Keeping this extension here makes
-    the legacy fields stable while allowing the API to expose a dynamic
-    composition to newer clients.
+    ``fecha``, ``cuenta_id`` and ``valor``. These internal projection records
+    are independent from the public real-estate contract.
     """
     savings_records = list(savings)
     investment_records = list(investments)
@@ -99,7 +98,7 @@ def monthly_history(
     real_estate_contributions: dict[str, Any] = {}
     real_estate_months: set[str] = set()
     for project in projects:
-        month = str(project.get("fecha_inicio") or "")[:7]
+        month = str(project.get("start_date") or "")[:7]
         if month:
             real_estate_months.add(month)
             real_estate_contributions[month] = real_estate_contributions.get(month, ZERO) + decimal(
@@ -109,11 +108,11 @@ def monthly_history(
         # its only records are project cash flows.  Returns are intentionally
         # included as calendar points too: live_capital_for_month applies the
         # same dated movements when calculating the balance for that month.
-        movements = project.get("movimientos")
+        movements = project.get("movements")
         if isinstance(movements, list):
             for movement in movements:
                 if isinstance(movement, Mapping):
-                    movement_month = str(movement.get("fecha") or "")[:7]
+                    movement_month = str(movement.get("effective_date") or "")[:7]
                     if movement_month:
                         real_estate_months.add(movement_month)
 

@@ -86,10 +86,10 @@ def test_implicit_amounts_are_labeled_with_the_workspace_currency() -> None:
     real_estate = client.post(
         "/api/real-estate",
         {
-            "nombre": "Property note",
-            "fecha_inicio": "2026-01-01",
-            "capital_inicial": 1000,
-            "capital_nuevo": 1000,
+            "name": "Property note",
+            "start_date": "2026-01-01",
+            "initial_capital": 1000,
+            "new_capital": 1000,
         },
         format="json",
     )
@@ -98,7 +98,7 @@ def test_implicit_amounts_are_labeled_with_the_workspace_currency() -> None:
     assert budget.status_code == 200
     assert portfolio.json()["currency"] == "USD"
     assert budget.json()[0]["moneda"] == "USD"
-    assert real_estate.json()["moneda"] == "USD"
+    assert real_estate.json()["currency"] == "USD"
     assert ManualAsset.objects.get(workspace=workspace).currency == "USD"
     assert BudgetLine.objects.get(workspace=workspace).currency == "USD"
     assert RealEstateInvestment.objects.get(workspace=workspace).currency == "USD"

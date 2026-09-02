@@ -264,7 +264,6 @@ def api_context() -> tuple[APIClient, User]:
 
     project = RealEstateInvestment.objects.create(
         workspace=workspace,
-        legacy_id=1,
         provider_label="Demo Platform",
         name="Synthetic project",
         status=RealEstateInvestment.Status.ACTIVE,
@@ -356,9 +355,56 @@ def test_real_estate_keeps_empty_expected_profit_for_client_fallback(
     client, _ = api_context
 
     projects = client.get("/api/real-estate").json()
-    malaga = next(item for item in projects if item["nombre"] == "Synthetic project")
+    malaga = next(item for item in projects if item["name"] == "Synthetic project")
 
-    assert malaga["beneficio_estimado"] is None
+    assert malaga["expected_profit"] is None
+
+
+@pytest.mark.django_db(transaction=True)
+def test_real_estate_uses_uuid_and_native_fields(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+
+    project = client.get("/api/real-estate").json()[0]
+
+    UUID(project["id"])
+    assert set(project) == {
+        "id",
+        "name",
+        "platform",
+        "status",
+        "initial_capital",
+        "new_capital",
+        "returned_capital",
+        "realized_profit",
+        "net_realized_profit",
+        "expected_profit",
+        "net_expected_profit",
+        "expected_irr_percent",
+        "expected_term_months",
+        "start_date",
+        "maturity_date",
+        "return_date",
+        "movements",
+        "origin",
+        "tax_rate",
+        "currency",
+    }
+    assert project["status"] == "active"
+    delete_response = client.delete("/api/real-estate/1")
+    assert delete_response.status_code == 404
+    rejected = client.post(
+        "/api/real-estate",
+        {
+            "nombre": "Legacy project",
+            "fecha_inicio": "2026-01-01",
+            "capital_inicial": 100,
+        },
+        format="json",
+    )
+    assert rejected.status_code == 400
+    assert "non_field_errors" in rejected.json()["error"]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -370,35 +416,35 @@ def test_real_estate_preserves_multiple_dated_movements(
     response = client.post(
         "/api/real-estate",
         {
-            "nombre": "Proyecto con amortizaciones",
-            "plataforma": "WeCity",
-            "estado": "Completado",
-            "capital_inicial": 1500,
-            "capital_nuevo": 1500,
-            "beneficio_estimado": 100,
-            "tir": 11,
-            "meses": 18,
-            "fecha_inicio": "2025-09-01",
-            "fecha_vencimiento": "2027-03-01",
-            "origen": "",
-            "movimientos": [
+            "name": "Proyecto con amortizaciones",
+            "platform": "WeCity",
+            "status": "completed",
+            "initial_capital": 1500,
+            "new_capital": 1500,
+            "expected_profit": 100,
+            "expected_irr_percent": 11,
+            "expected_term_months": 18,
+            "start_date": "2025-09-01",
+            "maturity_date": "2027-03-01",
+            "origin": "",
+            "movements": [
                 {
-                    "tipo": "capital_return",
-                    "fecha": "2026-06-22",
-                    "importe": 970.96,
-                    "nota": "Primera amortización",
+                    "flow_type": "capital_return",
+                    "effective_date": "2026-06-22",
+                    "amount": 970.96,
+                    "note": "Primera amortización",
                 },
                 {
-                    "tipo": "capital_return",
-                    "fecha": "2026-07-14",
-                    "importe": 529.04,
-                    "nota": "Amortización final",
+                    "flow_type": "capital_return",
+                    "effective_date": "2026-07-14",
+                    "amount": 529.04,
+                    "note": "Amortización final",
                 },
                 {
-                    "tipo": "profit",
-                    "fecha": "2026-07-14",
-                    "importe": 49.94,
-                    "nota": "Intereses",
+                    "flow_type": "profit",
+                    "effective_date": "2026-07-14",
+                    "amount": 49.94,
+                    "note": "Intereses",
                 },
             ],
         },
@@ -407,53 +453,53 @@ def test_real_estate_preserves_multiple_dated_movements(
 
     assert response.status_code == 201
     project = response.json()
-    assert project["capital_devuelto"] == 1500
-    assert project["beneficio_obtenido"] == 49.94
-    assert project["beneficio_obtenido_neto"] == pytest.approx(40.4514)
-    assert project["fecha_devolucion"] == "2026-07-14"
-    assert [movement["nota"] for movement in project["movimientos"]] == [
+    assert project["returned_capital"] == 1500
+    assert project["realized_profit"] == 49.94
+    assert project["net_realized_profit"] == pytest.approx(40.4514)
+    assert project["return_date"] == "2026-07-14"
+    assert [movement["note"] for movement in project["movements"]] == [
         "Primera amortización",
         "Amortización final",
         "Intereses",
     ]
-    assert project["movimientos"][-1]["retencion_irpf_aplicada"] == 19
+    assert project["movements"][-1]["applied_tax_rate"] == 19
 
     InstallationSettings.load().default_crowdfunding_tax_rate = Decimal("21.50")
     InstallationSettings.load().save(update_fields=("default_crowdfunding_tax_rate", "updated_at"))
     unchanged = next(
         item for item in client.get("/api/real-estate").json() if item["id"] == project["id"]
     )
-    assert unchanged["beneficio_obtenido_neto"] == pytest.approx(40.4514)
+    assert unchanged["net_realized_profit"] == pytest.approx(40.4514)
 
     updated = client.put(
         f"/api/real-estate/{project['id']}",
         {
-            "nombre": "Proyecto con amortizaciones",
-            "plataforma": "WeCity",
-            "estado": "Completado",
-            "capital_inicial": 1500,
-            "capital_nuevo": 1500,
-            "beneficio_estimado": 100,
-            "tir": 11,
-            "meses": 18,
-            "fecha_inicio": "2025-09-01",
-            "fecha_vencimiento": "2027-03-01",
-            "origen": "",
-            "movimientos": [
+            "name": "Proyecto con amortizaciones",
+            "platform": "WeCity",
+            "status": "completed",
+            "initial_capital": 1500,
+            "new_capital": 1500,
+            "expected_profit": 100,
+            "expected_irr_percent": 11,
+            "expected_term_months": 18,
+            "start_date": "2025-09-01",
+            "maturity_date": "2027-03-01",
+            "origin": "",
+            "movements": [
                 {
                     "id": movement["id"],
-                    "tipo": movement["tipo"],
-                    "fecha": movement["fecha"],
-                    "importe": movement["importe"],
-                    "nota": movement["nota"],
+                    "flow_type": movement["flow_type"],
+                    "effective_date": movement["effective_date"],
+                    "amount": movement["amount"],
+                    "note": movement["note"],
                 }
-                for movement in project["movimientos"]
+                for movement in project["movements"]
             ],
         },
         format="json",
     )
     assert updated.status_code == 200
-    assert updated.json()["beneficio_obtenido_neto"] == pytest.approx(40.4514)
+    assert updated.json()["net_realized_profit"] == pytest.approx(40.4514)
 
     history = {row["fecha"]: row for row in client.get("/api/net-worth-history").json()}
     assert history["2026-06"]["inversiones"] - history["2026-06"]["balances"] >= 529.04
@@ -467,94 +513,94 @@ def test_real_estate_persists_and_updates_custom_tax_rate(
     client, _ = api_context
 
     invalid_payload = {
-        "nombre": "Proyecto inválido",
-        "plataforma": "CrowdEstate",
-        "estado": "Activo",
-        "capital_inicial": 1000,
-        "capital_nuevo": 1000,
-        "beneficio_estimado": 120,
-        "tir": 12,
-        "meses": 12,
-        "fecha_inicio": "2026-01-01",
-        "fecha_vencimiento": "2027-01-01",
-        "origen": "",
-        "movimientos": [],
+        "name": "Proyecto inválido",
+        "platform": "CrowdEstate",
+        "status": "active",
+        "initial_capital": 1000,
+        "new_capital": 1000,
+        "expected_profit": 120,
+        "expected_irr_percent": 12,
+        "expected_term_months": 12,
+        "start_date": "2026-01-01",
+        "maturity_date": "2027-01-01",
+        "origin": "",
+        "movements": [],
     }
     for value in (-1, 100.1, "invalid", "NaN"):
         response = client.post(
             "/api/real-estate",
-            {**invalid_payload, "retencion_irpf": value},
+            {**invalid_payload, "tax_rate": value},
             format="json",
         )
         assert response.status_code == 400
-        assert "entre 0 y 100" in response.json()["error"]
+        assert "tax_rate" in response.json()["error"]
 
     created = client.post(
         "/api/real-estate",
         {
-            "nombre": "Proyecto Extranjero",
-            "plataforma": "CrowdEstate",
-            "estado": "Activo",
-            "capital_inicial": 1000,
-            "capital_nuevo": 1000,
-            "beneficio_estimado": 120,
-            "tir": 12,
-            "meses": 12,
-            "fecha_inicio": "2026-01-01",
-            "fecha_vencimiento": "2027-01-01",
-            "retencion_irpf": 0,
-            "origen": "",
-            "movimientos": [],
+            "name": "Proyecto Extranjero",
+            "platform": "CrowdEstate",
+            "status": "active",
+            "initial_capital": 1000,
+            "new_capital": 1000,
+            "expected_profit": 120,
+            "expected_irr_percent": 12,
+            "expected_term_months": 12,
+            "start_date": "2026-01-01",
+            "maturity_date": "2027-01-01",
+            "tax_rate": 0,
+            "origin": "",
+            "movements": [],
         },
         format="json",
     )
     assert created.status_code == 201
-    assert created.json()["retencion_irpf"] == 0
+    assert created.json()["tax_rate"] == 0
 
     project_id = created.json()["id"]
     updated = client.put(
         f"/api/real-estate/{project_id}",
         {
-            "nombre": "Proyecto Extranjero Modificado",
-            "plataforma": "CrowdEstate",
-            "estado": "Activo",
-            "capital_inicial": 1000,
-            "capital_nuevo": 1000,
-            "beneficio_estimado": 120,
-            "tir": 12,
-            "meses": 12,
-            "fecha_inicio": "2026-01-01",
-            "fecha_vencimiento": "2027-01-01",
-            "retencion_irpf": 15.5,
-            "origen": "",
-            "movimientos": [],
+            "name": "Proyecto Extranjero Modificado",
+            "platform": "CrowdEstate",
+            "status": "active",
+            "initial_capital": 1000,
+            "new_capital": 1000,
+            "expected_profit": 120,
+            "expected_irr_percent": 12,
+            "expected_term_months": 12,
+            "start_date": "2026-01-01",
+            "maturity_date": "2027-01-01",
+            "tax_rate": 15.5,
+            "origin": "",
+            "movements": [],
         },
         format="json",
     )
     assert updated.status_code == 200
-    assert updated.json()["retencion_irpf"] == 15.5
+    assert updated.json()["tax_rate"] == 15.5
 
     cleared = client.put(
         f"/api/real-estate/{project_id}",
         {
-            "nombre": "Proyecto Extranjero Heredado",
-            "plataforma": "CrowdEstate",
-            "estado": "Activo",
-            "capital_inicial": 1000,
-            "capital_nuevo": 1000,
-            "beneficio_estimado": 120,
-            "tir": 12,
-            "meses": 12,
-            "fecha_inicio": "2026-01-01",
-            "fecha_vencimiento": "2027-01-01",
-            "retencion_irpf": None,
-            "origen": "",
-            "movimientos": [],
+            "name": "Proyecto Extranjero Heredado",
+            "platform": "CrowdEstate",
+            "status": "active",
+            "initial_capital": 1000,
+            "new_capital": 1000,
+            "expected_profit": 120,
+            "expected_irr_percent": 12,
+            "expected_term_months": 12,
+            "start_date": "2026-01-01",
+            "maturity_date": "2027-01-01",
+            "tax_rate": None,
+            "origin": "",
+            "movements": [],
         },
         format="json",
     )
     assert cleared.status_code == 200
-    assert cleared.json()["retencion_irpf"] is None
+    assert cleared.json()["tax_rate"] is None
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1439,26 +1485,24 @@ def test_portfolio_native_contract_isolates_uuid_scope_and_types(
 
     assert client.get("/api/portfolio/not-a-uuid").status_code == 404
     assert client.get("/api/portfolio/1").status_code == 404
-    assert client.put("/api/portfolio/1", {}, format="json").status_code == 404
+    put_numeric_id = client.put("/api/portfolio/1", {}, format="json")
+    assert put_numeric_id.status_code == 404
     deleted_legacy_id = client.delete("/api/portfolio/1")
     assert deleted_legacy_id.status_code == 404
-    assert client.put("/api/portfolio/not-a-uuid", {}, format="json").status_code == 404
-    assert (
-        client.put(
-            f"/api/portfolio/{savings_id}",
-            {"name": "Wrong type"},
-            format="json",
-        ).status_code
-        == 404
+    put_invalid_uuid = client.put("/api/portfolio/not-a-uuid", {}, format="json")
+    assert put_invalid_uuid.status_code == 404
+    put_savings_id = client.put(
+        f"/api/portfolio/{savings_id}",
+        {"name": "Wrong type"},
+        format="json",
     )
-    assert (
-        client.put(
-            f"/api/portfolio/{foreign_asset.id}",
-            {"name": "Should remain hidden"},
-            format="json",
-        ).status_code
-        == 404
+    assert put_savings_id.status_code == 404
+    put_foreign_asset = client.put(
+        f"/api/portfolio/{foreign_asset.id}",
+        {"name": "Should remain hidden"},
+        format="json",
     )
+    assert put_foreign_asset.status_code == 404
 
 
 @pytest.mark.django_db(transaction=True)

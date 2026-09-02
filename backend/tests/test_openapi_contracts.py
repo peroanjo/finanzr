@@ -216,6 +216,67 @@ class OpenApiMutationContractTests(SimpleTestCase):
             "format": "uuid",
         }
 
+        real_estate = self._request_schema(document, "/api/real-estate", "post")
+        assert set(real_estate["required"]) == {"name", "start_date", "initial_capital"}
+        assert {
+            "platform",
+            "status",
+            "maturity_date",
+            "expected_profit",
+            "expected_irr_percent",
+            "expected_term_months",
+            "origin",
+            "tax_rate",
+            "new_capital",
+            "movements",
+        } <= set(real_estate["properties"])
+        assert not {
+            "nombre",
+            "plataforma",
+            "estado",
+            "fecha_inicio",
+            "capital_inicial",
+            "movimientos",
+        } & set(real_estate["properties"])
+        assert "required" not in self._request_schema(
+            document, "/api/real-estate/{investment_id}", "put"
+        )
+        real_estate_parameter = document["paths"]["/api/real-estate/{investment_id}"]["put"][
+            "parameters"
+        ][0]
+        assert real_estate_parameter["name"] == "investment_id"
+        assert real_estate_parameter["schema"] == {"type": "string", "format": "uuid"}
+        real_estate_response = document["paths"]["/api/real-estate"]["get"]["responses"]["200"]
+        real_estate_response_schema = self._resolve(
+            document,
+            real_estate_response["content"]["application/json"]["schema"]["items"],
+        )
+        assert set(real_estate_response_schema["properties"]) == {
+            "id",
+            "name",
+            "platform",
+            "status",
+            "initial_capital",
+            "new_capital",
+            "returned_capital",
+            "realized_profit",
+            "net_realized_profit",
+            "expected_profit",
+            "net_expected_profit",
+            "expected_irr_percent",
+            "expected_term_months",
+            "start_date",
+            "maturity_date",
+            "return_date",
+            "movements",
+            "origin",
+            "tax_rate",
+            "currency",
+        }
+        assert real_estate_response_schema["properties"]["id"] == {
+            "type": "string",
+            "format": "uuid",
+        }
         budget = document["paths"]["/api/budget"]["put"]
         budget_schema = self._resolve(
             document, budget["requestBody"]["content"]["application/json"]["schema"]
