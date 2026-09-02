@@ -190,8 +190,8 @@ def account_importer(data: dict[str, Any], kind: str, current: str | None = None
         return ""
     try:
         importer = importers.get(slug)
-    except KeyError as exc:
-        raise ValueError(_("The selected importer does not exist")) from exc
+    except KeyError:
+        raise ValueError(_("The selected importer does not exist")) from None
     if importer.target != ACCOUNT_IMPORT_TARGETS[Account.Kind(kind)]:
         raise ValueError(_("The importer is not compatible with this account type"))
     return slug

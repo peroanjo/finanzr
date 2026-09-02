@@ -1900,11 +1900,12 @@ def test_transaction_detail_is_scoped_by_native_account_identity(
     assert source.trade_date.isoformat() == "2026-02-02"
     assert duplicate.trade_date.isoformat() == "2026-01-01"
 
-    assert client.delete(f"/api/stock-orders/{source.external_id}").status_code == 400
-    assert (
-        client.delete(f"/api/stock-orders/{source.external_id}?account_id=not-a-uuid").status_code
-        == 400
+    ambiguous_delete = client.delete(f"/api/stock-orders/{source.external_id}")
+    assert ambiguous_delete.status_code == 400
+    invalid_account_delete = client.delete(
+        f"/api/stock-orders/{source.external_id}?account_id=not-a-uuid"
     )
+    assert invalid_account_delete.status_code == 400
     deleted = client.delete(
         f"/api/stock-orders/{source.external_id}?account_id={second_account.id}"
     )
@@ -2052,7 +2053,8 @@ def test_traded_account_scope_and_roles_cover_archived_foreign_and_viewer_rows(
             ).status_code
             == 404
         )
-        assert client.delete(f"/api/fund-accounts/{account_id}").status_code == 404
+        deleted_fund = client.delete(f"/api/fund-accounts/{account_id}")
+        assert deleted_fund.status_code == 404
         assert client.get(f"/api/orders?account_id={account_id}").status_code == 404
         assert (
             client.post(
@@ -2078,7 +2080,8 @@ def test_traded_account_scope_and_roles_cover_archived_foreign_and_viewer_rows(
         ).status_code
         == 403
     )
-    assert viewer_client.delete(f"/api/fund-accounts/{archived.id}").status_code == 403
+    viewer_delete = viewer_client.delete(f"/api/fund-accounts/{archived.id}")
+    assert viewer_delete.status_code == 403
 
     editor = User.objects.create_user(email="editor@example.com", password="editor-password")
     WorkspaceMembership.objects.create(
@@ -2094,7 +2097,8 @@ def test_traded_account_scope_and_roles_cover_archived_foreign_and_viewer_rows(
         format="json",
     )
     assert created.status_code == 201
-    assert editor_client.delete(f"/api/fund-accounts/{created.json()['id']}").status_code == 200
+    editor_delete = editor_client.delete(f"/api/fund-accounts/{created.json()['id']}")
+    assert editor_delete.status_code == 200
 
 
 @pytest.mark.django_db(transaction=True)
