@@ -209,11 +209,14 @@ def account_collection(request: Request, kind: str) -> Response:
     data = serializer.validated_data
     try:
         importer_slug = account_importer(data, kind)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=400)
+    try:
         account_currency = normalize_currency(
             data.get("currency") or workspace(request).base_currency
         )
-    except (ValueError, CurrencyConversionError) as exc:
-        return Response({"error": str(exc)}, status=400)
+    except CurrencyConversionError:
+        return Response({"error": _("The currency code is invalid")}, status=400)
     provider, provider_label = resolve_provider(str(data.get("platform", "")))
     item = Account.objects.create(
         workspace=workspace(request),
@@ -262,8 +265,8 @@ def account_detail(request: Request, kind: str, account_id: UUID) -> Response:
     if "currency" in data:
         try:
             item.currency = normalize_currency(data.get("currency") or item.currency)
-        except CurrencyConversionError as exc:
-            return Response({"error": str(exc)}, status=400)
+        except CurrencyConversionError:
+            return Response({"error": _("The currency code is invalid")}, status=400)
     provider, provider_label = resolve_provider(str(data.get("platform", provider_name(item))))
     item.provider = provider
     item.provider_label = provider_label
