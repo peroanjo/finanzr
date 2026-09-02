@@ -5,7 +5,7 @@ from typing import NoReturn
 import pytest
 from apps.accounts.models import Account, AccountSnapshot
 from apps.api import views as api_views
-from apps.api.legacy import transaction_row
+from apps.api.transaction_projection import transaction_row
 from apps.common.models import InstallationSettings, SummaryPreference
 from apps.common.summary_preferences import effective_summary_sources
 from apps.market_data.fx import CurrencyConversionError, FxConversion

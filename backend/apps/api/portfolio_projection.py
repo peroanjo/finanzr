@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from apps.api.legacy import number, provider_name
+from apps.api.projection import number, provider_name
 from apps.portfolio.models import ManualAsset
 
 

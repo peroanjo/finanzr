@@ -19,16 +19,11 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
+from apps.api.account_projection import account_row
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
-from apps.api.legacy import (
-    account_row,
-    instrument_row,
-    number,
-    price_row,
-    provider_name,
-    transaction_row,
-)
+from apps.api.market_data_projection import instrument_row, price_row
 from apps.api.portfolio_projection import manual_asset_row
+from apps.api.projection import number, provider_name
 from apps.api.real_estate_projection import real_estate_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.api.schemas import (
@@ -48,6 +43,7 @@ from apps.api.schemas import (
     TradedAccountRequestSerializer,
     TradedAccountUpdateRequestSerializer,
 )
+from apps.api.transaction_projection import transaction_row
 from apps.common.models import InstallationSettings
 from apps.common.summary_preferences import (
     SUMMARY_SOURCE_KEYS,

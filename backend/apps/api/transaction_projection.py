@@ -1,91 +1,11 @@
 from __future__ import annotations
 
-from datetime import date
-from decimal import Decimal
 from typing import Any
 
-from django.db.models import QuerySet
-
-from apps.accounts.models import Account
+from apps.api.projection import identifier, number, provider_name
 from apps.market_data.fx import CurrencyConversionError, normalize_currency
-from apps.market_data.models import (
-    Instrument,
-    InstrumentIdentifier,
-    MarketPrice,
-    WorkspaceMarketPriceOverride,
-)
+from apps.market_data.models import Instrument, InstrumentIdentifier
 from apps.transactions.models import Transaction
-from finanzr.importers import importers
-
-
-def number(value: Any) -> float:
-    return float(value or 0)
-
-
-def next_legacy_id(objects: QuerySet[Any]) -> int:
-    return max((obj.legacy_id or 0 for obj in objects), default=0) + 1
-
-
-def provider_name(obj: Any) -> str:
-    return str(obj.provider.name if obj.provider_id else obj.provider_label)
-
-
-def identifier(instrument: Instrument, scheme: str) -> str:
-    result = next((item for item in instrument.identifiers.all() if item.scheme == scheme), None)
-    return result.value if result else ""
-
-
-def account_row(account: Account) -> dict[str, Any]:
-    """Return the native public projection for a traded account.
-
-    ``external_id`` remains storage for imported legacy data, but it is not a
-    public identity.  Account primary keys are UUIDs for every traded API
-    consumer, including rows created from an older installation.
-    """
-
-    importer_name = ""
-    if account.importer_slug:
-        try:
-            importer_name = importers.get(account.importer_slug).display_name
-        except KeyError:
-            importer_name = account.importer_slug
-    row = {
-        "id": str(account.id),
-        "name": account.name,
-        "platform": provider_name(account),
-        "type": account.subtype,
-        "currency": account.currency,
-        "importer_slug": account.importer_slug,
-        "importer_name": importer_name,
-    }
-    return row
-
-
-def instrument_row(instrument: Instrument) -> dict[str, Any]:
-    scheme = (
-        InstrumentIdentifier.Scheme.CRYPTO_SYMBOL
-        if instrument.kind == Instrument.Kind.CRYPTO
-        else InstrumentIdentifier.Scheme.ISIN
-    )
-    key = "symbol" if scheme == InstrumentIdentifier.Scheme.CRYPTO_SYMBOL else "isin"
-    row = {
-        key: identifier(instrument, scheme),
-        "ticker": identifier(instrument, InstrumentIdentifier.Scheme.YAHOO),
-        "nombre": instrument.name,
-        "moneda": instrument.quote_currency or instrument.base_currency or "EUR",
-    }
-    if instrument.kind == Instrument.Kind.FUND:
-        row.update(
-            tipo=instrument.metadata.get(
-                "asset_class",
-                instrument.metadata.get("tipo", ""),
-            ),
-            subtipo=instrument.metadata.get(
-                "subtype",
-                instrument.metadata.get("subtipo", ""),
-            ),
-        )
-    return row
 
 
 def transaction_row(item: Transaction) -> dict[str, Any]:
@@ -165,35 +85,4 @@ def transaction_row(item: Transaction) -> dict[str, Any]:
         )
         if not is_crypto:
             row["es_saveback"] = item.is_saveback
-    return row
-
-
-def price_row(
-    price: MarketPrice | WorkspaceMarketPriceOverride,
-    *,
-    converted_price: Decimal,
-    base_currency: str,
-    fx_rate: Decimal,
-    fx_rate_date: date,
-    fx_source: str,
-) -> dict[str, Any]:
-    instrument = price.instrument
-    is_crypto = instrument.kind == Instrument.Kind.CRYPTO
-    scheme = (
-        InstrumentIdentifier.Scheme.CRYPTO_SYMBOL if is_crypto else InstrumentIdentifier.Scheme.ISIN
-    )
-    key = "symbol" if is_crypto else "isin"
-    row: dict[str, Any] = {
-        key: identifier(instrument, scheme),
-        "precio": number(converted_price),
-        "updated": price.quoted_at.date().isoformat(),
-        "moneda": price.currency,
-        "moneda_base": base_currency,
-        "precio_orig": number(price.close),
-        "tipo_cambio": number(fx_rate),
-        "fecha_tipo_cambio": fx_rate_date.isoformat(),
-        "fuente_tipo_cambio": fx_source,
-    }
-    if instrument.kind == Instrument.Kind.STOCK:
-        row["fecha"] = price.quoted_at.date().isoformat()
     return row
