@@ -246,7 +246,7 @@ class OpenApiMutationContractTests(SimpleTestCase):
             "importe_neto",
         } <= set(order_properties)
         assert set(self._request_schema(document, "/api/orders", "post")["required"]) == {
-            "cuenta_id",
+            "account_id",
             "fecha_operacion",
             "importe_neto",
             "isin",
@@ -268,6 +268,73 @@ class OpenApiMutationContractTests(SimpleTestCase):
                 ]["schema"],
             )["properties"]
         )
+        update_order = self._request_schema(document, "/api/orders/{external_id}", "put")
+        assert "original_account_id" in update_order["required"]
+        delete_order_parameters = document["paths"]["/api/orders/{external_id}"]["delete"][
+            "parameters"
+        ]
+        delete_account = next(
+            parameter for parameter in delete_order_parameters if parameter["name"] == "account_id"
+        )
+        assert delete_account["required"] is True
+        assert delete_account["schema"]["format"] == "uuid"
+
+        traded_account = self._request_schema(document, "/api/fund-accounts", "post")
+        assert set(traded_account["properties"]) == {
+            "name",
+            "platform",
+            "type",
+            "currency",
+            "importer_slug",
+        }
+        assert traded_account["required"] == ["name"]
+        traded_response = document["paths"]["/api/fund-accounts"]["get"]["responses"]["200"]
+        traded_response_schema = self._resolve(
+            document, traded_response["content"]["application/json"]["schema"]["items"]
+        )
+        assert set(traded_response_schema["properties"]) == {
+            "id",
+            "name",
+            "platform",
+            "type",
+            "currency",
+            "importer_slug",
+            "importer_name",
+        }
+
+        portfolio_analysis = document["paths"]["/api/portfolio-analysis"]["get"]["responses"]["200"]
+        portfolio_analysis_schema = self._resolve(
+            document, portfolio_analysis["content"]["application/json"]["schema"]
+        )
+        assert portfolio_analysis_schema["type"] == "object"
+        assert set(portfolio_analysis_schema["properties"]) == {"total", "items"}
+        assert portfolio_analysis_schema["properties"]["items"]["type"] == "array"
+
+        performance_parameters = document["paths"]["/api/investment-performance/{kind}"]["get"][
+            "parameters"
+        ]
+        performance_account = next(
+            parameter for parameter in performance_parameters if parameter["name"] == "account_id"
+        )
+        assert performance_account["schema"] == {"type": "string"}
+        assert "UUID" in performance_account["description"]
+
+        path_upload_schema = self._resolve(
+            document,
+            document["paths"]["/api/account-imports/{kind}/{account_id}"]["post"]["requestBody"][
+                "content"
+            ]["multipart/form-data"]["schema"],
+        )
+        assert set(path_upload_schema["properties"]) == {"file"}
+        assert path_upload_schema["required"] == ["file"]
+        direct_upload_schema = self._resolve(
+            document,
+            document["paths"]["/api/fund-orders/upload"]["post"]["requestBody"]["content"][
+                "multipart/form-data"
+            ]["schema"],
+        )
+        assert set(direct_upload_schema["properties"]) == {"file", "account_id"}
+        assert set(direct_upload_schema["required"]) == {"file", "account_id"}
 
         fx = document["paths"]["/api/fx-rates"]["post"]
         fx_properties = self._resolve(
@@ -299,7 +366,7 @@ class OpenApiMutationContractTests(SimpleTestCase):
         )
         assert delete_schema["required"] == ["password"]
         assert set(delete_account["responses"]) == {"204", "400", "403", "409"}
-        upload = document["paths"]["/api/account-imports/{kind}/{legacy_id}"]["post"]
+        upload = document["paths"]["/api/account-imports/{kind}/{account_id}"]["post"]
         upload_schema = self._resolve(
             document, upload["requestBody"]["content"]["multipart/form-data"]["schema"]
         )

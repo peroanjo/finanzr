@@ -7,6 +7,7 @@ from typing import Any, cast
 from apps.api.schemas import (
     AccountRequestSerializer,
     AccountResponseSerializer,
+    AccountUploadRequestSerializer,
     AdminUserRequestSerializer,
     AdminUserSerializer,
     AdminUserUpdateRequestSerializer,
@@ -21,12 +22,12 @@ from apps.api.schemas import (
     CalculatorUpdateRequestSerializer,
     CryptoInstrumentRequestSerializer,
     CryptoTransactionRequestSerializer,
+    CryptoTransactionUpdateRequestSerializer,
     CsrfSerializer,
     DeleteAccountRequestSerializer,
-    FinancialAccountRequestSerializer,
-    FinancialAccountUpdateRequestSerializer,
     FinancialObjectSerializer,
     FundTransactionRequestSerializer,
+    FundTransactionUpdateRequestSerializer,
     FxRateRequestSerializer,
     FxRateResponseSerializer,
     FxRateUpdateRequestSerializer,
@@ -35,6 +36,7 @@ from apps.api.schemas import (
     InstrumentUpdateRequestSerializer,
     InvestmentAccountRequestSerializer,
     InvestmentAccountUpdateRequestSerializer,
+    InvestmentPerformanceResponseSerializer,
     InvitationAcceptRequestSerializer,
     InvitationRequestSerializer,
     InvitationSerializer,
@@ -53,6 +55,7 @@ from apps.api.schemas import (
     PasswordRequestSerializer,
     PasswordResetConfirmRequestSerializer,
     PasswordResetRequestSerializer,
+    PortfolioAnalysisResponseSerializer,
     PreferencesRequestSerializer,
     PriceRequestSerializer,
     PriceResponseSerializer,
@@ -63,6 +66,9 @@ from apps.api.schemas import (
     SavingsAccountUpdateRequestSerializer,
     StockSplitRequestSerializer,
     StockTransactionRequestSerializer,
+    StockTransactionUpdateRequestSerializer,
+    TradedAccountRequestSerializer,
+    TradedAccountUpdateRequestSerializer,
     TransactionResponseSerializer,
     UploadRequestSerializer,
     UserSessionSerializer,
@@ -85,6 +91,7 @@ LIST_PATHS = frozenset(
         "/api/fund-accounts",
         "/api/fund-prices",
         "/api/funds",
+        "/api/fund-analysis",
         "/api/importers",
         "/api/investments/accounts",
         "/api/investments/history",
@@ -99,6 +106,8 @@ LIST_PATHS = frozenset(
         "/api/stock-prices",
         "/api/stock-splits",
         "/api/stocks",
+        "/api/stock-analysis",
+        "/api/crypto-analysis",
     }
 )
 
@@ -180,6 +189,53 @@ class PublicAutoSchema(AutoSchema):
                     required=True,
                 )
             )
+        elif (
+            path
+            in {
+                "/api/orders",
+                "/api/stock-orders",
+                "/api/crypto-orders",
+                "/api/fund-analysis",
+                "/api/stock-analysis",
+                "/api/crypto-analysis",
+            }
+            and self.method == "GET"
+        ):
+            parameters.append(
+                OpenApiParameter(
+                    name="account_id",
+                    type=OpenApiTypes.UUID,
+                    location=OpenApiParameter.QUERY,
+                    required=False,
+                )
+            )
+        elif path == "/api/investment-performance/{kind}" and self.method == "GET":
+            parameters.append(
+                OpenApiParameter(
+                    name="account_id",
+                    type=OpenApiTypes.STR,
+                    location=OpenApiParameter.QUERY,
+                    required=False,
+                    description="Account UUID or the literal 'all'.",
+                )
+            )
+        elif (
+            path
+            in {
+                "/api/orders/{external_id}",
+                "/api/stock-orders/{external_id}",
+                "/api/crypto-orders/{external_id}",
+            }
+            and self.method == "DELETE"
+        ):
+            parameters.append(
+                OpenApiParameter(
+                    name="account_id",
+                    type=OpenApiTypes.UUID,
+                    location=OpenApiParameter.QUERY,
+                    required=True,
+                )
+            )
         return parameters
 
     def _base_serializer(self) -> Any:
@@ -234,8 +290,28 @@ class PublicAutoSchema(AutoSchema):
             return AdminUserRequestSerializer()
         if path == "/api/administration/users/{user_id}":
             return AdminUserUpdateRequestSerializer()
-        if "/upload" in self.path or "account-imports/" in self.path:
+        if "account-imports/" in self.path:
             return UploadRequestSerializer()
+        if "/upload" in self.path:
+            return AccountUploadRequestSerializer()
+        if family_path in {"/api/orders", "/api/stock-orders", "/api/crypto-orders"}:
+            if family_path == "/api/orders":
+                return (
+                    FundTransactionUpdateRequestSerializer()
+                    if "{" in path
+                    else FundTransactionRequestSerializer()
+                )
+            if family_path == "/api/stock-orders":
+                return (
+                    StockTransactionUpdateRequestSerializer()
+                    if "{" in path
+                    else StockTransactionRequestSerializer()
+                )
+            return (
+                CryptoTransactionUpdateRequestSerializer()
+                if "{" in path
+                else CryptoTransactionRequestSerializer()
+            )
         if family_path in {"/api/funds", "/api/stocks", "/api/cryptos"}:
             if "{" in path:
                 return InstrumentUpdateRequestSerializer()
@@ -266,8 +342,8 @@ class PublicAutoSchema(AutoSchema):
             "/api/crypto-accounts",
         }:
             if "{" in path:
-                return FinancialAccountUpdateRequestSerializer()
-            return FinancialAccountRequestSerializer()
+                return TradedAccountUpdateRequestSerializer()
+            return TradedAccountRequestSerializer()
         if family_path == "/api/portfolio":
             return (
                 ManualAssetUpdateRequestSerializer()
@@ -337,6 +413,10 @@ class PublicAutoSchema(AutoSchema):
             response = NativeInvestmentAccountResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/investments/history":
             response = NativeInvestmentSnapshotResponseSerializer(many=self.method == "GET")
+        elif path == "/api/investment-performance/{kind}":
+            response = InvestmentPerformanceResponseSerializer
+        elif path == "/api/portfolio-analysis":
+            response = PortfolioAnalysisResponseSerializer
         elif family_path in {
             "/api/fund-accounts",
             "/api/stock-accounts",

@@ -14,7 +14,7 @@ vi.mock("./ImportPanel.vue", () => ({
 const props = {
   endpoint: "/stock-orders/upload-tr",
   accountsEndpoint: "/stock-accounts",
-  accountId: "1",
+  accountId: "11111111-1111-4111-8111-111111111111",
   accountLabel: "Trade Republic",
   importerLabel: "Trade Republic Transactions",
   compatibility: "Compatible con CSV de Trade Republic.",

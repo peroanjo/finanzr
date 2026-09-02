@@ -61,20 +61,25 @@ const fundImporter = {
   fields: [],
   rules: [],
 };
+const accountOneId = "00000000-0000-0000-0000-000000000001";
+const accountTwoId = "00000000-0000-0000-0000-000000000002";
+const accountThreeId = "00000000-0000-0000-0000-000000000003";
 let accountRows = [
   {
-    id: 1,
-    nombre: "Renta Fija",
-    tipo: "renta_fija",
-    plataforma: "MyInvestor",
+    id: accountOneId,
+    name: "Renta Fija",
+    platform: "MyInvestor",
+    type: "renta_fija",
+    currency: "EUR",
     importer_slug: "fund_broker",
     importer_name: "Fondos MyInvestor/Inversis",
   },
   {
-    id: 2,
-    nombre: "Cartera Indexada",
-    tipo: "renta_variable",
-    plataforma: "MyInvestor",
+    id: accountTwoId,
+    name: "Cartera Indexada",
+    platform: "MyInvestor",
+    type: "renta_variable",
+    currency: "EUR",
     importer_slug: "fund_broker",
     importer_name: "Fondos MyInvestor/Inversis",
   },
@@ -154,7 +159,7 @@ const orders = [
     titulos: 10,
     precio_neto: 100,
     importe_neto: 1000,
-    cuenta_id: 1,
+    cuenta_id: accountOneId,
   },
   {
     operacion_id: "sell-1",
@@ -166,12 +171,13 @@ const orders = [
     titulos: 2,
     precio_neto: 120,
     importe_neto: 240,
-    cuenta_id: 1,
+    cuenta_id: accountOneId,
   },
 ];
 const performance = {
   range: "1y",
-  cuenta_id: "all",
+  account_id: "all",
+  moneda_base: "EUR",
   data: [
     { fecha: "2026-01-01", valor: 1000, invertido: 1000, pnl: 0, pnl_pct: 0 },
     {
@@ -219,18 +225,20 @@ describe("FundsView", () => {
     applyReportingCurrency("EUR");
     accountRows = [
       {
-        id: 1,
-        nombre: "Renta Fija",
-        tipo: "renta_fija",
-        plataforma: "MyInvestor",
+        id: accountOneId,
+        name: "Renta Fija",
+        platform: "MyInvestor",
+        type: "renta_fija",
+        currency: "EUR",
         importer_slug: "fund_broker",
         importer_name: "Fondos MyInvestor/Inversis",
       },
       {
-        id: 2,
-        nombre: "Cartera Indexada",
-        tipo: "renta_variable",
-        plataforma: "MyInvestor",
+        id: accountTwoId,
+        name: "Cartera Indexada",
+        platform: "MyInvestor",
+        type: "renta_variable",
+        currency: "EUR",
         importer_slug: "fund_broker",
         importer_name: "Fondos MyInvestor/Inversis",
       },
@@ -251,34 +259,41 @@ describe("FundsView", () => {
     apiMock.mockImplementation(async (path, init) => {
       if (path === "/fund-accounts" && init?.method === "POST") {
         const created = {
-          id: 3,
-          nombre: "Nueva cartera",
-          tipo: "renta_variable",
-          plataforma: "MyInvestor",
+          id: accountThreeId,
+          name: "Nueva cartera",
+          platform: "MyInvestor",
+          type: "renta_variable",
+          currency: "EUR",
           importer_slug: "fund_broker",
           importer_name: "Fondos MyInvestor/Inversis",
         };
         accountRows.push(created);
         return created;
       }
-      if (path === "/fund-accounts/1" && init?.method === "PUT") {
-        accountRows[0] = { ...accountRows[0], nombre: "Cuenta editada" };
+      if (path === `/fund-accounts/${accountOneId}` && init?.method === "PUT") {
+        accountRows[0] = { ...accountRows[0], name: "Cuenta editada" };
         return accountRows[0];
       }
-      if (path === "/fund-accounts/1" && init?.method === "DELETE") {
-        accountRows = accountRows.filter((item) => item.id !== 1);
+      if (
+        path === `/fund-accounts/${accountOneId}` &&
+        init?.method === "DELETE"
+      ) {
+        accountRows = accountRows.filter((item) => item.id !== accountOneId);
         return { ok: true };
       }
       if (path === "/fund-accounts") return accountRows;
       if (path === "/importers") return [fundImporter];
       if (path === "/fund-analysis") return positionsOverride ?? positions;
-      if (path === "/fund-analysis?cuenta_id=1") return positions;
-      if (path === "/fund-analysis?cuenta_id=2") return accountTwoPositions;
-      if (path === "/orders" || path === "/orders?cuenta_id=1") return orders;
-      if (path === "/orders?cuenta_id=2") return [];
+      if (path === `/fund-analysis?account_id=${accountOneId}`)
+        return positions;
+      if (path === `/fund-analysis?account_id=${accountTwoId}`)
+        return accountTwoPositions;
+      if (path === "/orders" || path === `/orders?account_id=${accountOneId}`)
+        return orders;
+      if (path === `/orders?account_id=${accountTwoId}`) return [];
       if (
-        path === "/fund-analysis?cuenta_id=3" ||
-        path === "/orders?cuenta_id=3"
+        path === `/fund-analysis?account_id=${accountThreeId}` ||
+        path === `/orders?account_id=${accountThreeId}`
       )
         return [];
       if (path === "/funds") return instruments;
@@ -303,8 +318,8 @@ describe("FundsView", () => {
       if (path.startsWith("/investment-performance/fund?")) {
         return {
           ...performance,
-          cuenta_id:
-            new URLSearchParams(path.split("?")[1]).get("cuenta_id") ?? "all",
+          account_id:
+            new URLSearchParams(path.split("?")[1]).get("account_id") ?? "all",
         };
       }
       throw new Error(`Unexpected path: ${path}`);
@@ -354,14 +369,16 @@ describe("FundsView", () => {
     await sixMonths!.trigger("click");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/fund?cuenta_id=all&range=6m",
+      "/investment-performance/fund?account_id=all&range=6m",
     );
 
-    await wrapper.get(".fund-account-actions select").setValue("1");
+    await wrapper.get(".fund-account-actions select").setValue(accountOneId);
     await flushPromises();
-    expect(apiMock).toHaveBeenCalledWith("/fund-analysis?cuenta_id=1");
-    expect(apiMock).toHaveBeenCalledWith("/orders?cuenta_id=1");
-    expect(window.location.search).toBe("?account=1");
+    expect(apiMock).toHaveBeenCalledWith(
+      `/fund-analysis?account_id=${accountOneId}`,
+    );
+    expect(apiMock).toHaveBeenCalledWith(`/orders?account_id=${accountOneId}`);
+    expect(window.location.search).toBe(`?account=${accountOneId}`);
     expect(wrapper.findComponent(ImportStatementDialog).exists()).toBe(true);
   });
 
@@ -758,7 +775,7 @@ describe("FundsView", () => {
       "Todas las cuentas",
     );
 
-    await wrapper.get(".fund-account-actions select").setValue("2");
+    await wrapper.get(".fund-account-actions select").setValue(accountTwoId);
     await flushPromises();
 
     const accountDistribution = wrapper.get(
@@ -833,17 +850,19 @@ describe("FundsView", () => {
     apiMock.mockImplementation(async (path) => {
       if (path === "/fund-accounts") return accountRows;
       if (path === "/importers") return [fundImporter];
-      if (path === "/fund-analysis?cuenta_id=1") return stalePositions;
-      if (path === "/orders?cuenta_id=1") return orders;
-      if (path === "/fund-analysis?cuenta_id=2") return [latestPosition];
-      if (path === "/orders?cuenta_id=2") return [];
+      if (path === `/fund-analysis?account_id=${accountOneId}`)
+        return stalePositions;
+      if (path === `/orders?account_id=${accountOneId}`) return orders;
+      if (path === `/fund-analysis?account_id=${accountTwoId}`)
+        return [latestPosition];
+      if (path === `/orders?account_id=${accountTwoId}`) return [];
       if (path === "/funds") return instruments;
       if (path === "/fund-prices") return prices;
       if (path.startsWith("/investment-performance/fund?")) {
         return {
           ...performance,
           cuenta_id:
-            new URLSearchParams(path.split("?")[1]).get("cuenta_id") ?? "all",
+            new URLSearchParams(path.split("?")[1]).get("account_id") ?? "all",
         };
       }
       if (path.startsWith("/fund-chart/")) return chart;
@@ -852,17 +871,17 @@ describe("FundsView", () => {
 
     const accountSelect = wrapper.get(".fund-account-actions select");
     const accountSelectElement = accountSelect.element as HTMLSelectElement;
-    accountSelectElement.value = "1";
+    accountSelectElement.value = accountOneId;
     accountSelectElement.dispatchEvent(new Event("change", { bubbles: true }));
     await Promise.resolve();
-    accountSelectElement.value = "2";
+    accountSelectElement.value = accountTwoId;
     accountSelectElement.dispatchEvent(new Event("change", { bubbles: true }));
     await flushPromises();
 
     const distribution = wrapper.get(
       '[data-testid="fund-position-allocation"]',
     );
-    expect(window.location.search).toBe("?account=2");
+    expect(window.location.search).toBe(`?account=${accountTwoId}`);
     expect(distribution.text()).toContain("Cuenta dos actual");
     expect(distribution.text()).not.toContain("Cuenta uno antigua");
 
@@ -898,8 +917,8 @@ describe("FundsView", () => {
     apiMock.mockImplementation(async (path) => {
       if (path === "/fund-accounts") return accountRows;
       if (path === "/importers") return [fundImporter];
-      if (path === "/fund-analysis?cuenta_id=2") return [];
-      if (path === "/orders?cuenta_id=2") return [];
+      if (path === `/fund-analysis?account_id=${accountTwoId}`) return [];
+      if (path === `/orders?account_id=${accountTwoId}`) return [];
       if (path === "/funds") return instruments;
       if (path === "/fund-prices") return prices;
       if (path.startsWith("/investment-performance/fund?")) return performance;
@@ -919,7 +938,7 @@ describe("FundsView", () => {
       wrapper.find(".fund-inline-price-panel .fund-chart-state").text(),
     ).toContain("Cargando histórico");
 
-    await wrapper.get(".fund-account-actions select").setValue("2");
+    await wrapper.get(".fund-account-actions select").setValue(accountTwoId);
     await flushPromises();
 
     expect(wrapper.find(".fund-inline-price-panel").exists()).toBe(false);
@@ -1070,9 +1089,10 @@ describe("FundsView", () => {
     expect(dialog.attributes("open")).toBeDefined();
     await dialog.get("form").trigger("submit");
     await flushPromises();
-    expect(apiMock).toHaveBeenCalledWith("/orders/sell-1", {
-      method: "DELETE",
-    });
+    expect(apiMock).toHaveBeenCalledWith(
+      `/orders/sell-1?account_id=${accountOneId}`,
+      { method: "DELETE" },
+    );
   });
 
   it("collapses portfolio funds and movements and remembers both choices", async () => {
@@ -1198,7 +1218,7 @@ describe("FundsView", () => {
   it("edits a selected account and protects account deletion with two steps", async () => {
     const wrapper = mount(FundsView);
     await flushPromises();
-    await wrapper.get(".fund-account-actions select").setValue("1");
+    await wrapper.get(".fund-account-actions select").setValue(accountOneId);
     await flushPromises();
 
     const manage = wrapper
@@ -1212,7 +1232,7 @@ describe("FundsView", () => {
     await dialog.get("form").trigger("submit");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/fund-accounts/1",
+      `/fund-accounts/${accountOneId}`,
       expect.objectContaining({ method: "PUT" }),
     );
 
@@ -1222,7 +1242,7 @@ describe("FundsView", () => {
     expect(deleteButton.text()).toContain("Confirmar");
     await deleteButton.trigger("click");
     await flushPromises();
-    expect(apiMock).toHaveBeenCalledWith("/fund-accounts/1", {
+    expect(apiMock).toHaveBeenCalledWith(`/fund-accounts/${accountOneId}`, {
       method: "DELETE",
     });
     expect(window.location.search).toBe("");
@@ -1285,7 +1305,7 @@ describe("FundsView", () => {
     await flushPromises();
 
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/fund?cuenta_id=all&start=2026-02-01&end=2026-06-30",
+      "/investment-performance/fund?account_id=all&start=2026-02-01&end=2026-06-30",
     );
 
     await wrapper.get(".fund-account-actions > button").trigger("click");
@@ -1304,7 +1324,7 @@ describe("FundsView", () => {
       "/fund-accounts",
       expect.objectContaining({ method: "POST" }),
     );
-    expect(window.location.search).toBe("?account=3");
+    expect(window.location.search).toBe(`?account=${accountThreeId}`);
     expect(wrapper.get(".fund-account-copy").text()).toContain("Nueva cartera");
   });
 });

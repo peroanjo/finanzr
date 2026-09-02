@@ -195,7 +195,7 @@ const selectedImporter = computed(
 const selectedAccountLabel = computed(() =>
   selectedAccount.value === "all"
     ? t("funds.accounts.all")
-    : (selectedAccountRow.value?.nombre ?? t("funds.accounts.fallback")),
+    : (selectedAccountRow.value?.name ?? t("funds.accounts.fallback")),
 );
 const normalizedAccounts = computed(() => accounts.value.map(adaptFundAccount));
 const accountBarLabels = computed<InvestmentAccountBarLabels>(() => ({
@@ -541,11 +541,11 @@ function operationLabel(item: FundOrder) {
 function accountQuery() {
   return selectedAccount.value === "all"
     ? ""
-    : `?cuenta_id=${encodeURIComponent(selectedAccount.value)}`;
+    : `?account_id=${encodeURIComponent(selectedAccount.value)}`;
 }
 
 function performanceQuery() {
-  const account = `cuenta_id=${encodeURIComponent(selectedAccount.value)}`;
+  const account = `account_id=${encodeURIComponent(selectedAccount.value)}`;
   if (range.value === "custom") {
     return `${account}&start=${encodeURIComponent(customStart.value)}&end=${encodeURIComponent(customEnd.value)}`;
   }
@@ -811,11 +811,11 @@ function openEditAccountDialog() {
   );
   if (!account) return;
   accountDialogMode.value = "edit";
-  accountName.value = account.nombre;
-  accountProvider.value = account.plataforma;
-  accountType.value = account.tipo;
+  accountName.value = account.name;
+  accountProvider.value = account.platform;
+  accountType.value = account.type;
   accountImporter.value = account.importer_slug || "none";
-  accountCurrency.value = account.moneda || "EUR";
+  accountCurrency.value = account.currency || "EUR";
   accountError.value = "";
   accountDeleteArmed.value = false;
   accountDialog.value?.showModal();
@@ -839,11 +839,11 @@ async function saveAccount() {
     const saved = await api<FundAccount>(
       target,
       json(accountDialogMode.value === "edit" ? "PUT" : "POST", {
-        nombre: name,
-        plataforma: provider,
-        tipo: accountType.value.trim(),
+        name,
+        platform: provider,
+        type: accountType.value.trim(),
         importer_slug: accountImporter.value,
-        moneda: accountCurrency.value.trim().toUpperCase(),
+        currency: accountCurrency.value.trim().toUpperCase(),
       }),
     );
     selectedAccount.value = String(saved.id);

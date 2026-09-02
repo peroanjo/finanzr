@@ -4,4 +4,4 @@ pytest-django>=4.14.0,<5
 ruff>=0.12,<0.16
 mypy>=1.15,<2
 django-stubs[compatible-mypy]>=5.2,<5.3
-djangorestframework-stubs[compatible-mypy]>=3.16,<3.17
+djangorestframework-stubs[compatible-mypy]>=3.16,<3.19

@@ -126,7 +126,7 @@ function order(id: string, date: string): FundOrder {
     titulos: 1,
     precio_neto: 100,
     importe_neto: 100,
-    cuenta_id: 1,
+    cuenta_id: "00000000-0000-0000-0000-000000000001",
   };
 }
 

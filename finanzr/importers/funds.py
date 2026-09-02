@@ -40,7 +40,7 @@ def clean_date(value: str) -> str:
     return match.group(0) if match else value.strip()
 
 
-def order_from_cells(cells: list[str], account_id: int) -> dict[str, Any] | None:
+def order_from_cells(cells: list[str], account_id: Any) -> dict[str, Any] | None:
     """Convert the broker's 11 columns into an order."""
     if len(cells) != 11 or not cells[0] or not cells[0].lstrip()[:1].isdigit():
         return None
@@ -489,8 +489,9 @@ class FundBrokerImporter(BaseImporter):
                 parser.feed(source)
                 parser.close()
             except (AssertionError, ValueError):
-                pass
-            rows = parser.rows
+                rows = []
+            else:
+                rows = parser.rows
         else:
             rows = [
                 [cell.strip().replace("\xa0", "").strip() for cell in line.split(";")]
@@ -499,7 +500,7 @@ class FundBrokerImporter(BaseImporter):
 
         result = ImportResult(metadata={"source_format": source_format})
         for row_number, cells in enumerate(rows, start=1):
-            order = order_from_cells(cells, int(context.account_id))
+            order = order_from_cells(cells, context.account_id)
             if order:
                 result.records.append(order)
             elif any(cells):
@@ -519,6 +520,6 @@ class FundBrokerImporter(BaseImporter):
 IMPORTER = FundBrokerImporter()
 
 
-def parse_fund_extract(content: str, account_id: int) -> list[dict[str, Any]]:
+def parse_fund_extract(content: str, account_id: Any) -> list[dict[str, Any]]:
     """Convenience adapter for callers of the function-based API."""
     return IMPORTER.parse(content, ImportContext(account_id=account_id)).records

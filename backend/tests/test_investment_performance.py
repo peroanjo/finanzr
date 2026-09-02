@@ -280,11 +280,11 @@ def test_unsupported_kind_is_rejected() -> None:
 
 
 @pytest.mark.django_db
-def test_canonical_endpoint_serves_all_kinds_and_preserves_alias(
+def test_canonical_endpoint_serves_all_kinds_and_removes_legacy_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace, client = _workspace_client("performance-api")
-    Account.objects.create(
+    fund_account = Account.objects.create(
         workspace=workspace,
         name="Funds",
         kind=Account.Kind.FUNDS,
@@ -334,17 +334,16 @@ def test_canonical_endpoint_serves_all_kinds_and_preserves_alias(
         assert response.json()["data"][0]["valor"] == 110.0
 
     alias = client.get("/api/account-performance")
-    assert alias.status_code == 200
-    assert set(alias.json()) == {"range", "cuenta_id", "data"}
-    canonical_account = client.get("/api/investment-performance/fund?cuenta_id=01")
+    assert alias.status_code == 404
+    canonical_account = client.get(f"/api/investment-performance/fund?account_id={fund_account.pk}")
     assert canonical_account.status_code == 200
-    assert canonical_account.json()["cuenta_id"] == "1"
+    assert canonical_account.json()["account_id"] == str(fund_account.pk)
 
 
 @pytest.mark.django_db
 def test_performance_rejects_wrong_kind_foreign_accounts_and_invalid_ranges() -> None:
     workspace, client = _workspace_client("performance-isolation")
-    Account.objects.create(
+    stock_account = Account.objects.create(
         workspace=workspace,
         name="Stocks",
         kind=Account.Kind.STOCKS,
@@ -352,7 +351,7 @@ def test_performance_rejects_wrong_kind_foreign_accounts_and_invalid_ranges() ->
         external_id="legacy:stocks:7",
     )
     foreign = Workspace.objects.create(name="Foreign", slug="performance-foreign")
-    Account.objects.create(
+    foreign_account = Account.objects.create(
         workspace=foreign,
         name="Funds",
         kind=Account.Kind.FUNDS,
@@ -360,14 +359,18 @@ def test_performance_rejects_wrong_kind_foreign_accounts_and_invalid_ranges() ->
         external_id="legacy:funds:8",
     )
 
-    wrong_kind = client.get("/api/investment-performance/fund?cuenta_id=7")
-    foreign_account = client.get("/api/investment-performance/fund?cuenta_id=8")
+    wrong_kind = client.get(f"/api/investment-performance/fund?account_id={stock_account.pk}")
+    foreign_response = client.get(
+        f"/api/investment-performance/fund?account_id={foreign_account.pk}"
+    )
+    invalid_account = client.get("/api/investment-performance/fund?account_id=not-a-uuid")
     incomplete = client.get("/api/investment-performance/fund?start=2026-01-01")
     reversed_range = client.get("/api/investment-performance/fund?start=2026-02-01&end=2026-01-01")
     invalid_kind = client.get("/api/investment-performance/bond")
 
     assert wrong_kind.status_code == 404
-    assert foreign_account.status_code == 404
+    assert foreign_response.status_code == 404
+    assert invalid_account.status_code == 400
     assert incomplete.status_code == 400
     assert reversed_range.status_code == 400
     assert invalid_kind.status_code == 400

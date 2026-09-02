@@ -21,10 +21,8 @@ from rest_framework.response import Response
 from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
 from apps.api.legacy import (
-    account_id,
     account_row,
     instrument_row,
-    next_account_id,
     next_legacy_id,
     number,
     price_row,
@@ -35,6 +33,8 @@ from apps.api.legacy import (
 from apps.api.portfolio_projection import manual_asset_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.api.schemas import (
+    CryptoTransactionRequestSerializer,
+    FundTransactionRequestSerializer,
     InvestmentAccountRequestSerializer,
     InvestmentAccountUpdateRequestSerializer,
     ManualAssetRequestSerializer,
@@ -43,6 +43,9 @@ from apps.api.schemas import (
     NativeSavingsSnapshotRequestSerializer,
     SavingsAccountRequestSerializer,
     SavingsAccountUpdateRequestSerializer,
+    StockTransactionRequestSerializer,
+    TradedAccountRequestSerializer,
+    TradedAccountUpdateRequestSerializer,
 )
 from apps.common.models import InstallationSettings
 from apps.common.summary_preferences import (
@@ -153,8 +156,10 @@ def kind_accounts(request: Request, kind: str) -> QuerySet[Account]:
     return Account.objects.filter(workspace=workspace(request), kind=kind, archived_at__isnull=True)
 
 
-def find_account(request: Request, kind: str, legacy_id: int) -> Account:
-    return get_object_or_404(kind_accounts(request, kind), external_id=f"legacy:{kind}:{legacy_id}")
+def find_traded_account(request: Request, kind: str, account_id: UUID) -> Account:
+    """Resolve a traded account by its native UUID within the active workspace."""
+
+    return get_object_or_404(kind_accounts(request, kind), pk=account_id)
 
 
 def find_savings_account(request: Request, account_id: UUID) -> Account:
@@ -185,75 +190,89 @@ def account_importer(data: dict[str, Any], kind: str, current: str | None = None
         return ""
     try:
         importer = importers.get(slug)
-    except KeyError as exc:
-        raise ValueError(_("The selected importer does not exist")) from exc
+    except KeyError:
+        raise ValueError(_("The selected importer does not exist")) from None
     if importer.target != ACCOUNT_IMPORT_TARGETS[Account.Kind(kind)]:
         raise ValueError(_("The importer is not compatible with this account type"))
     return slug
 
 
-def account_collection(request: Request, kind: str, provider_field: str) -> Response:
+def account_collection(request: Request, kind: str) -> Response:
     accounts = kind_accounts(request, kind)
     if request.method == "GET":
-        return Response([account_row(item, provider_field) for item in accounts])
+        return Response([account_row(item) for item in accounts])
     if denied := forbidden_if_readonly(request):
         return denied
-    data = payload(request)
-    name = str(data.get("nombre", "")).strip()
-    if not name:
-        return Response({"error": _("The account name is required")}, status=400)
+    serializer = TradedAccountRequestSerializer(data=payload(request))
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
     try:
         importer_slug = account_importer(data, kind)
-        account_currency = normalize_currency(
-            data.get("moneda") or workspace(request).base_currency
-        )
-    except (ValueError, CurrencyConversionError) as exc:
+    except ValueError as exc:
         return Response({"error": str(exc)}, status=400)
-    provider, provider_label = resolve_provider(str(data.get(provider_field, "")))
-    legacy_id = next_account_id(accounts)
+    try:
+        account_currency = normalize_currency(
+            data.get("currency") or workspace(request).base_currency
+        )
+    except CurrencyConversionError:
+        return Response({"error": _("The currency code is invalid")}, status=400)
+    provider, provider_label = resolve_provider(str(data.get("platform", "")))
     item = Account.objects.create(
         workspace=workspace(request),
-        name=name,
+        name=str(data["name"]),
         kind=kind,
-        subtype=str(data.get("tipo", "")).strip(),
+        subtype=str(data.get("type", "")).strip(),
         provider=provider,
         provider_label=provider_label,
         importer_slug=importer_slug,
         currency=account_currency,
-        external_id=f"legacy:{kind}:{legacy_id}",
+        external_id=None,
     )
     cache.clear()
-    return Response(account_row(item, provider_field), status=201)
+    return Response(account_row(item), status=201)
 
 
-def account_detail(request: Request, kind: str, legacy_id: int, provider_field: str) -> Response:
+def account_detail(request: Request, kind: str, account_id: UUID) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    item = find_account(request, kind, legacy_id)
+    item = find_traded_account(request, kind, account_id)
     if request.method == "DELETE":
-        item.transactions.all().delete()
-        item.snapshots.all().delete()
-        item.delete()
+        with transaction.atomic():
+            # ImportBatch and its transactions both protect the account from
+            # deletion, so remove dependents in a deterministic order.
+            item.transactions.all().delete()
+            item.snapshots.all().delete()
+            # A valid transaction may have been moved to another account while
+            # retaining provenance from this account's import batch. Detach it
+            # before deleting the batch, while keeping the moved transaction.
+            Transaction.objects.filter(import_batch__account=item).update(import_batch=None)
+            item.import_batches.all().delete()
+            item.delete()
         cache.clear()
         return Response({"ok": True})
-    data = payload(request)
+    serializer = TradedAccountUpdateRequestSerializer(data=payload(request))
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
     try:
         item.importer_slug = account_importer(data, kind, item.importer_slug)
     except ValueError as exc:
         return Response({"error": str(exc)}, status=400)
-    item.name = str(data.get("nombre", item.name)).strip()
-    item.subtype = str(data.get("tipo", item.subtype)).strip()
-    if "moneda" in data:
+    if "name" in data:
+        item.name = str(data["name"])
+    item.subtype = str(data.get("type", item.subtype)).strip()
+    if "currency" in data:
         try:
-            item.currency = normalize_currency(data.get("moneda") or item.currency)
-        except CurrencyConversionError as exc:
-            return Response({"error": str(exc)}, status=400)
-    provider, provider_label = resolve_provider(str(data.get(provider_field, provider_name(item))))
+            item.currency = normalize_currency(data.get("currency") or item.currency)
+        except CurrencyConversionError:
+            return Response({"error": _("The currency code is invalid")}, status=400)
+    provider, provider_label = resolve_provider(str(data.get("platform", provider_name(item))))
     item.provider = provider
     item.provider_label = provider_label
     item.save()
     cache.clear()
-    return Response(account_row(item, provider_field))
+    return Response(account_row(item))
 
 
 @api_view(["GET", "POST"])
@@ -382,32 +401,32 @@ def investment_account(request: Request, account_id: UUID) -> Response:
 
 @api_view(["GET", "POST"])
 def fund_accounts(request: Request) -> Response:
-    return account_collection(request, Account.Kind.FUNDS, "plataforma")
+    return account_collection(request, Account.Kind.FUNDS)
 
 
 @api_view(["PUT", "DELETE"])
-def fund_account(request: Request, legacy_id: int) -> Response:
-    return account_detail(request, Account.Kind.FUNDS, legacy_id, "plataforma")
+def fund_account(request: Request, account_id: UUID) -> Response:
+    return account_detail(request, Account.Kind.FUNDS, account_id)
 
 
 @api_view(["GET", "POST"])
 def stock_accounts(request: Request) -> Response:
-    return account_collection(request, Account.Kind.STOCKS, "plataforma")
+    return account_collection(request, Account.Kind.STOCKS)
 
 
 @api_view(["PUT", "DELETE"])
-def stock_account(request: Request, legacy_id: int) -> Response:
-    return account_detail(request, Account.Kind.STOCKS, legacy_id, "plataforma")
+def stock_account(request: Request, account_id: UUID) -> Response:
+    return account_detail(request, Account.Kind.STOCKS, account_id)
 
 
 @api_view(["GET", "POST"])
 def crypto_accounts(request: Request) -> Response:
-    return account_collection(request, Account.Kind.CRYPTO, "plataforma")
+    return account_collection(request, Account.Kind.CRYPTO)
 
 
 @api_view(["PUT", "DELETE"])
-def crypto_account(request: Request, legacy_id: int) -> Response:
-    return account_detail(request, Account.Kind.CRYPTO, legacy_id, "plataforma")
+def crypto_account(request: Request, account_id: UUID) -> Response:
+    return account_detail(request, Account.Kind.CRYPTO, account_id)
 
 
 @api_view(["GET", "POST"])
@@ -1561,25 +1580,44 @@ def crypto_detail(request: Request, asset_id: str) -> Response:
     return update_instrument(request, "crypto_symbol", asset_id, "crypto")
 
 
-def transaction_queryset(request: Request, kind: str) -> QuerySet[Transaction]:
+def _selected_traded_account(request: Request, kind: str) -> Account | None | Response:
+    """Validate and resolve an optional native account filter."""
+
+    if "cuenta_id" in request.query_params:
+        return Response({"error": _("Use account_id for account filtering")}, status=400)
+    value = request.query_params.get("account_id")
+    if not value or value == "all":
+        return None
+    try:
+        account_uuid = UUID(value)
+    except (TypeError, ValueError):
+        return Response({"error": _("A valid account ID was expected")}, status=400)
+    account_kind = {
+        Instrument.Kind.FUND: Account.Kind.FUNDS,
+        Instrument.Kind.STOCK: Account.Kind.STOCKS,
+        Instrument.Kind.CRYPTO: Account.Kind.CRYPTO,
+    }[Instrument.Kind(kind)]
+    return find_traded_account(request, account_kind, account_uuid)
+
+
+def transaction_queryset(
+    request: Request, kind: str, selected_account: Account | None = None
+) -> QuerySet[Transaction]:
     queryset = (
         Transaction.objects.select_related("account", "instrument")
         .prefetch_related("instrument__identifiers")
         .filter(account__workspace=workspace(request), instrument__kind=kind)
     )
-    account_filter = request.query_params.get("cuenta_id")
-    if account_filter and account_filter != "all":
-        account_kind = {
-            Instrument.Kind.FUND: Account.Kind.FUNDS,
-            Instrument.Kind.STOCK: Account.Kind.STOCKS,
-            Instrument.Kind.CRYPTO: Account.Kind.CRYPTO,
-        }[Instrument.Kind(kind)]
-        queryset = queryset.filter(account=find_account(request, account_kind, int(account_filter)))
+    if selected_account is not None:
+        queryset = queryset.filter(account=selected_account)
     return queryset
 
 
 def transaction_list(request: Request, kind: str) -> Response:
-    queryset = transaction_queryset(request, kind)
+    selected_account = _selected_traded_account(request, kind)
+    if isinstance(selected_account, Response):
+        return selected_account
+    queryset = transaction_queryset(request, kind, selected_account)
     return Response([transaction_row(item) for item in queryset.order_by("trade_date")])
 
 
@@ -1606,7 +1644,22 @@ def save_manual_transaction(
     kind: str,
     item: Transaction | None = None,
 ) -> Response:
-    data = payload(request)
+    raw_data = payload(request)
+    if "cuenta_id" in raw_data or "cuenta_id_original" in raw_data:
+        return Response({"error": _("Use account_id for account selection")}, status=400)
+    data = dict(raw_data)
+    for optional_field in ("fecha_liquidacion", "tipo_cambio", "fecha_tipo_cambio"):
+        if data.get(optional_field) == "":
+            data[optional_field] = None
+    serializer_class = {
+        Instrument.Kind.FUND: FundTransactionRequestSerializer,
+        Instrument.Kind.STOCK: StockTransactionRequestSerializer,
+        Instrument.Kind.CRYPTO: CryptoTransactionRequestSerializer,
+    }[Instrument.Kind(kind)]
+    serializer = serializer_class(data=data)
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
     account_kind = {
         Instrument.Kind.FUND: Account.Kind.FUNDS,
         Instrument.Kind.STOCK: Account.Kind.STOCKS,
@@ -1625,7 +1678,8 @@ def save_manual_transaction(
     if operation_label not in operations:
         return Response({"error": _("The transaction type is not valid")}, status=400)
     try:
-        account = find_account(request, account_kind, int(data["cuenta_id"]))
+        account_uuid = UUID(str(data["account_id"]))
+        account = find_traded_account(request, account_kind, account_uuid)
         instrument = workspace_instrument(request, scheme, str(data[asset_key]))
         if instrument.kind != kind:
             return Response({"error": _("The asset does not belong in this section")}, status=400)
@@ -1647,9 +1701,12 @@ def save_manual_transaction(
 
     operation_type, cash_flow_type = operations[operation_label]
     creating = item is None
+    previous_account_id = item.account_id if item is not None else None
     if item is None:
         item = Transaction(external_id=f"manual:{uuid4()}")
     item.account = account
+    if previous_account_id is not None and previous_account_id != account.id:
+        item.import_batch = None
     item.instrument = instrument
     item.trade_date = trade_date
     item.settlement_date = settlement_date
@@ -1669,6 +1726,8 @@ def save_manual_transaction(
     item.is_saveback = bool(
         kind == Instrument.Kind.STOCK and "trade republic" in provider and requested_saveback
     )
+    if "mercado" in data:
+        item.market = str(data["mercado"])
     try:
         currency = normalize_currency(
             data.get("divisa")
@@ -1743,20 +1802,21 @@ def transaction_detail(request: Request, external_id: str) -> Response:
         return denied
     if request.method == "PUT":
         data = payload(request)
+        if "cuenta_id" in data or "cuenta_id_original" in data:
+            return Response({"error": _("Use account_id for account selection")}, status=400)
+        original_account = data.get("original_account_id")
+        if original_account in (None, ""):
+            return Response({"error": _("The original account ID is required")}, status=400)
+        try:
+            original_account_uuid = UUID(str(original_account))
+        except (TypeError, ValueError):
+            return Response({"error": _("A valid account ID was expected")}, status=400)
         queryset = Transaction.objects.filter(
             account__workspace=workspace(request),
+            account_id=original_account_uuid,
             external_id=external_id,
         )
-        original_account = data.get("cuenta_id_original")
-        if original_account not in (None, ""):
-            queryset = queryset.filter(
-                account__external_id__in=[
-                    f"legacy:funds:{original_account}",
-                    f"legacy:crypto:{original_account}",
-                    f"legacy:stocks:{original_account}",
-                ]
-            )
-        item = get_object_or_404(queryset.select_related("instrument").order_by("created_at"))
+        item = get_object_or_404(queryset.select_related("instrument"))
         if item.instrument.kind not in {
             Instrument.Kind.FUND,
             Instrument.Kind.STOCK,
@@ -1764,9 +1824,23 @@ def transaction_detail(request: Request, external_id: str) -> Response:
         }:
             return Response({"error": _("This transaction cannot be edited manually")}, status=400)
         return save_manual_transaction(request, item.instrument.kind, item)
-    Transaction.objects.filter(
-        account__workspace=workspace(request), external_id=external_id
-    ).delete()
+    if "cuenta_id" in request.query_params:
+        return Response({"error": _("Use account_id for account selection")}, status=400)
+    raw_account_id = request.query_params.get("account_id")
+    if not raw_account_id:
+        return Response({"error": _("The account ID is required")}, status=400)
+    try:
+        account_id = UUID(raw_account_id)
+    except (TypeError, ValueError):
+        return Response({"error": _("A valid account ID was expected")}, status=400)
+    item = get_object_or_404(
+        Transaction.objects.filter(
+            account__workspace=workspace(request),
+            account_id=account_id,
+            external_id=external_id,
+        )
+    )
+    item.delete()
     cache.clear()
     return Response({"ok": True})
 
@@ -1887,7 +1961,7 @@ def analyzed_positions(
     kind: str,
     rows: list[dict[str, Any]],
     *,
-    account_filter: int | None = None,
+    account_filter: int | str | UUID | None = None,
 ) -> list[dict[str, Any]]:
     prices = price_list(request, kind).data
     key = "symbol" if kind == "crypto" else "isin"
@@ -1923,11 +1997,16 @@ def analyzed_positions(
 
 
 def analysis(request: Request, kind: str) -> Response:
-    rows = list(transaction_list(request, kind).data)
-    account_filter = (
-        int(request.query_params["cuenta_id"]) if request.query_params.get("cuenta_id") else None
+    selected_account = _selected_traded_account(request, kind)
+    if isinstance(selected_account, Response):
+        return selected_account
+    listed = transaction_list(request, kind)
+    if listed.status_code != 200:
+        return listed
+    account_filter = selected_account.id if selected_account is not None else None
+    return Response(
+        analyzed_positions(request, kind, list(listed.data), account_filter=account_filter)
     )
-    return Response(analyzed_positions(request, kind, rows, account_filter=account_filter))
 
 
 @api_view(["GET"])
@@ -2009,15 +2088,15 @@ def portfolio_analysis(request: Request) -> Response:
         all_rows = list(transaction_list(request, kind).data)
         identity_key = "symbol" if kind == "crypto" else "isin"
         for account in kind_accounts(request, account_kind):
-            legacy_account_id = account_id(account)
-            account_rows = [row for row in all_rows if int(row["cuenta_id"]) == legacy_account_id]
+            account_uuid = str(account.id)
+            account_rows = [row for row in all_rows if str(row["cuenta_id"]) == account_uuid]
             if not account_rows:
                 continue
             positions = analyzed_positions(
                 request,
                 kind,
                 account_rows,
-                account_filter=legacy_account_id if kind == "fund" else None,
+                account_filter=account.id if kind == "fund" else None,
             )
             for position in positions:
                 value = number(position.get("valor_actual"))
@@ -2025,13 +2104,13 @@ def portfolio_analysis(request: Request) -> Response:
                     continue
                 result.append(
                     {
-                        "id": f"{kind}:{legacy_account_id}:{position[identity_key]}",
+                        "id": f"{kind}:{account_uuid}:{position[identity_key]}",
                         "nombre": position.get("nombre") or position[identity_key],
                         "identificador": position[identity_key],
                         "clase": position.get("tipo") or default_classes[kind],
                         "subtipo": position.get("subtipo") or default_subtypes[kind],
                         "cuenta": account.name,
-                        "cuenta_id": f"{kind}:{legacy_account_id}",
+                        "cuenta_id": f"{kind}:{account_uuid}",
                         "plataforma": provider_name(account),
                         "valor": value,
                         "origen": kind,
@@ -2394,18 +2473,11 @@ def investment_performance(request: Request, kind: str) -> Response:
     config = PERFORMANCE_KINDS.get(kind)
     if config is None:
         return Response({"error": _("The investment type is not valid")}, status=400)
-    instrument_kind, account_kind, identifier_scheme = config
-    account_value = request.query_params.get("cuenta_id", "all")
-    if account_value != "all":
-        try:
-            account_number = int(account_value)
-        except (TypeError, ValueError):
-            return Response({"error": _("The account does not exist")}, status=404)
-        try:
-            find_account(request, account_kind, account_number)
-        except Http404:
-            return Response({"error": _("The account does not exist")}, status=404)
-        account_value = str(account_number)
+    instrument_kind, _account_kind, identifier_scheme = config
+    selected_account = _selected_traded_account(request, kind)
+    if isinstance(selected_account, Response):
+        return selected_account
+    account_value = str(selected_account.id) if selected_account is not None else "all"
 
     period = _performance_period(request)
     if isinstance(period, Response):
@@ -2433,7 +2505,7 @@ def investment_performance(request: Request, kind: str) -> Response:
     rows = list(transaction_list(request, instrument_kind).data)
     result_base: dict[str, Any] = {
         "range": response_range,
-        "cuenta_id": account_value,
+        "account_id": account_value,
         "kind": kind,
         "moneda_base": base_currency,
         "data": [],
@@ -2540,16 +2612,3 @@ def investment_performance(request: Request, kind: str) -> Response:
 @api_view(["GET"])
 def investment_performance_view(request: Request, kind: str) -> Response:
     return investment_performance(request, kind)
-
-
-@api_view(["GET"])
-def account_performance(request: Request) -> Response:
-    """Temporarily compatible alias for the shared Funds performance route."""
-    response = investment_performance(request, "fund")
-    if response.status_code != 200:
-        return response
-    # Keep the historical three-key payload for strict legacy clients.  The
-    # canonical route exposes the additional kind/base-currency metadata.
-    return Response(
-        {key: response.data[key] for key in ("range", "cuenta_id", "data") if key in response.data}
-    )

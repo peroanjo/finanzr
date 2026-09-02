@@ -157,10 +157,10 @@ export function adaptFundAccount(account: FundAccount): NormalizedAccount {
   return {
     kind: "fund",
     id: text(item.id),
-    name: text(item.nombre, "Unnamed fund account"),
-    provider: text(item.plataforma, "Unknown provider"),
-    type: text(item.tipo) || null,
-    currency: currency(item.moneda),
+    name: text(item.name, "Unnamed fund account"),
+    provider: text(item.platform, "Unknown provider"),
+    type: text(item.type) || null,
+    currency: currency(item.currency),
     metadata: accountMetadata(item, "fund-account"),
     capabilities: capabilities(FUND_CAPABILITIES),
   };
@@ -171,10 +171,10 @@ export function adaptStockAccount(account: StockAccount): NormalizedAccount {
   return {
     kind: "stock",
     id: text(item.id),
-    name: text(item.nombre, "Unnamed stock account"),
-    provider: text(item.plataforma, "Unknown provider"),
-    type: null,
-    currency: currency(item.moneda),
+    name: text(item.name, "Unnamed stock account"),
+    provider: text(item.platform, "Unknown provider"),
+    type: text(item.type) || null,
+    currency: currency(item.currency),
     metadata: accountMetadata(item, "stock-account"),
     capabilities: capabilities(STOCK_CAPABILITIES),
   };
@@ -185,10 +185,10 @@ export function adaptCryptoAccount(account: CryptoAccount): NormalizedAccount {
   return {
     kind: "crypto",
     id: text(item.id),
-    name: text(item.nombre, "Unnamed crypto account"),
-    provider: text(item.plataforma, "Unknown provider"),
-    type: null,
-    currency: currency(item.moneda),
+    name: text(item.name, "Unnamed crypto account"),
+    provider: text(item.platform, "Unknown provider"),
+    type: text(item.type) || null,
+    currency: currency(item.currency),
     metadata: accountMetadata(item, "crypto-account"),
     capabilities: capabilities(CRYPTO_CAPABILITIES),
   };
@@ -521,7 +521,7 @@ export function adaptFundPerformance(
   const currencies = currencyDetails(options, item.moneda_base, item.moneda);
   return {
     kind: "fund",
-    accountId: text(item.cuenta_id),
+    accountId: text(item.account_id),
     range: text(item.range),
     currency: currencies.currency,
     baseCurrency: currencies.baseCurrency,
@@ -539,7 +539,7 @@ export function adaptFundPerformance(
       : [],
     metadata: {
       source: "fund-performance",
-      accountId: text(item.cuenta_id),
+      accountId: text(item.account_id),
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
     },
@@ -555,7 +555,7 @@ export function adaptStockPerformance(
   const currencies = currencyDetails(options, item.moneda_base, item.moneda);
   return {
     kind: "stock",
-    accountId: text(item.cuenta_id),
+    accountId: text(item.account_id),
     range: text(item.range),
     currency: currencies.currency,
     baseCurrency: currencies.baseCurrency,
@@ -573,7 +573,7 @@ export function adaptStockPerformance(
       : [],
     metadata: {
       source: "stock-performance",
-      accountId: text(item.cuenta_id),
+      accountId: text(item.account_id),
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
     },
@@ -589,7 +589,7 @@ export function adaptCryptoPerformance(
   const currencies = currencyDetails(options, item.moneda_base, item.moneda);
   return {
     kind: "crypto",
-    accountId: text(item.cuenta_id),
+    accountId: text(item.account_id),
     range: text(item.range),
     currency: currencies.currency,
     baseCurrency: currencies.baseCurrency,
@@ -607,7 +607,7 @@ export function adaptCryptoPerformance(
       : [],
     metadata: {
       source: "crypto-performance",
-      accountId: text(item.cuenta_id),
+      accountId: text(item.account_id),
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
     },

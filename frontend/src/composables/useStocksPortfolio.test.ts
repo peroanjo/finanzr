@@ -24,7 +24,7 @@ function makeOrder(overrides: Partial<StockOrder> = {}): StockOrder {
     fecha_operacion: "2026-01-01",
     titulos: 1,
     importe_neto: 100,
-    cuenta_id: 1,
+    cuenta_id: "00000000-0000-0000-0000-000000000001",
     tipo_operacion: "Compra",
     isin: "STOCK-1",
     nombre_activo: "Stock 1",

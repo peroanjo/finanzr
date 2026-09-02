@@ -7,7 +7,7 @@ const bydOrder = (date: string): StockOrder => ({
   fecha_operacion: date,
   titulos: 1,
   importe_neto: 34.07,
-  cuenta_id: 1,
+  cuenta_id: "00000000-0000-0000-0000-000000000001",
   cuenta_nombre: "Trade Republic",
   plataforma: "Trade Republic",
   tipo_operacion: "Compra",

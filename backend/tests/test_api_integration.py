@@ -6,6 +6,7 @@ import pytest
 from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
 from apps.api import views
 from apps.common.models import InstallationSettings
+from apps.imports.models import ImportBatch, ImportIssue
 from apps.market_data.fx import FxConversion
 from apps.market_data.models import (
     Instrument,
@@ -1537,6 +1538,103 @@ def test_portfolio_export_includes_legacy_native_and_archived_assets(
 
 
 @pytest.mark.django_db(transaction=True)
+def test_traded_account_export_includes_legacy_native_and_archived_rows(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    legacy = Account.objects.get(kind=Account.Kind.FUNDS)
+    native = client.post(
+        "/api/fund-accounts",
+        {
+            "name": "Native traded export",
+            "platform": "Synthetic broker",
+            "type": "Managed",
+            "currency": "EUR",
+            "importer_slug": "none",
+        },
+        format="json",
+    ).json()
+    archived = Account.objects.create(
+        workspace=legacy.workspace,
+        name="Archived traded export",
+        kind=Account.Kind.FUNDS,
+        provider_label="Archived broker",
+        currency="EUR",
+        archived_at=timezone.now(),
+    )
+
+    exported = client.get("/api/account/export")
+
+    assert exported.status_code == 200
+    rows = {row["id"]: row for row in exported.json()["fund_accounts"]}
+    assert {str(legacy.id), native["id"], str(archived.id)} <= set(rows)
+    assert all(
+        set(row) == {"id", "name", "platform", "type", "currency", "importer_slug", "importer_name"}
+        for row in rows.values()
+    )
+    assert rows[native["id"]]["id"] == native["id"]
+    assert rows[str(archived.id)]["name"] == "Archived traded export"
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "endpoint",
+    ("/api/fund-accounts", "/api/stock-accounts", "/api/crypto-accounts"),
+)
+def test_traded_account_crud_uses_strict_native_contract(
+    api_context: tuple[APIClient, User], endpoint: str
+) -> None:
+    client, _ = api_context
+    body = {
+        "name": "Synthetic account",
+        "platform": "Synthetic broker",
+        "type": "Managed",
+        "currency": "EUR",
+        "importer_slug": "none",
+    }
+
+    created = client.post(endpoint, body, format="json")
+
+    assert created.status_code == 201
+    account = created.json()
+    UUID(account["id"])
+    assert set(account) == {
+        "id",
+        "name",
+        "platform",
+        "type",
+        "currency",
+        "importer_slug",
+        "importer_name",
+    }
+    assert account == {
+        "id": account["id"],
+        "name": "Synthetic account",
+        "platform": "Synthetic broker",
+        "type": "Managed",
+        "currency": "EUR",
+        "importer_slug": "",
+        "importer_name": "",
+    }
+
+    updated = client.put(
+        f"{endpoint}/{account['id']}",
+        {"name": "Updated account", "platform": "Updated broker"},
+        format="json",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Updated account"
+    assert updated.json()["platform"] == "Updated broker"
+
+    for invalid in (
+        {**body, "nombre": "Legacy name"},
+        {**body, "unknown": "rejected"},
+    ):
+        rejected = client.post(endpoint, invalid, format="json")
+        assert rejected.status_code == 400
+
+
+@pytest.mark.django_db(transaction=True)
 def test_portfolio_analysis_consolidates_positions_by_real_account(
     api_context: tuple[APIClient, User],
 ) -> None:
@@ -1561,6 +1659,19 @@ def test_portfolio_analysis_consolidates_positions_by_real_account(
     manual_asset = ManualAsset.objects.get(legacy_id=1)
     assert manual["id"] == f"manual:{manual_asset.id}"
     assert manual["cuenta_id"] == f"manual:{manual_asset.id}"
+    account_kinds = {
+        "fund": Account.Kind.FUNDS,
+        "stock": Account.Kind.STOCKS,
+        "crypto": Account.Kind.CRYPTO,
+    }
+    for item in payload["items"]:
+        if item["origen"] not in account_kinds:
+            continue
+        prefix = f"{item['origen']}:"
+        account_id = item["cuenta_id"].removeprefix(prefix)
+        UUID(account_id)
+        assert item["id"].startswith(f"{item['cuenta_id']}:")
+        assert Account.objects.filter(pk=account_id, kind=account_kinds[item["origen"]]).exists()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1606,7 +1717,7 @@ def test_registered_parser_upload_is_persisted_and_deduplicated(
 
     response = client.post(
         "/api/crypto-orders/upload-kraken-pro",
-        {"cuenta_id": "1", "file": uploaded},
+        {"account_id": str(Account.objects.get(kind=Account.Kind.CRYPTO).id), "file": uploaded},
     )
 
     assert response.status_code == 200
@@ -1616,7 +1727,7 @@ def test_registered_parser_upload_is_persisted_and_deduplicated(
     duplicate = SimpleUploadedFile("again.csv", content, content_type="text/csv")
     response = client.post(
         "/api/crypto-orders/upload-kraken-pro",
-        {"cuenta_id": "1", "file": duplicate},
+        {"account_id": str(Account.objects.get(kind=Account.Kind.CRYPTO).id), "file": duplicate},
     )
     assert response.json()["duplicate"] is True
 
@@ -1629,14 +1740,14 @@ def test_account_importer_is_required_compatible_and_drives_the_upload(
 
     missing = client.post(
         "/api/crypto-accounts",
-        {"nombre": "Sin decidir", "plataforma": "Otro exchange"},
+        {"name": "Sin decidir", "platform": "Otro exchange"},
         format="json",
     )
     incompatible = client.post(
         "/api/crypto-accounts",
         {
-            "nombre": "Importador incorrecto",
-            "plataforma": "Otro exchange",
+            "name": "Importador incorrecto",
+            "platform": "Otro exchange",
             "importer_slug": "trade_republic",
         },
         format="json",
@@ -1666,6 +1777,328 @@ def test_account_importer_is_required_compatible_and_drives_the_upload(
     batch = Transaction.objects.get(external_id="bound-tx").import_batch
     assert batch is not None
     assert batch.importer_slug == "kraken_spot"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_traded_account_delete_removes_import_dependents_atomically(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, user = api_context
+    account = Account.objects.get(kind=Account.Kind.CRYPTO)
+    raw = (
+        b"txid,pair,time,type,price,cost,fee,vol\n"
+        b"delete-me,BTC/EUR,2026-07-22 12:00:00,buy,100000,100,1,0.001\n"
+    )
+    imported = client.post(
+        "/api/crypto-orders/upload-kraken-pro",
+        {
+            "account_id": str(account.id),
+            "file": SimpleUploadedFile("trades.csv", raw, content_type="text/csv"),
+        },
+    )
+    assert imported.status_code == 200
+    batch = ImportBatch.objects.get(account=account)
+    issue = ImportIssue.objects.create(
+        batch=batch,
+        severity=ImportIssue.Severity.WARNING,
+        code="test-warning",
+        message="Synthetic warning",
+    )
+    account_id = str(account.id)
+    destination = client.post(
+        "/api/crypto-accounts",
+        {"name": "Destination", "platform": "Synthetic", "importer_slug": "none"},
+        format="json",
+    ).json()
+    moved = client.put(
+        "/api/crypto-orders/delete-me",
+        {
+            "original_account_id": account_id,
+            "account_id": destination["id"],
+            "symbol": "BTC",
+            "fecha_operacion": "2026-07-22",
+            "tipo_operacion": "Compra",
+            "titulos": "0.001",
+            "precio_compra": "100000",
+            "importe_neto": "101",
+            "comision": "1",
+            "divisa": "EUR",
+        },
+        format="json",
+    )
+    assert moved.status_code == 200
+
+    deleted = client.delete(f"/api/crypto-accounts/{account_id}")
+
+    assert deleted.status_code == 200
+    assert not Account.objects.filter(pk=account_id).exists()
+    assert not Transaction.objects.filter(account_id=account_id).exists()
+    assert not ImportBatch.objects.filter(pk=batch.pk).exists()
+    assert not ImportIssue.objects.filter(pk=issue.pk).exists()
+    assert not ImportBatch.objects.filter(workspace=user.memberships.get().workspace).exists()
+    moved_transaction = Transaction.objects.get(external_id="delete-me")
+    assert str(moved_transaction.account_id) == destination["id"]
+    assert moved_transaction.import_batch_id is None
+
+
+@pytest.mark.django_db(transaction=True)
+def test_transaction_detail_is_scoped_by_native_account_identity(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
+    assert source is not None
+    first_account = source.account
+    second_account = Account.objects.create(
+        workspace=first_account.workspace,
+        name="Second stock account",
+        kind=Account.Kind.STOCKS,
+        currency="EUR",
+    )
+    duplicate = Transaction.objects.create(
+        account=second_account,
+        instrument=source.instrument,
+        external_id="shared-provider-id",
+        trade_date="2026-01-01",
+        operation_type=Transaction.OperationType.BUY,
+        cash_flow_type=Transaction.CashFlowType.NONE,
+        quantity=1,
+        unit_price=10,
+        net_amount=10,
+        fee=0,
+        currency="EUR",
+        provider_operation_type="Compra",
+    )
+    source.external_id = duplicate.external_id
+    source.save(update_fields=("external_id",))
+    isin = source.instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+    update_payload = {
+        "original_account_id": str(first_account.id),
+        "account_id": str(first_account.id),
+        "isin": isin,
+        "fecha_operacion": "2026-02-02",
+        "tipo_operacion": "Compra",
+        "titulos": "1",
+        "precio_compra": "10",
+        "importe_neto": "10",
+        "comision": "0",
+        "divisa": "EUR",
+    }
+
+    assert (
+        client.put(
+            f"/api/stock-orders/{source.external_id}",
+            {key: value for key, value in update_payload.items() if key != "original_account_id"},
+            format="json",
+        ).status_code
+        == 400
+    )
+    updated = client.put(f"/api/stock-orders/{source.external_id}", update_payload, format="json")
+    assert updated.status_code == 200
+    source.refresh_from_db()
+    duplicate.refresh_from_db()
+    assert source.trade_date.isoformat() == "2026-02-02"
+    assert duplicate.trade_date.isoformat() == "2026-01-01"
+
+    ambiguous_delete = client.delete(f"/api/stock-orders/{source.external_id}")
+    assert ambiguous_delete.status_code == 400
+    invalid_account_delete = client.delete(
+        f"/api/stock-orders/{source.external_id}?account_id=not-a-uuid"
+    )
+    assert invalid_account_delete.status_code == 400
+    deleted = client.delete(
+        f"/api/stock-orders/{source.external_id}?account_id={second_account.id}"
+    )
+    assert deleted.status_code == 200
+    assert Transaction.objects.filter(pk=source.pk).exists()
+    assert not Transaction.objects.filter(pk=duplicate.pk).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("endpoint", "account_kind", "asset_key", "asset_value", "price_key", "operation"),
+    (
+        ("/api/orders", Account.Kind.FUNDS, "isin", "SYNTH-FUND-001", "precio_neto", "SUSCRIPCION"),
+        (
+            "/api/stock-orders",
+            Account.Kind.STOCKS,
+            "isin",
+            "SYNTH-STOCK-001",
+            "precio_compra",
+            "Compra",
+        ),
+        ("/api/crypto-orders", Account.Kind.CRYPTO, "symbol", "BTC", "precio_compra", "Compra"),
+    ),
+)
+def test_manual_traded_transactions_validate_native_typed_contract(
+    api_context: tuple[APIClient, User],
+    endpoint: str,
+    account_kind: str,
+    asset_key: str,
+    asset_value: str,
+    price_key: str,
+    operation: str,
+) -> None:
+    client, _ = api_context
+    account = Account.objects.get(kind=account_kind)
+    payload = {
+        "account_id": str(account.id),
+        asset_key: asset_value,
+        "fecha_operacion": "2026-07-25",
+        "tipo_operacion": operation,
+        "titulos": "2.5",
+        price_key: "40",
+        "importe_neto": "100",
+        "comision": "0.5",
+        "divisa": "EUR",
+        "es_saveback": True,
+        "tipo_cambio": "1",
+        "fecha_tipo_cambio": "2026-07-25",
+        "fuente_tipo_cambio": "identity",
+        "mercado": "Synthetic market",
+    }
+    if account_kind == Account.Kind.FUNDS:
+        payload["fecha_liquidacion"] = ""
+
+    created = client.post(endpoint, payload, format="json")
+
+    assert created.status_code == 201, created.content
+    transaction_row = Transaction.objects.get(external_id=created.json()["operacion_id"])
+    assert transaction_row.account_id == account.id
+    assert transaction_row.market == "Synthetic market"
+    assert transaction_row.fx_rate_to_base == Decimal("1")
+    if account_kind == Account.Kind.FUNDS:
+        assert transaction_row.settlement_date is None
+
+    for invalid_field, invalid_value in (
+        ("unknown", "rejected"),
+        ("cuenta_id", "1"),
+        ("cuenta_id_original", "1"),
+    ):
+        invalid = {**payload, invalid_field: invalid_value}
+        rejected = client.post(endpoint, invalid, format="json")
+        assert rejected.status_code == 400, (invalid_field, rejected.content)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_upload_contract_distinguishes_direct_and_account_bound_multipart(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    account = Account.objects.get(kind=Account.Kind.CRYPTO)
+    raw = b"not parsed because the multipart contract is rejected first"
+
+    direct_unknown = client.post(
+        "/api/crypto-orders/upload-kraken-pro",
+        {
+            "account_id": str(account.id),
+            "file": SimpleUploadedFile("trades.csv", raw, content_type="text/csv"),
+            "unexpected": "field",
+        },
+    )
+    bound_account = client.post(
+        f"/api/account-imports/crypto/{account.id}",
+        {
+            "file": SimpleUploadedFile("trades.csv", raw, content_type="text/csv"),
+            "account_id": str(account.id),
+        },
+    )
+    bound_unknown = client.post(
+        f"/api/account-imports/crypto/{account.id}",
+        {
+            "file": SimpleUploadedFile("trades.csv", raw, content_type="text/csv"),
+            "unexpected": "field",
+        },
+    )
+    unknown_kind = client.post(
+        f"/api/account-imports/not-a-kind/{account.id}",
+        {"file": SimpleUploadedFile("trades.csv", raw, content_type="text/csv")},
+    )
+
+    assert direct_unknown.status_code == 400
+    assert bound_account.status_code == 400
+    assert bound_unknown.status_code == 400
+    assert unknown_kind.status_code == 400
+
+
+@pytest.mark.django_db(transaction=True)
+def test_traded_account_scope_and_roles_cover_archived_foreign_and_viewer_rows(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, user = api_context
+    workspace = user.memberships.get().workspace
+    archived = Account.objects.create(
+        workspace=workspace,
+        name="Archived funds",
+        kind=Account.Kind.FUNDS,
+        importer_slug="fund_broker",
+        currency="EUR",
+        archived_at=timezone.now(),
+    )
+    foreign_workspace = Workspace.objects.create(name="Foreign", slug="foreign-scope")
+    foreign = Account.objects.create(
+        workspace=foreign_workspace,
+        name="Foreign funds",
+        kind=Account.Kind.FUNDS,
+        importer_slug="fund_broker",
+        currency="EUR",
+    )
+    for account in (archived, foreign):
+        account_id = str(account.id)
+        assert (
+            client.put(
+                f"/api/fund-accounts/{account_id}",
+                {"name": "Should remain hidden"},
+                format="json",
+            ).status_code
+            == 404
+        )
+        deleted_fund = client.delete(f"/api/fund-accounts/{account_id}")
+        assert deleted_fund.status_code == 404
+        assert client.get(f"/api/orders?account_id={account_id}").status_code == 404
+        assert (
+            client.post(
+                f"/api/account-imports/funds/{account_id}",
+                {"file": SimpleUploadedFile("funds.csv", b"not used")},
+            ).status_code
+            == 404
+        )
+
+    viewer = User.objects.create_user(email="viewer@example.com", password="viewer-password")
+    WorkspaceMembership.objects.create(
+        workspace=workspace,
+        user=viewer,
+        role=WorkspaceMembership.Role.VIEWER,
+    )
+    viewer_client = APIClient()
+    viewer_client.force_authenticate(viewer)
+    assert (
+        viewer_client.post(
+            "/api/fund-accounts",
+            {"name": "Viewer account", "platform": "Broker", "importer_slug": "none"},
+            format="json",
+        ).status_code
+        == 403
+    )
+    viewer_delete = viewer_client.delete(f"/api/fund-accounts/{archived.id}")
+    assert viewer_delete.status_code == 403
+
+    editor = User.objects.create_user(email="editor@example.com", password="editor-password")
+    WorkspaceMembership.objects.create(
+        workspace=workspace,
+        user=editor,
+        role=WorkspaceMembership.Role.EDITOR,
+    )
+    editor_client = APIClient()
+    editor_client.force_authenticate(editor)
+    created = editor_client.post(
+        "/api/fund-accounts",
+        {"name": "Editor account", "platform": "Broker", "importer_slug": "none"},
+        format="json",
+    )
+    assert created.status_code == 201
+    editor_delete = editor_client.delete(f"/api/fund-accounts/{created.json()['id']}")
+    assert editor_delete.status_code == 200
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1706,8 +2139,8 @@ def test_crypto_accounts_can_be_created_and_filter_orders(
     created = client.post(
         "/api/crypto-accounts",
         {
-            "nombre": "Cuenta secundaria",
-            "plataforma": "Otro exchange",
+            "name": "Cuenta secundaria",
+            "platform": "Otro exchange",
             "importer_slug": "none",
         },
         format="json",
@@ -1715,17 +2148,14 @@ def test_crypto_accounts_can_be_created_and_filter_orders(
 
     assert created.status_code == 201
     account_id = created.json()["id"]
-    assert created.json()["plataforma"] == "Otro exchange"
+    assert created.json()["platform"] == "Otro exchange"
 
     source = Transaction.objects.filter(
         account__kind=Account.Kind.CRYPTO,
         instrument__kind="crypto",
     ).first()
     assert source is not None
-    account = Account.objects.get(
-        kind=Account.Kind.CRYPTO,
-        external_id=f"legacy:crypto:{account_id}",
-    )
+    account = Account.objects.get(pk=account_id)
     Transaction.objects.create(
         account=account,
         instrument=source.instrument,
@@ -1744,8 +2174,8 @@ def test_crypto_accounts_can_be_created_and_filter_orders(
         raw_metadata=source.raw_metadata,
     )
 
-    orders = client.get(f"/api/crypto-orders?cuenta_id={account_id}")
-    analysis = client.get(f"/api/crypto-analysis?cuenta_id={account_id}")
+    orders = client.get(f"/api/crypto-orders?account_id={account_id}")
+    analysis = client.get(f"/api/crypto-analysis?account_id={account_id}")
 
     assert orders.status_code == 200
     assert [row["cuenta_id"] for row in orders.json()] == [account_id]
@@ -1766,7 +2196,7 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
     created_fund = client.post(
         "/api/orders",
         {
-            "cuenta_id": fund_account["id"],
+            "account_id": fund_account["id"],
             "isin": fund["isin"],
             "fecha_operacion": "2026-07-25",
             "fecha_liquidacion": "2026-07-26",
@@ -1784,8 +2214,8 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
     updated_fund = client.put(
         f"/api/orders/{fund_id}",
         {
-            "cuenta_id_original": fund_account["id"],
-            "cuenta_id": fund_account["id"],
+            "original_account_id": fund_account["id"],
+            "account_id": fund_account["id"],
             "isin": fund["isin"],
             "fecha_operacion": "2026-07-25",
             "fecha_liquidacion": "2026-07-27",
@@ -1805,7 +2235,7 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
     created_crypto = client.post(
         "/api/crypto-orders",
         {
-            "cuenta_id": crypto_account["id"],
+            "account_id": crypto_account["id"],
             "symbol": crypto["symbol"],
             "fecha_operacion": "2026-07-25",
             "tipo_operacion": "Compra",
@@ -1833,7 +2263,7 @@ def test_stock_cashback_is_only_available_for_trade_republic(
     created = client.post(
         "/api/stock-orders",
         {
-            "cuenta_id": trade_republic["id"],
+            "account_id": trade_republic["id"],
             "isin": stock["isin"],
             "fecha_operacion": "2026-07-25",
             "tipo_operacion": "Compra",
@@ -1852,8 +2282,8 @@ def test_stock_cashback_is_only_available_for_trade_republic(
     other_account = client.post(
         "/api/stock-accounts",
         {
-            "nombre": "Broker secundario",
-            "plataforma": "Otro broker",
+            "name": "Broker secundario",
+            "platform": "Otro broker",
             "importer_slug": "none",
         },
         format="json",
@@ -1861,7 +2291,7 @@ def test_stock_cashback_is_only_available_for_trade_republic(
     rejected_cashback = client.post(
         "/api/stock-orders",
         {
-            "cuenta_id": other_account["id"],
+            "account_id": other_account["id"],
             "isin": stock["isin"],
             "fecha_operacion": "2026-07-25",
             "tipo_operacion": "Compra",
@@ -1877,9 +2307,9 @@ def test_stock_cashback_is_only_available_for_trade_republic(
     assert rejected_cashback.status_code == 201
     assert rejected_cashback.json()["es_saveback"] is False
 
-    regular = client.get(f"/api/stock-analysis?cuenta_id={trade_republic['id']}").json()
+    regular = client.get(f"/api/stock-analysis?account_id={trade_republic['id']}").json()
     cashback_as_benefit = client.get(
-        f"/api/stock-analysis?cuenta_id={trade_republic['id']}&ignore_savebacks=true"
+        f"/api/stock-analysis?account_id={trade_republic['id']}&ignore_savebacks=true"
     ).json()
     regular_cost = sum(row["coste_total"] for row in regular)
     benefit_cost = sum(row["coste_total"] for row in cashback_as_benefit)
@@ -1945,17 +2375,14 @@ def test_fund_performance_uses_market_history_and_filters_by_account(
     created = client.post(
         "/api/fund-accounts",
         {
-            "nombre": "Cuenta de prueba",
-            "plataforma": "MyInvestor",
+            "name": "Cuenta de prueba",
+            "platform": "MyInvestor",
             "importer_slug": "fund_broker",
         },
         format="json",
     )
     account_id = created.json()["id"]
-    account = Account.objects.get(
-        kind=Account.Kind.FUNDS,
-        external_id=f"legacy:funds:{account_id}",
-    )
+    account = Account.objects.get(pk=account_id)
     source = Transaction.objects.filter(instrument__kind="fund").first()
     assert source is not None
     Transaction.objects.create(
@@ -1983,12 +2410,14 @@ def test_fund_performance_uses_market_history_and_filters_by_account(
         ),
     )
 
-    response = client.get(f"/api/account-performance?cuenta_id={account_id}&range=1y")
+    response = client.get(f"/api/investment-performance/fund?account_id={account_id}&range=1y")
 
     assert response.status_code == 200
     assert response.json() == {
         "range": "1y",
-        "cuenta_id": str(account_id),
+        "account_id": str(account_id),
+        "kind": "fund",
+        "moneda_base": "EUR",
         "data": [
             {
                 "fecha": "2026-01-01",
@@ -2007,8 +2436,8 @@ def test_fund_performance_uses_market_history_and_filters_by_account(
         ],
     }
 
-    analysis = client.get(f"/api/fund-analysis?cuenta_id={account_id}")
-    orders = client.get(f"/api/orders?cuenta_id={account_id}")
+    analysis = client.get(f"/api/fund-analysis?account_id={account_id}")
+    orders = client.get(f"/api/orders?account_id={account_id}")
     assert analysis.status_code == 200
     assert len(analysis.json()) == 1
     assert [row["cuenta_id"] for row in orders.json()] == [account_id]
@@ -2019,7 +2448,7 @@ def test_fund_performance_rejects_an_incomplete_custom_range(
     api_context: tuple[APIClient, User],
 ) -> None:
     client, _ = api_context
-    response = client.get("/api/account-performance?cuenta_id=all&start=2026-01-01")
+    response = client.get("/api/investment-performance/fund?account_id=all&start=2026-01-01")
     assert response.status_code == 400
     assert response.json()["error"] == "Debes indicar fecha inicial y final"
 

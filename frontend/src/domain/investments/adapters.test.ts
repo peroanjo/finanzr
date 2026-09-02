@@ -42,33 +42,36 @@ describe("normalized investment adapters", () => {
 
   it("normalizes accounts with a stable id, currency, and source metadata", () => {
     const fund = adaptFundAccount({
-      id: 7,
-      nombre: "Index funds",
-      tipo: "renta_variable",
-      plataforma: "Broker",
+      id: "00000000-0000-0000-0000-000000000007",
+      name: "Index funds",
+      platform: "Broker",
+      type: "renta_variable",
+      currency: "usd",
       importer_slug: "fund_csv",
       importer_name: "Fund CSV",
-      moneda: "usd",
     });
     const stock = adaptStockAccount({
-      id: 8,
-      nombre: "Stocks",
-      plataforma: "Trade Republic",
+      id: "00000000-0000-0000-0000-000000000008",
+      name: "Stocks",
+      platform: "Trade Republic",
+      type: "",
+      currency: "EUR",
       importer_slug: "tr",
       importer_name: "Trade Republic",
     });
     const crypto = adaptCryptoAccount({
-      id: 9,
-      nombre: "Kraken",
-      plataforma: "KrakenPro",
+      id: "00000000-0000-0000-0000-000000000009",
+      name: "Kraken",
+      platform: "KrakenPro",
+      type: "",
+      currency: "eur",
       importer_slug: "kraken",
       importer_name: "Kraken",
-      moneda: "eur",
     });
 
     expect(fund).toMatchObject({
       kind: "fund",
-      id: "7",
+      id: "00000000-0000-0000-0000-000000000007",
       currency: "USD",
       type: "renta_variable",
       capabilities: { fees: false, saveback: false, splits: false },
@@ -79,7 +82,7 @@ describe("normalized investment adapters", () => {
     });
     expect(stock).toMatchObject({
       kind: "stock",
-      id: "8",
+      id: "00000000-0000-0000-0000-000000000008",
       type: null,
       currency: "EUR",
     });
@@ -88,7 +91,11 @@ describe("normalized investment adapters", () => {
       saveback: true,
       splits: true,
     });
-    expect(crypto).toMatchObject({ kind: "crypto", id: "9", currency: "EUR" });
+    expect(crypto).toMatchObject({
+      kind: "crypto",
+      id: "00000000-0000-0000-0000-000000000009",
+      currency: "EUR",
+    });
     expect(crypto.capabilities).toMatchObject({
       fees: true,
       saveback: false,
@@ -212,7 +219,7 @@ describe("normalized investment adapters", () => {
       titulos: 2,
       precio_neto: 50,
       importe_neto: 100,
-      cuenta_id: 1,
+      cuenta_id: "00000000-0000-0000-0000-000000000001",
       moneda: "USD",
       moneda_base: "EUR",
       precio_base: 46,
@@ -239,7 +246,7 @@ describe("normalized investment adapters", () => {
     expect(movement.metadata).toMatchObject({
       originalCurrency: "USD",
       operationType: "SUSCRIPCION",
-      accountId: 1,
+      accountId: "00000000-0000-0000-0000-000000000001",
       accountName: "Broker",
       settlementDate: "2026-01-03",
     });
@@ -267,7 +274,7 @@ describe("normalized investment adapters", () => {
         titulos: 2,
         precio_neto: 50,
         importe_neto: 100,
-        cuenta_id: 1,
+        cuenta_id: "00000000-0000-0000-0000-000000000001",
         moneda: "GBP",
         moneda_base: "USD",
         precio_base: 40,
@@ -304,7 +311,7 @@ describe("normalized investment adapters", () => {
       fecha_operacion: "2026-01-02",
       titulos: 3,
       importe_neto: 300,
-      cuenta_id: 1,
+      cuenta_id: "00000000-0000-0000-0000-000000000001",
       tipo_operacion: "Compra",
       isin: "US000",
       nombre_activo: "Company",
@@ -340,7 +347,7 @@ describe("normalized investment adapters", () => {
       fecha_operacion: "2026-01-02",
       titulos: 0.01,
       importe_neto: 500,
-      cuenta_id: 1,
+      cuenta_id: "00000000-0000-0000-0000-000000000001",
       tipo_operacion: "buy",
       symbol: "BTC",
       nombre_activo: "Bitcoin",
@@ -365,7 +372,8 @@ describe("normalized investment adapters", () => {
     const performance = adaptFundPerformance(
       {
         range: "1y",
-        cuenta_id: 2,
+        account_id: "00000000-0000-0000-0000-000000000002",
+        moneda_base: "EUR",
         data: [
           {
             fecha: "2026-01-01",
@@ -417,7 +425,7 @@ describe("normalized investment adapters", () => {
 
     expect(performance).toMatchObject({
       kind: "fund",
-      accountId: "2",
+      accountId: "00000000-0000-0000-0000-000000000002",
       range: "1y",
       currency: "EUR",
       baseCurrency: "EUR",
@@ -459,7 +467,8 @@ describe("normalized investment adapters", () => {
     expect(
       adaptFundPerformance({
         range: "1y",
-        cuenta_id: "all",
+        account_id: "all",
+        moneda_base: "",
         data: [],
       } as FundPerformanceResponse),
     ).toMatchObject({ currency: "UNSPECIFIED", baseCurrency: null });
@@ -474,7 +483,7 @@ describe("normalized investment adapters", () => {
   it("normalizes stock performance with stock capabilities and reporting currency", () => {
     const performance = adaptStockPerformance({
       range: "1y",
-      cuenta_id: "all",
+      account_id: "all",
       moneda_base: "EUR",
       data: [
         {
@@ -508,8 +517,7 @@ describe("normalized investment adapters", () => {
   it("normalizes crypto performance with the crypto capability contract", () => {
     const performance = adaptCryptoPerformance({
       range: "2y",
-      cuenta_id: "all",
-      moneda: "USD",
+      account_id: "all",
       moneda_base: "EUR",
       data: [
         {
@@ -528,11 +536,7 @@ describe("normalized investment adapters", () => {
       range: "2y",
       currency: "EUR",
       baseCurrency: "EUR",
-      metadata: {
-        source: "crypto-performance",
-        originalCurrency: "USD",
-        currencySource: "dto-base",
-      },
+      metadata: { source: "crypto-performance", currencySource: "dto-base" },
       capabilities: { fees: true, saveback: false, splits: false },
     });
     expect(performance.data).toEqual([

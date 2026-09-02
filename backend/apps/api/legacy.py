@@ -25,17 +25,6 @@ def number(value: Any) -> float:
     return float(value or 0)
 
 
-def account_id(account: Account) -> int:
-    if account.external_id and account.external_id.rsplit(":", 1)[-1].isdigit():
-        return int(account.external_id.rsplit(":", 1)[-1])
-    raise ValueError(f"Account {account.id} has no legacy identifier")
-
-
-def next_account_id(accounts: QuerySet[Account]) -> int:
-    values = [account_id(account) for account in accounts if account.external_id]
-    return max(values, default=0) + 1
-
-
 def next_legacy_id(objects: QuerySet[Any]) -> int:
     return max((obj.legacy_id or 0 for obj in objects), default=0) + 1
 
@@ -49,7 +38,14 @@ def identifier(instrument: Instrument, scheme: str) -> str:
     return result.value if result else ""
 
 
-def account_row(account: Account, provider_field: str = "plataforma") -> dict[str, Any]:
+def account_row(account: Account) -> dict[str, Any]:
+    """Return the native public projection for a traded account.
+
+    ``external_id`` remains storage for imported legacy data, but it is not a
+    public identity.  Account primary keys are UUIDs for every traded API
+    consumer, including rows created from an older installation.
+    """
+
     importer_name = ""
     if account.importer_slug:
         try:
@@ -57,16 +53,14 @@ def account_row(account: Account, provider_field: str = "plataforma") -> dict[st
         except KeyError:
             importer_name = account.importer_slug
     row = {
-        "id": account_id(account),
-        "nombre": account.name,
-        "tipo": account.subtype,
-        "moneda": account.currency,
+        "id": str(account.id),
+        "name": account.name,
+        "platform": provider_name(account),
+        "type": account.subtype,
+        "currency": account.currency,
         "importer_slug": account.importer_slug,
         "importer_name": importer_name,
-        provider_field: provider_name(account),
     }
-    if account.kind == Account.Kind.CRYPTO:
-        row.pop("tipo")
     return row
 
 
@@ -134,7 +128,9 @@ def transaction_row(item: Transaction) -> dict[str, Any]:
         "fecha_operacion": item.trade_date.isoformat(),
         "titulos": number(item.quantity),
         "importe_neto": number(item.net_amount),
-        "cuenta_id": account_id(item.account),
+        # The transaction envelope intentionally keeps its transitional
+        # Spanish key; only the value changes to the account UUID.
+        "cuenta_id": str(item.account_id),
         "cuenta_nombre": item.account.name,
         "plataforma": provider_name(item.account),
         "tipo_operacion": operation,
