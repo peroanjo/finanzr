@@ -1,4 +1,4 @@
-FROM node:24-alpine AS dependencies
+FROM node:25-alpine AS dependencies
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm ci
