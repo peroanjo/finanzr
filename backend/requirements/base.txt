@@ -4,4 +4,4 @@ drf-spectacular>=0.28,<0.29
 psycopg[binary]>=3.2,<3.4
 python-json-logger>=4.2.0,<5
 gunicorn>=26.1.0,<27
-cryptography>=50,<51
+cryptography>=50.0.1,<51
