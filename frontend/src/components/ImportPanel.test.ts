@@ -18,7 +18,7 @@ describe("ImportPanel", () => {
       props: {
         endpoint: "/crypto-orders/upload-kraken-pro",
         accountsEndpoint: "/crypto-accounts",
-        accountId: "7",
+        accountId: "77777777-7777-4777-8777-777777777777",
         hideAccountSelector: true,
         compact: true,
       },
@@ -38,6 +38,8 @@ describe("ImportPanel", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
     const [endpoint, options] = apiMock.mock.calls[0];
     expect(endpoint).toBe("/crypto-orders/upload-kraken-pro");
-    expect((options?.body as FormData).get("cuenta_id")).toBe("7");
+    expect((options?.body as FormData).get("account_id")).toBe(
+      "77777777-7777-4777-8777-777777777777",
+    );
   });
 });

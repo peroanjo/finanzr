@@ -65,14 +65,17 @@ const importer = {
   fields: [],
   rules: [],
 };
+const accountOneId = "00000000-0000-0000-0000-000000000001";
+const accountTwoId = "00000000-0000-0000-0000-000000000002";
 const accounts = [
   {
-    id: 1,
-    nombre: "KrakenPro",
-    plataforma: "KrakenPro",
+    id: accountOneId,
+    name: "KrakenPro",
+    platform: "KrakenPro",
+    type: "",
+    currency: "EUR",
     importer_slug: "kraken_spot",
     importer_name: "KrakenPro Spot Trades",
-    moneda: "EUR",
   },
 ];
 const positions = [
@@ -103,7 +106,7 @@ const orders = [
     fecha_operacion: "2026-01-10",
     titulos: 0.01234567,
     importe_neto: 1200,
-    cuenta_id: 1,
+    cuenta_id: accountOneId,
     cuenta_nombre: "KrakenPro",
     plataforma: "KrakenPro",
     tipo_operacion: "Compra",
@@ -118,7 +121,7 @@ const orders = [
     fecha_operacion: "2026-05-10",
     titulos: 0.5,
     importe_neto: 1499,
-    cuenta_id: 1,
+    cuenta_id: accountOneId,
     cuenta_nombre: "KrakenPro",
     plataforma: "KrakenPro",
     tipo_operacion: "Venta",
@@ -134,7 +137,7 @@ const orders = [
 ];
 const performance = {
   range: "1y",
-  cuenta_id: "all",
+  account_id: "all",
   moneda_base: "EUR",
   data: [
     {
@@ -217,19 +220,20 @@ function installApiMock() {
       if (method === "POST") {
         const body = requestBody(init);
         const created: CryptoAccount = {
-          id: 2,
-          nombre: String(body.nombre ?? ""),
-          plataforma: String(body.plataforma ?? ""),
+          id: accountTwoId,
+          name: String(body.name ?? ""),
+          platform: String(body.platform ?? ""),
+          type: "",
+          currency: String(body.currency ?? "EUR"),
           importer_slug: String(body.importer_slug ?? ""),
           importer_name: "Manual",
-          moneda: String(body.moneda ?? "EUR"),
         };
         mockAccounts = [...mockAccounts, created];
         return created;
       }
     }
     if (path.startsWith("/crypto-accounts/") && method === "PUT") {
-      const id = Number(path.split("/").at(-1));
+      const id = path.split("/").at(-1) ?? "";
       const body = requestBody(init);
       const current =
         mockAccounts.find((account) => account.id === id) ?? accounts[0];
@@ -240,7 +244,7 @@ function installApiMock() {
       return updated;
     }
     if (path.startsWith("/crypto-accounts/") && method === "DELETE") {
-      const id = Number(path.split("/").at(-1));
+      const id = path.split("/").at(-1) ?? "";
       mockAccounts = mockAccounts.filter((account) => account.id !== id);
       return undefined;
     }
@@ -258,7 +262,7 @@ function installApiMock() {
         fecha_operacion: String(body.fecha_operacion ?? ""),
         titulos: Number(body.titulos ?? 0),
         importe_neto: Number(body.importe_neto ?? 0),
-        cuenta_id: Number(body.cuenta_id ?? 0),
+        cuenta_id: String(body.account_id ?? ""),
         cuenta_nombre: "KrakenPro",
         plataforma: "KrakenPro",
         tipo_operacion: String(body.tipo_operacion ?? ""),
@@ -282,7 +286,7 @@ function installApiMock() {
       return mockOrders.find((order) => order.operacion_id === id);
     }
     if (path.startsWith("/crypto-orders/") && method === "DELETE") {
-      const id = path.split("/").at(-1);
+      const id = path.split("?")[0].split("/").at(-1);
       mockOrders = mockOrders.filter((order) => order.operacion_id !== id);
       return undefined;
     }
@@ -370,7 +374,7 @@ describe("CryptoView canonical migration", () => {
     expect(wrapper.text()).toContain("Rendimiento Crypto");
     expect(wrapper.text()).toContain("Todas las posiciones Crypto");
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/crypto?cuenta_id=all&range=1y",
+      "/investment-performance/crypto?account_id=all&range=1y",
     );
     expect(wrapper.text()).toContain("0,01234567");
     expect(wrapper.findAll(".fund-asset-row")).toHaveLength(5);
@@ -379,10 +383,10 @@ describe("CryptoView canonical migration", () => {
   it("requests performance for the selected account and supports custom performance ranges", async () => {
     const wrapper = mount(CryptoView);
     await flushPromises();
-    await wrapper.get(".investment-account-bar select").setValue("1");
+    await wrapper.get(".investment-account-bar select").setValue(accountOneId);
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/crypto?cuenta_id=1&range=1y",
+      `/investment-performance/crypto?account_id=${accountOneId}&range=1y`,
     );
 
     const calendarButton = wrapper
@@ -397,7 +401,7 @@ describe("CryptoView canonical migration", () => {
     await dialog.get("form").trigger("submit");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/crypto?cuenta_id=1&start=2026-02-01&end=2026-06-30",
+      `/investment-performance/crypto?account_id=${accountOneId}&start=2026-02-01&end=2026-06-30`,
     );
   });
 
@@ -423,7 +427,7 @@ describe("CryptoView canonical migration", () => {
     const second = mount(CryptoView);
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/crypto?cuenta_id=all&start=2026-02-01&end=2026-06-30",
+      "/investment-performance/crypto?account_id=all&start=2026-02-01&end=2026-06-30",
     );
     expect(second.get('[data-testid="performance-chart"]').text()).toContain(
       "return",
@@ -442,7 +446,7 @@ describe("CryptoView canonical migration", () => {
     const corrupt = mount(CryptoView);
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/crypto?cuenta_id=all&range=1y",
+      "/investment-performance/crypto?account_id=all&range=1y",
     );
     corrupt.unmount();
 
@@ -460,7 +464,7 @@ describe("CryptoView canonical migration", () => {
     const invalid = mount(CryptoView);
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/crypto?cuenta_id=all&range=1y",
+      "/investment-performance/crypto?account_id=all&range=1y",
     );
     expect(invalid.get('[data-testid="performance-chart"]').text()).toContain(
       "value",
@@ -486,7 +490,7 @@ describe("CryptoView canonical migration", () => {
       const wrapper = mount(CryptoView);
       await flushPromises();
       expect(apiMock).toHaveBeenCalledWith(
-        "/investment-performance/crypto?cuenta_id=all&range=1y",
+        "/investment-performance/crypto?account_id=all&range=1y",
       );
       expect(wrapper.get('[data-testid="performance-chart"]').text()).toContain(
         "return",
@@ -513,7 +517,7 @@ describe("CryptoView canonical migration", () => {
     const wrapper = mount(CryptoView);
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/crypto?cuenta_id=all&range=1y",
+      "/investment-performance/crypto?account_id=all&range=1y",
     );
     expect(
       apiMock.mock.calls.some(([path]) => path.includes("0000-01-01")),
@@ -709,7 +713,7 @@ describe("CryptoView canonical migration", () => {
     await manageDialog.get("form").trigger("submit");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/crypto-accounts/2",
+      `/crypto-accounts/${accountTwoId}`,
       expect.objectContaining({ method: "PUT" }),
     );
 
@@ -778,13 +782,13 @@ describe("CryptoView canonical migration", () => {
       .trigger("click");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/crypto-accounts/2",
+      `/crypto-accounts/${accountTwoId}`,
       expect.objectContaining({ method: "DELETE" }),
     );
   });
 
   it("keeps the KrakenPro importer contextual to the selected account", async () => {
-    window.history.replaceState({}, "", "/app/crypto?account=1");
+    window.history.replaceState({}, "", `/app/crypto?account=${accountOneId}`);
     const wrapper = mount(CryptoView);
     await flushPromises();
     const importButton = wrapper
@@ -810,7 +814,7 @@ describe("CryptoView canonical migration", () => {
       .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/account-imports/crypto/1",
+      `/account-imports/crypto/${accountOneId}`,
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -900,7 +904,7 @@ describe("CryptoView canonical migration", () => {
     let resolveAll: ((value: unknown) => void) | undefined;
     const fallback = apiMock.getMockImplementation()!;
     apiMock.mockImplementation(async (path, init) => {
-      if (path === "/crypto-analysis?cuenta_id=1") {
+      if (path === `/crypto-analysis?account_id=${accountOneId}`) {
         return new Promise((resolve) => {
           resolveAccount = resolve;
         });
@@ -913,7 +917,7 @@ describe("CryptoView canonical migration", () => {
       return fallback(path, init);
     });
     const select = wrapper.get(".investment-account-bar select");
-    await select.setValue("1");
+    await select.setValue(accountOneId);
     await select.setValue("all");
     await flushPromises();
     resolveAll?.(positions);

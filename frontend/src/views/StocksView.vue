@@ -170,7 +170,7 @@ const selectedAccountRow = computed(
 const selectedAccountLabel = computed(() =>
   selectedAccount.value === "all"
     ? t("stocks.accounts.all")
-    : (selectedAccountRow.value?.nombre ?? t("stocks.accounts.fallback")),
+    : (selectedAccountRow.value?.name ?? t("stocks.accounts.fallback")),
 );
 const compatibleImporters = computed(() =>
   importerCatalog.value.filter((item) => item.target === "stock_orders"),
@@ -183,7 +183,7 @@ const selectedImporter = computed(
 );
 const isTradeRepublic = computed(
   () =>
-    selectedAccountRow.value?.plataforma
+    selectedAccountRow.value?.platform
       .toLowerCase()
       .includes("trade republic") ?? false,
 );
@@ -519,13 +519,13 @@ function syncAccountUrl() {
 function accountQuery() {
   const params = new URLSearchParams();
   if (selectedAccount.value !== "all")
-    params.set("cuenta_id", selectedAccount.value);
+    params.set("account_id", selectedAccount.value);
   if (cashbackAsBenefit.value) params.set("ignore_savebacks", "true");
   const query = params.toString();
   return query ? `?${query}` : "";
 }
 function performanceQuery() {
-  const params = new URLSearchParams({ cuenta_id: selectedAccount.value });
+  const params = new URLSearchParams({ account_id: selectedAccount.value });
   if (range.value === "custom") {
     params.set("start", customStart.value);
     params.set("end", customEnd.value);
@@ -584,7 +584,7 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
         api<StockOrder[]>(
           selectedAccount.value === "all"
             ? "/stock-orders"
-            : `/stock-orders?cuenta_id=${selectedAccount.value}`,
+            : `/stock-orders?account_id=${selectedAccount.value}`,
         ),
         api<StockInstrument[]>("/stocks"),
         api<StockPrice[]>("/stock-prices"),
@@ -760,10 +760,10 @@ function openAccountDialog() {
 function openEditAccountDialog() {
   if (!selectedAccountRow.value) return;
   accountDialogMode.value = "edit";
-  accountName.value = selectedAccountRow.value.nombre;
-  accountProvider.value = selectedAccountRow.value.plataforma;
+  accountName.value = selectedAccountRow.value.name;
+  accountProvider.value = selectedAccountRow.value.platform;
   accountImporter.value = selectedAccountRow.value.importer_slug || "none";
-  accountCurrency.value = selectedAccountRow.value.moneda || "EUR";
+  accountCurrency.value = selectedAccountRow.value.currency || "EUR";
   accountError.value = "";
   accountDeleteArmed.value = false;
   accountDialog.value?.showModal();
@@ -785,10 +785,10 @@ async function saveAccount() {
     const saved = await api<StockAccount>(
       target,
       json(accountDialogMode.value === "edit" ? "PUT" : "POST", {
-        nombre: name,
-        plataforma: provider,
+        name,
+        platform: provider,
         importer_slug: accountImporter.value,
-        moneda: accountCurrency.value.trim().toUpperCase(),
+        currency: accountCurrency.value.trim().toUpperCase(),
       }),
     );
     selectedAccount.value = String(saved.id);

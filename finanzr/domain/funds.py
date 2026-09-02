@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from typing import Any
+from uuid import UUID
 
 from .money import ZERO, decimal
 from .positions import base_amount
@@ -17,12 +18,12 @@ def calculate_fund_positions(
     funds: Mapping[str, Mapping[str, Any]],
     prices: Mapping[str, Any],
     *,
-    account_id: int | None = None,
+    account_id: int | str | UUID | None = None,
 ) -> list[dict[str, Any]]:
     """Calculate live fund cost and P&L, excluding closed positions."""
     grouped: dict[str, list[Mapping[str, Any]]] = {}
     for order in orders:
-        if account_id is not None and int(order.get("cuenta_id") or 0) != account_id:
+        if account_id is not None and str(order.get("cuenta_id") or "") != str(account_id):
             continue
         isin = str(order.get("isin", ""))
         grouped.setdefault(isin, []).append(order)

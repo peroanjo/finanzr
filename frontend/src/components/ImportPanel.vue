@@ -2,7 +2,7 @@
 import { onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api } from "../api/client";
-import type { ApiRow } from "../types/api";
+import type { FundAccount, StockAccount, CryptoAccount } from "../types/api";
 
 const props = defineProps<{
   endpoint: string;
@@ -15,7 +15,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ imported: [] }>();
 const { t } = useI18n();
-const accounts = ref<ApiRow[]>([]);
+const accounts = ref<Array<FundAccount | StockAccount | CryptoAccount>>([]);
 const account = ref(props.accountId ?? "");
 const file = ref<File>();
 const message = ref("");
@@ -38,7 +38,9 @@ function selectPreferredAccount() {
 
 onMounted(async () => {
   if (props.hideAccountSelector && props.accountId) return;
-  accounts.value = await api<ApiRow[]>(props.accountsEndpoint);
+  accounts.value = await api<Array<FundAccount | StockAccount | CryptoAccount>>(
+    props.accountsEndpoint,
+  );
   selectPreferredAccount();
 });
 watch(() => props.accountId, selectPreferredAccount);
@@ -56,7 +58,7 @@ async function upload() {
   messageKind.value = "";
   const body = new FormData();
   body.append("file", file.value);
-  body.append("cuenta_id", account.value);
+  body.append("account_id", account.value);
   try {
     const result = await api<{ imported: number; skipped: number }>(
       props.endpoint,
@@ -96,7 +98,7 @@ async function upload() {
           :key="String(item.id)"
           :value="String(item.id)"
         >
-          {{ item.nombre }}
+          {{ item.name }}
         </option>
       </select>
     </label>

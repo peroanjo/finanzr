@@ -339,7 +339,7 @@ const selectedAccountLabel = computed(() =>
   selectedAccount.value === "all"
     ? t("crypto.accounts.all")
     : (accounts.value.find((item) => String(item.id) === selectedAccount.value)
-        ?.nombre ?? t("crypto.accounts.fallback")),
+        ?.name ?? t("crypto.accounts.fallback")),
 );
 const selectedAccountRow = computed(
   () =>
@@ -621,11 +621,11 @@ function resetMovementFiltersForAccount() {
 function accountQuery() {
   return selectedAccount.value === "all"
     ? ""
-    : `?cuenta_id=${encodeURIComponent(selectedAccount.value)}`;
+    : `?account_id=${encodeURIComponent(selectedAccount.value)}`;
 }
 
 function performanceQuery() {
-  const params = new URLSearchParams({ cuenta_id: selectedAccount.value });
+  const params = new URLSearchParams({ account_id: selectedAccount.value });
   if (range.value === "custom") {
     params.set("start", customStart.value);
     params.set("end", customEnd.value);
@@ -756,10 +756,10 @@ function openEditAccountDialog() {
   );
   if (!account) return;
   accountDialogMode.value = "edit";
-  accountName.value = account.nombre;
-  accountProvider.value = account.plataforma;
+  accountName.value = account.name;
+  accountProvider.value = account.platform;
   accountImporter.value = account.importer_slug || "none";
-  accountCurrency.value = account.moneda || "EUR";
+  accountCurrency.value = account.currency || "EUR";
   accountError.value = "";
   accountDeleteArmed.value = false;
   accountDialog.value?.showModal();
@@ -783,10 +783,10 @@ async function saveAccount() {
     const saved = await api<CryptoAccount>(
       target,
       json(accountDialogMode.value === "edit" ? "PUT" : "POST", {
-        nombre: name,
-        plataforma: provider,
+        name,
+        platform: provider,
         importer_slug: accountImporter.value,
-        moneda: accountCurrency.value.trim().toUpperCase(),
+        currency: accountCurrency.value.trim().toUpperCase(),
       }),
     );
     selectedAccount.value = String(saved.id);

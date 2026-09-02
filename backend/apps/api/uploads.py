@@ -8,6 +8,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
+from uuid import UUID
 
 from django.core.cache import cache
 from django.db import transaction
@@ -18,7 +19,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.models import Account
-from apps.api.views import find_account, forbidden_if_readonly, workspace
+from apps.api.schemas import AccountUploadRequestSerializer, UploadRequestSerializer
+from apps.api.views import find_traded_account, forbidden_if_readonly, workspace
 from apps.imports.models import ImportBatch
 from apps.imports.models import ImportIssue as StoredIssue
 from apps.market_data.fx import CurrencyConversionError
@@ -40,7 +42,9 @@ from finanzr.importers import (
 MAX_IMPORT_ROWS = 20_000
 
 
-def _parse_decoded_source(importer: BaseImporter, content: str, account_id: int) -> ImportResult:
+def _parse_decoded_source(
+    importer: BaseImporter, content: str, account_id: UUID | str
+) -> ImportResult:
     if importer.input_kind == InputKind.TEXT:
         return importer.parse(content, ImportContext(account_id=account_id))
     records = list(csv.DictReader(io.StringIO(content)))
@@ -51,7 +55,7 @@ def _parse_decoded_source(importer: BaseImporter, content: str, account_id: int)
     return importer.parse(records, ImportContext(account_id=account_id))
 
 
-def parse_source(slug: str, raw: bytes, account_id: int, extension: str) -> ImportResult:
+def parse_source(slug: str, raw: bytes, account_id: UUID | str, extension: str) -> ImportResult:
     importer = importers.get(slug)
     return _parse_decoded_source(importer, importer.decode(raw, extension), account_id)
 
@@ -180,14 +184,32 @@ def upload(
     account_kind: str,
     instrument_kind: str,
     *,
-    account_id_override: int | None = None,
+    account_id_override: UUID | None = None,
 ) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
     uploaded = request.FILES.get("file")
-    account_id = account_id_override or request.data.get("cuenta_id")
-    if not uploaded or not account_id:
+    if "cuenta_id" in request.data:
+        return Response({"error": _("Use account_id for account selection")}, status=400)
+    if not uploaded or (account_id_override is None and not request.data.get("account_id")):
         return Response({"error": _("A file and an account are required")}, status=400)
+    serializer_class = (
+        UploadRequestSerializer
+        if account_id_override is not None
+        else AccountUploadRequestSerializer
+    )
+    serializer = serializer_class(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = serializer.validated_data
+    uploaded = data["file"]
+    raw_account_id = account_id_override or data["account_id"]
+    try:
+        selected_account_id = (
+            raw_account_id if isinstance(raw_account_id, UUID) else UUID(str(raw_account_id))
+        )
+    except (TypeError, ValueError, AttributeError):
+        return Response({"error": _("A valid account ID was expected")}, status=400)
     extension = Path(uploaded.name).suffix.casefold()
     allowed = importers.get(slug).accepted_extensions
     if extension not in allowed:
@@ -201,7 +223,7 @@ def upload(
         content = importer.decode(raw, extension)
     except ImporterError as exc:
         return Response({"error": str(exc)}, status=400)
-    account = find_account(request, account_kind, int(account_id))
+    account = find_traded_account(request, account_kind, selected_account_id)
     digest = hashlib.sha256(raw).hexdigest()
     existing = ImportBatch.objects.filter(
         workspace=workspace(request),
@@ -220,7 +242,9 @@ def upload(
             }
         )
     try:
-        parsed = _parse_decoded_source(importer, content, int(account_id))
+        # Importers expose the public account identity as a string, regardless
+        # of whether the request reached us through a UUID path or form field.
+        parsed = _parse_decoded_source(importer, content, str(selected_account_id))
     except ImporterError as exc:
         return Response({"error": str(exc)}, status=400)
     try:
@@ -296,11 +320,15 @@ ACCOUNT_IMPORT_CONFIG = {
 
 
 @api_view(["POST"])
-def upload_for_account(request: Request, kind: str, legacy_id: int) -> Response:
-    config = ACCOUNT_IMPORT_CONFIG.get(Account.Kind(kind))
+def upload_for_account(request: Request, kind: str, account_id: UUID) -> Response:
+    try:
+        account_kind = Account.Kind(kind)
+    except ValueError:
+        return Response({"error": _("This account type does not support importers")}, status=400)
+    config = ACCOUNT_IMPORT_CONFIG.get(account_kind)
     if not config:
         return Response({"error": _("This account type does not support importers")}, status=400)
-    account = find_account(request, kind, legacy_id)
+    account = find_traded_account(request, account_kind, account_id)
     if not account.importer_slug:
         return Response({"error": _("The account does not have an active importer")}, status=400)
     expected_target, instrument_kind = config
@@ -316,7 +344,7 @@ def upload_for_account(request: Request, kind: str, legacy_id: int) -> Response:
     return upload(
         request,
         account.importer_slug,
-        kind,
+        account_kind,
         instrument_kind,
-        account_id_override=legacy_id,
+        account_id_override=account_id,
     )

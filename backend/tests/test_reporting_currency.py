@@ -144,8 +144,8 @@ def test_fund_history_cache_is_isolated_by_workspace_and_reporting_currency(
 
     monkeypatch.setattr(views, "rates_to_base", rates)
 
-    eur = eur_client.get("/api/account-performance?cuenta_id=all&range=1y")
-    usd = usd_client.get("/api/account-performance?cuenta_id=all&range=1y")
+    eur = eur_client.get("/api/investment-performance/fund?account_id=all&range=1y")
+    usd = usd_client.get("/api/investment-performance/fund?account_id=all&range=1y")
 
     assert eur.status_code == usd.status_code == 200
     assert eur.json()["data"][0]["valor"] == 90

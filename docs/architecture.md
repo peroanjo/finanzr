@@ -64,12 +64,11 @@ or a deployment secret store, never through fixtures or source control.
    language, with English as the technical fallback.
 
 The workspace export is currently `finanzr-workspace-v2`. This document-level
-version records the savings, manual-investment, and manual-portfolio API
-cutovers: these resources use UUID identifiers and English fields, including
-legacy rows read from the database, while retaining archived history for
-complete exports. The remaining fund, stock and crypto sections retain their
-existing export shapes until their own reviewed API migrations; there is no
-parallel HTTP compatibility route.
+version records the native UUID/English account projections for savings,
+manual investments, funds, stocks, and crypto, including legacy-origin rows
+and archived history for complete exports. Traded orders retain their
+transitional Spanish envelope, but their `cuenta_id` values are native account
+UUIDs. There is no parallel HTTP compatibility route.
 
 ## Deployment shape
 

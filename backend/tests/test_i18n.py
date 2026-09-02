@@ -185,7 +185,7 @@ def test_financial_validation_error_uses_user_language() -> None:
     client = APIClient()
     client.force_login(user)
 
-    response = client.get("/api/account-performance?start=2026-01-01")
+    response = client.get("/api/investment-performance/fund?start=2026-01-01")
 
     assert response.status_code == 400
     assert response.json()["error"] == "You must provide both a start and an end date"
@@ -222,7 +222,7 @@ def test_non_inversis_csv_encoding_error_keeps_existing_message_without_batch() 
     response = client.post(
         "/api/crypto-orders/upload-kraken-pro",
         {
-            "cuenta_id": "1",
+            "account_id": str(account.id),
             "file": SimpleUploadedFile("trades.csv", content, content_type="text/csv"),
         },
     )
@@ -251,7 +251,7 @@ def test_api_validation_errors_use_spanish_catalog_by_default() -> None:
     client = APIClient()
     client.force_login(user)
 
-    financial = client.get("/api/account-performance?start=2026-01-01")
+    financial = client.get("/api/investment-performance/fund?start=2026-01-01")
     imported = client.post("/api/fund-orders/upload", {})
     privacy = client.delete("/api/account", {"password": "wrong"}, format="json")
 
@@ -320,7 +320,7 @@ def test_importer_partial_issue_is_stored_in_user_language() -> None:
     assert account.external_id is not None
     response = client.post(
         "/api/fund-orders/upload",
-        {"cuenta_id": account.external_id.rsplit(":", 1)[-1], "file": content},
+        {"account_id": str(account.id), "file": content},
     )
 
     assert response.status_code == 200
@@ -351,7 +351,7 @@ def test_inversis_html_upload_decodes_windows_1252_before_parsing() -> None:
     response = client.post(
         "/api/fund-orders/upload",
         {
-            "cuenta_id": "1",
+            "account_id": str(account.id),
             "file": SimpleUploadedFile("inversis.xls", html.encode("cp1252")),
         },
     )
@@ -384,7 +384,7 @@ def test_inversis_html_selects_sibling_data_table_and_round_trips_entities() -> 
     response = client.post(
         "/api/fund-orders/upload",
         {
-            "cuenta_id": "1",
+            "account_id": str(account.id),
             "file": SimpleUploadedFile("sibling.html", source.encode("utf-8")),
         },
     )
@@ -413,7 +413,7 @@ def test_inversis_html_preserves_empty_cell_positions() -> None:
     response = client.post(
         "/api/fund-orders/upload",
         {
-            "cuenta_id": "1",
+            "account_id": str(account.id),
             "file": SimpleUploadedFile("empty-market.html", source.encode("utf-8")),
         },
     )
@@ -446,7 +446,7 @@ def test_inversis_html_accepts_balanced_table_sections() -> None:
     response = client.post(
         "/api/fund-orders/upload",
         {
-            "cuenta_id": "1",
+            "account_id": str(account.id),
             "file": SimpleUploadedFile("sections.html", source.encode("utf-8")),
         },
     )
@@ -566,7 +566,7 @@ def test_invalid_inversis_html_is_rejected_without_creating_batch(
     response = client.post(
         "/api/fund-orders/upload",
         {
-            "cuenta_id": "1",
+            "account_id": str(account.id),
             "file": SimpleUploadedFile(
                 filename,
                 source.encode("utf-8"),
@@ -612,7 +612,7 @@ def test_invalid_inversis_html_is_not_hidden_by_duplicate_batch() -> None:
     response = client.post(
         "/api/fund-orders/upload",
         {
-            "cuenta_id": "1",
+            "account_id": str(account.id),
             "file": SimpleUploadedFile("malformed.xls", raw, content_type="text/html"),
         },
         HTTP_X_FORWARDED_FOR="duplicate-bypass-test",
@@ -640,7 +640,7 @@ def test_invalid_inversis_workbook_is_rejected_without_creating_batch() -> None:
     response = client.post(
         "/api/fund-orders/upload",
         {
-            "cuenta_id": "1",
+            "account_id": str(account.id),
             "file": SimpleUploadedFile(
                 "binary.xls",
                 b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",

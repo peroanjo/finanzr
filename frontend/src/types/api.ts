@@ -220,19 +220,20 @@ export interface CryptoPosition {
   moneda_base?: string;
 }
 export interface CryptoAccount {
-  id: number;
-  nombre: string;
-  plataforma: string;
+  id: string;
+  name: string;
+  platform: string;
+  type: string;
+  currency: string;
   importer_slug: string;
   importer_name: string;
-  moneda?: string;
 }
 export interface CryptoOrder {
   operacion_id: string;
   fecha_operacion: string;
   titulos: number;
   importe_neto: number;
-  cuenta_id: number;
+  cuenta_id: string;
   cuenta_nombre?: string;
   plataforma?: string;
   tipo_operacion: string;
@@ -289,9 +290,9 @@ export interface CryptoPerformancePoint {
 }
 export interface CryptoPerformanceResponse {
   range: string;
-  cuenta_id: string | number;
-  moneda?: string;
-  moneda_base?: string;
+  account_id: string;
+  kind?: string;
+  moneda_base: string;
   data: CryptoPerformancePoint[];
 }
 export interface StockPosition {
@@ -307,19 +308,20 @@ export interface StockPosition {
   moneda_base?: string;
 }
 export interface StockAccount {
-  id: number;
-  nombre: string;
-  plataforma: string;
+  id: string;
+  name: string;
+  platform: string;
+  type: string;
+  currency: string;
   importer_slug: string;
   importer_name: string;
-  moneda?: string;
 }
 export interface StockOrder {
   operacion_id: string;
   fecha_operacion: string;
   titulos: number;
   importe_neto: number;
-  cuenta_id: number;
+  cuenta_id: string;
   cuenta_nombre?: string;
   plataforma?: string;
   tipo_operacion: string;
@@ -368,19 +370,19 @@ export interface StockPerformancePoint {
 }
 export interface StockPerformanceResponse {
   range: string;
-  cuenta_id: string | number;
-  moneda?: string;
-  moneda_base?: string;
+  account_id: string;
+  kind?: string;
+  moneda_base: string;
   data: StockPerformancePoint[];
 }
 export interface FundAccount {
-  id: number;
-  nombre: string;
-  tipo: string;
-  plataforma: string;
+  id: string;
+  name: string;
+  platform: string;
+  type: string;
+  currency: string;
   importer_slug: string;
   importer_name: string;
-  moneda?: string;
 }
 export interface FundPosition {
   isin: string;
@@ -407,7 +409,7 @@ export interface FundOrder {
   titulos: number;
   precio_neto: number;
   importe_neto: number;
-  cuenta_id: number;
+  cuenta_id: string;
   cuenta_nombre?: string;
   plataforma?: string;
   divisa?: string;
@@ -428,9 +430,9 @@ export interface FundPerformancePoint {
 }
 export interface FundPerformanceResponse {
   range: string;
-  cuenta_id: string | number;
-  moneda?: string;
-  moneda_base?: string;
+  account_id: string;
+  kind?: string;
+  moneda_base: string;
   data: FundPerformancePoint[];
 }
 export interface FundInstrument {

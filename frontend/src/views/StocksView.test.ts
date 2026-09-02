@@ -51,17 +51,23 @@ const stockImporter = {
   fields: [],
   rules: [],
 };
+const accountOneId = "00000000-0000-0000-0000-000000000001";
+const accountTwoId = "00000000-0000-0000-0000-000000000002";
 const account = {
-  id: 1,
-  nombre: "Trade Republic",
-  plataforma: "Trade Republic",
+  id: accountOneId,
+  name: "Trade Republic",
+  platform: "Trade Republic",
+  type: "",
+  currency: "EUR",
   importer_slug: "trade_republic",
   importer_name: "Trade Republic Transactions",
 };
 const secondAccount = {
-  id: 2,
-  nombre: "Second account",
-  plataforma: "Broker Two",
+  id: accountTwoId,
+  name: "Second account",
+  platform: "Broker Two",
+  type: "",
+  currency: "EUR",
   importer_slug: "trade_republic",
   importer_name: "Trade Republic Transactions",
 };
@@ -101,7 +107,7 @@ const order = {
   fecha_operacion: "2026-05-02",
   titulos: 1,
   importe_neto: 100,
-  cuenta_id: 1,
+  cuenta_id: accountOneId,
   cuenta_nombre: "Trade Republic",
   plataforma: "Trade Republic",
   tipo_operacion: "Compra",
@@ -144,7 +150,7 @@ const secondAccountInstrument = {
 };
 const performance = {
   range: "1y",
-  cuenta_id: "all",
+  account_id: "all",
   moneda_base: "EUR",
   data: [
     { fecha: "2026-01-01", valor: 800, invertido: 800, pnl: 0, pnl_pct: 0 },
@@ -189,20 +195,27 @@ describe("StocksView", () => {
       if (path === "/importers") return [stockImporter];
       if (
         path === "/stock-analysis?ignore_savebacks=true" ||
-        path === "/stock-analysis?cuenta_id=1&ignore_savebacks=true"
+        path ===
+          `/stock-analysis?account_id=${accountOneId}&ignore_savebacks=true`
       )
         return positionsOverride ?? stockPositions;
-      if (path === "/stock-analysis?cuenta_id=2&ignore_savebacks=true")
+      if (
+        path ===
+        `/stock-analysis?account_id=${accountTwoId}&ignore_savebacks=true`
+      )
         return [secondAccountPosition];
-      if (path === "/stock-orders" || path === "/stock-orders?cuenta_id=1")
+      if (
+        path === "/stock-orders" ||
+        path === `/stock-orders?account_id=${accountOneId}`
+      )
         return ordersOverride ?? stockOrders;
-      if (path === "/stock-orders?cuenta_id=2")
+      if (path === `/stock-orders?account_id=${accountTwoId}`)
         return [
           {
             ...order,
             operacion_id: "second-account-1",
             cuenta_id: secondAccount.id,
-            cuenta_nombre: secondAccount.nombre,
+            cuenta_nombre: secondAccount.name,
             isin: secondAccountPosition.isin,
             nombre_activo: secondAccountPosition.nombre,
           },
@@ -350,20 +363,22 @@ describe("StocksView", () => {
     ).toBeDefined();
     expect(wrapper.get(".operation-pill small").text()).toBe("Cashback");
 
-    await wrapper.get('select[aria-label="Cuenta de acciones"]').setValue("1");
+    await wrapper
+      .get('select[aria-label="Cuenta de acciones"]')
+      .setValue(accountOneId);
     await flushPromises();
 
     expect(apiMock).toHaveBeenCalledWith(
-      "/stock-analysis?cuenta_id=1&ignore_savebacks=true",
+      `/stock-analysis?account_id=${accountOneId}&ignore_savebacks=true`,
     );
     expect(wrapper.get(".cashback-control").text()).toContain(
       "Cashback como beneficio",
     );
     expect(wrapper.findComponent(ImportStatementDialog).exists()).toBe(true);
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/stock?cuenta_id=1&range=1y&ignore_savebacks=true",
+      `/investment-performance/stock?account_id=${accountOneId}&range=1y&ignore_savebacks=true`,
     );
-    expect(window.location.search).toBe("?account=1");
+    expect(window.location.search).toBe(`?account=${accountOneId}`);
 
     const importButton = wrapper
       .findAll(".scope-actions > button")
@@ -472,7 +487,7 @@ describe("StocksView", () => {
       .trigger("click");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/stock?cuenta_id=all&range=6m&ignore_savebacks=true",
+      "/investment-performance/stock?account_id=all&range=6m&ignore_savebacks=true",
     );
 
     await wrapper
@@ -514,7 +529,7 @@ describe("StocksView", () => {
     await performanceDialog.find("form").trigger("submit");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/investment-performance/stock?cuenta_id=all&start=2026-01-01&end=2026-06-30&ignore_savebacks=true",
+      "/investment-performance/stock?account_id=all&start=2026-01-01&end=2026-06-30&ignore_savebacks=true",
     );
   });
 
@@ -671,12 +686,19 @@ describe("StocksView", () => {
     apiMock.mockImplementation(async (path) => {
       if (path === "/stock-accounts") return [account, secondAccount];
       if (path === "/importers") return [stockImporter];
-      if (path === "/stock-analysis?cuenta_id=1&ignore_savebacks=true")
+      if (
+        path ===
+        `/stock-analysis?account_id=${accountOneId}&ignore_savebacks=true`
+      )
         return oldPositions;
-      if (path === "/stock-analysis?cuenta_id=2&ignore_savebacks=true")
+      if (
+        path ===
+        `/stock-analysis?account_id=${accountTwoId}&ignore_savebacks=true`
+      )
         return [latestPosition];
-      if (path === "/stock-orders?cuenta_id=1") return stockOrders;
-      if (path === "/stock-orders?cuenta_id=2") return [];
+      if (path === `/stock-orders?account_id=${accountOneId}`)
+        return stockOrders;
+      if (path === `/stock-orders?account_id=${accountTwoId}`) return [];
       if (path === "/stocks")
         return [
           {
@@ -690,7 +712,7 @@ describe("StocksView", () => {
       if (path.startsWith("/investment-performance/stock?")) {
         return {
           ...performance,
-          cuenta_id: new URLSearchParams(path.split("?")[1]).get("cuenta_id"),
+          account_id: new URLSearchParams(path.split("?")[1]).get("account_id"),
         };
       }
       throw new Error(`Unexpected path: ${path}`);
@@ -700,14 +722,14 @@ describe("StocksView", () => {
       'select[aria-label="Cuenta de acciones"]',
     );
     const selectElement = accountSelect.element as HTMLSelectElement;
-    selectElement.value = "1";
+    selectElement.value = accountOneId;
     selectElement.dispatchEvent(new Event("change", { bubbles: true }));
     await Promise.resolve();
-    selectElement.value = "2";
+    selectElement.value = accountTwoId;
     selectElement.dispatchEvent(new Event("change", { bubbles: true }));
     await flushPromises();
 
-    expect(window.location.search).toBe("?account=2");
+    expect(window.location.search).toBe(`?account=${accountTwoId}`);
     expect(wrapper.text()).toContain("Second account current");
     expect(wrapper.text()).not.toContain("Stale account one");
 

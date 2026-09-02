@@ -95,12 +95,12 @@ const assetLabel = computed(() =>
 const selectedProvider = computed(
   () =>
     props.accounts.find((account) => String(account.id) === accountId.value)
-      ?.plataforma ?? "",
+      ?.platform ?? "",
 );
 const selectedAccountCurrency = computed(
   () =>
     props.accounts.find((account) => String(account.id) === accountId.value)
-      ?.moneda ?? "EUR",
+      ?.currency ?? "EUR",
 );
 const canUseSaveback = computed(
   () =>
@@ -167,7 +167,7 @@ async function save() {
   busy.value = true;
   error.value = "";
   const payload: Record<string, string | number> = {
-    cuenta_id: Number(accountId.value),
+    account_id: accountId.value,
     fecha_operacion: tradeDate.value,
     tipo_operacion: operationType.value,
     titulos: Number(quantity.value),
@@ -185,7 +185,7 @@ async function save() {
       payload.es_saveback = canUseSaveback.value && saveback.value ? 1 : 0;
   }
   if (mode.value === "edit")
-    payload.cuenta_id_original = Number(originalAccountId.value);
+    payload.original_account_id = originalAccountId.value;
   try {
     const target =
       mode.value === "edit"
@@ -239,7 +239,7 @@ defineExpose({ openCreate, openEdit });
               :key="account.id"
               :value="String(account.id)"
             >
-              {{ account.nombre }} · {{ account.plataforma }}
+              {{ account.name }} · {{ account.platform }}
             </option>
           </select>
         </label>

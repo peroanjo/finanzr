@@ -53,7 +53,7 @@ async function remove() {
   error.value = "";
   try {
     await api(
-      `${endpoint.value}/${encodeURIComponent(movement.value.operacion_id)}`,
+      `${endpoint.value}/${encodeURIComponent(movement.value.operacion_id)}?account_id=${encodeURIComponent(String(movement.value.cuenta_id))}`,
       {
         method: "DELETE",
       },

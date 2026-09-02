@@ -14,6 +14,7 @@ from apps.accounts.models import Account, AccountSnapshot
 from apps.api import views
 from apps.api.auth import user_payload
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
+from apps.api.legacy import account_row
 from apps.api.portfolio_projection import manual_asset_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.audit.models import AuditEvent
@@ -80,13 +81,24 @@ def _native_portfolio_section(request: Request) -> list[dict[str, object]]:
     return [manual_asset_row(asset) for asset in assets.order_by("name", "id")]
 
 
+def _native_traded_accounts(request: Request, kind: str) -> list[dict[str, object]]:
+    """Export every traded account, including archived and legacy-origin rows."""
+
+    accounts = (
+        Account.objects.filter(workspace=views.workspace(request), kind=kind)
+        .select_related("provider")
+        .order_by("name", "id")
+    )
+    return [account_row(account) for account in accounts]
+
+
 def export_payload(request: Request) -> dict[str, object]:
     user = cast(User, request.user)
     savings_accounts, savings_history = _native_savings_sections(request)
     investment_accounts, investment_history = _native_investment_sections(request)
     return {
-        # v2 is a document-level cutover for savings, manual investments, and
-        # manual portfolio assets.
+        # v2 is a document-level cutover for native account and asset sections;
+        # traded orders retain their transitional response envelope.
         "format": "finanzr-workspace-v2",
         "workspace": user_payload(user, request),
         "summary": views._overview_calculation(request)[0],
@@ -98,9 +110,9 @@ def export_payload(request: Request) -> dict[str, object]:
         "real_estate": _view_data(views.real_estate, request),
         "calculator": _view_data(views.calculator, request),
         "budget": _view_data(views.budget, request),
-        "fund_accounts": _view_data(views.fund_accounts, request),
-        "stock_accounts": _view_data(views.stock_accounts, request),
-        "crypto_accounts": _view_data(views.crypto_accounts, request),
+        "fund_accounts": _native_traded_accounts(request, Account.Kind.FUNDS),
+        "stock_accounts": _native_traded_accounts(request, Account.Kind.STOCKS),
+        "crypto_accounts": _native_traded_accounts(request, Account.Kind.CRYPTO),
         "funds": _view_data(views.funds, request),
         "stocks": _view_data(views.stocks, request),
         "cryptos": _view_data(views.cryptos, request),

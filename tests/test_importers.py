@@ -158,6 +158,56 @@ class TestTradeRepublicImporter(unittest.TestCase):
         self.assertEqual(orders[0]["cuenta_id"], 3)
 
 
+class TestNativeAccountIdentity(unittest.TestCase):
+    def test_all_traded_importers_preserve_uuid_account_identity(self):
+        account_id = "12345678-1234-5678-1234-567812345678"
+        fund_html = """
+        <table><tr>
+          <td>2026-01-02</td><td>2026-01-04</td><td>fund-op</td><td>Market</td>
+          <td>SUSCRIPCION</td><td>ES0000000001</td><td>Synthetic fund</td>
+          <td>1</td><td>EUR</td><td>10</td><td>10</td>
+        </tr></table>
+        """
+        stock_rows = [
+            {
+                "transaction_id": "stock-op",
+                "date": "2026-01-02",
+                "type": "TRADE",
+                "category": "TRADING",
+                "asset_class": "STOCK",
+                "symbol": "US0000000001",
+                "name": "Synthetic stock",
+                "shares": 1,
+                "amount": -10,
+                "fee": 0,
+                "price": 10,
+                "tax": 0,
+                "description": "Market order",
+            }
+        ]
+        crypto_rows = [
+            {
+                "txid": "crypto-op",
+                "pair": "XBT/EUR",
+                "time": "2026-01-02 10:00",
+                "type": "buy",
+                "price": 100000,
+                "cost": 100,
+                "fee": 1,
+                "vol": 0.001,
+            }
+        ]
+
+        records = (
+            parse_fund_extract(fund_html, account_id),
+            parse_trade_republic(stock_rows, account_id),
+            parse_kraken_trades(crypto_rows, account_id)[0],
+        )
+
+        self.assertTrue(all(rows for rows in records))
+        self.assertTrue(all(row["cuenta_id"] == account_id for rows in records for row in rows))
+
+
 class TestImporterContract(unittest.TestCase):
     def test_all_builtin_importers_expose_common_metadata(self):
         self.assertEqual(

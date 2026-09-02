@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from .money import ZERO, decimal
 from .positions import base_amount
@@ -105,7 +106,7 @@ def calculate_investment_performance(
     histories: Mapping[str, Mapping[str, Any]],
     *,
     kind: str = "fund",
-    account_id: int | str = "all",
+    account_id: int | str | UUID = "all",
     splits: Iterable[Record] = (),
     ignore_savebacks: bool = False,
     timeline_start: str | None = None,
