@@ -10,7 +10,6 @@ from apps.market_data.fx import FxConversion
 from apps.market_data.models import Instrument, InstrumentIdentifier
 from apps.workspaces.models import Workspace
 from django.core.cache import cache
-from rest_framework.response import Response
 from rest_framework.test import APIClient
 
 from finanzr.domain.investment_performance import (
@@ -316,8 +315,8 @@ def test_canonical_endpoint_serves_all_kinds_and_removes_legacy_alias(
 
     monkeypatch.setattr(
         views,
-        "transaction_list",
-        lambda _request, kind: Response(rows_by_kind[kind_names[str(kind)]]),
+        "_transaction_calculation_list",
+        lambda _request, kind, _selected_account=None: rows_by_kind[kind_names[str(kind)]],
     )
     monkeypatch.setattr(
         views,
@@ -398,7 +397,7 @@ def test_custom_bounds_are_inclusive_and_history_uses_point_date_fx(
 ) -> None:
     _workspace, client = _workspace_client("performance-custom")
     rows = [_record(1, "FUND", "2026-01-01", "SUSCRIPCION", 1, 100)]
-    monkeypatch.setattr(views, "transaction_list", lambda *_args: Response(rows))
+    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
     monkeypatch.setattr(
         views,
         "workspace_instrument",
@@ -463,7 +462,7 @@ def test_named_range_bounds_exclude_old_and_future_transactions_but_keep_termina
         _record(1, "FUND", "2026-08-24", "SUSCRIPCION", 1, 200),
     ]
     monkeypatch.setattr(views.timezone, "localdate", lambda: date(2026, 8, 23))
-    monkeypatch.setattr(views, "transaction_list", lambda *_args: Response(rows))
+    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
     monkeypatch.setattr(
         views,
         "workspace_instrument",
@@ -504,7 +503,7 @@ def test_transient_history_failure_does_not_warm_aggregate_cache(
     _workspace, client = _workspace_client("performance-failure")
     rows = [_record(1, "FUND", "2026-01-01", "SUSCRIPCION", 1, 100)]
     calls: list[int] = []
-    monkeypatch.setattr(views, "transaction_list", lambda *_args: Response(rows))
+    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
     monkeypatch.setattr(
         views,
         "workspace_instrument",
@@ -542,7 +541,7 @@ def test_transient_ticker_discovery_failure_does_not_warm_aggregate_cache(
     _workspace, client = _workspace_client("performance-ticker-failure")
     rows = [_record(1, "FUND", "2026-01-01", "SUSCRIPCION", 1, 100)]
     discoveries: list[int] = []
-    monkeypatch.setattr(views, "transaction_list", lambda *_args: Response(rows))
+    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
 
     def instrument(*_args: object) -> object:
         discoveries.append(1)

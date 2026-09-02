@@ -441,15 +441,12 @@ const filteredOrders = computed(() =>
         operationGroup(item) === movementType.value,
     )
     .filter(
-      (item) =>
-        !movementStart.value || item.fecha_operacion >= movementStart.value,
+      (item) => !movementStart.value || item.trade_date >= movementStart.value,
     )
     .filter(
-      (item) => !movementEnd.value || item.fecha_operacion <= movementEnd.value,
+      (item) => !movementEnd.value || item.trade_date <= movementEnd.value,
     )
-    .sort((a, b) =>
-      b.fecha_operacion.localeCompare(a.fecha_operacion, locale.value),
-    ),
+    .sort((a, b) => b.trade_date.localeCompare(a.trade_date, locale.value)),
 );
 const movementPageSize = 15;
 const movementPages = computed(() =>
@@ -495,7 +492,7 @@ function originalMoney(value: number, currency?: string) {
 }
 
 function baseUnitPrice(item: FundOrder) {
-  return item.precio_base ?? item.precio_neto;
+  return item.base_unit_price ?? item.unit_price;
 }
 
 function percentage(value: number) {
@@ -518,23 +515,24 @@ function signedMoney(value: number) {
 }
 
 function operationGroup(item: FundOrder) {
-  return ["SUSCRIPCION", "SUSCR.POR TRASPASO I", "Compra"].includes(
-    item.tipo_operacion,
-  )
-    ? "in"
-    : "out";
+  return ["buy", "transfer_in"].includes(item.operation_type) ? "in" : "out";
 }
 
 function operationLabel(item: FundOrder) {
+  const operation = item.provider_operation_type || item.operation_type;
   return (
     {
+      buy: t("funds.movements.contribution"),
       SUSCRIPCION: t("funds.movements.contribution"),
+      transfer_in: t("funds.movements.transferIn"),
       "SUSCR.POR TRASPASO I": t("funds.movements.transferIn"),
+      transfer_out: t("funds.movements.transferOut"),
       "REEMB.POR TRASPASO I": t("funds.movements.transferOut"),
+      sell: t("funds.movements.redemption"),
       REEMBOLSO: t("funds.movements.redemption"),
       Compra: t("funds.movements.contribution"),
       Venta: t("funds.movements.redemption"),
-    }[item.tipo_operacion] ?? item.tipo_operacion
+    }[operation] ?? operation
   );
 }
 
@@ -594,7 +592,7 @@ async function loadDashboard(showLoading = true) {
     if (selectedFund.value && !available.includes(selectedFund.value))
       closeFundDetail();
     if (!movementStart.value && orders.value.length) {
-      const dates = orders.value.map((item) => item.fecha_operacion).sort();
+      const dates = orders.value.map((item) => item.trade_date).sort();
       movementStart.value = dates[0];
       movementEnd.value = dates.at(-1) ?? dates[0];
     }
@@ -1464,7 +1462,7 @@ onMounted(loadDashboard);
               </thead>
               <tbody>
                 <tr v-for="order in displayedOrders" :key="order.id">
-                  <td>{{ displayDate(order.fecha_operacion) }}</td>
+                  <td>{{ displayDate(order.trade_date) }}</td>
                   <td>
                     <span
                       class="operation-pill"
@@ -1473,24 +1471,24 @@ onMounted(loadDashboard);
                     >
                   </td>
                   <td>
-                    <strong>{{ order.nombre_fondo }}</strong
+                    <strong>{{ order.asset_name }}</strong
                     ><small>{{ order.isin }}</small>
                   </td>
                   <td>
-                    {{ order.cuenta_nombre ?? selectedAccountLabel
-                    }}<small>{{ order.plataforma }}</small>
+                    {{ order.account_name ?? selectedAccountLabel
+                    }}<small>{{ order.platform }}</small>
                   </td>
-                  <td>{{ quantity(order.titulos, 6) }}</td>
+                  <td>{{ quantity(order.quantity, 6) }}</td>
                   <td>
                     {{ money(baseUnitPrice(order)) }}
-                    <small v-if="order.moneda && order.moneda !== 'EUR'">{{
-                      originalMoney(order.precio_neto, order.moneda)
+                    <small v-if="order.currency && order.currency !== 'EUR'">{{
+                      originalMoney(order.unit_price, order.currency)
                     }}</small>
                   </td>
                   <td>
                     <strong>{{ money(baseAmount(order)) }}</strong>
-                    <small v-if="order.moneda && order.moneda !== 'EUR'">{{
-                      originalMoney(order.importe_neto, order.moneda)
+                    <small v-if="order.currency && order.currency !== 'EUR'">{{
+                      originalMoney(order.net_amount, order.currency)
                     }}</small>
                   </td>
                   <td>

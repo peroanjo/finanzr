@@ -123,9 +123,9 @@ export function useStocksPortfolio(
       selectedOrders.value.map((order) => ({
         ...order,
         // Chart tooltips use reporting-currency values while retaining source fields for the movement table.
-        precio_compra: order.precio_base ?? order.precio_compra,
-        importe_neto: order.importe_base ?? order.importe_neto,
-        comision: order.comision_base ?? order.comision,
+        unit_price: order.base_unit_price ?? order.unit_price,
+        net_amount: order.base_net_amount ?? order.net_amount,
+        fee: order.base_fee ?? order.fee,
       })),
     ),
   );
@@ -175,15 +175,15 @@ export function useStocksPortfolio(
   });
 
   function baseAmount(order: StockOrder) {
-    return order.importe_base ?? order.importe_neto;
+    return order.base_net_amount ?? order.net_amount;
   }
 
   function basePrice(order: StockOrder) {
-    return order.precio_base ?? order.precio_compra;
+    return order.base_unit_price ?? order.unit_price;
   }
 
   function baseFee(order: StockOrder) {
-    return order.comision_base ?? order.comision;
+    return order.base_fee ?? order.fee;
   }
 
   function sortPositions(key: StockPositionSortKey) {

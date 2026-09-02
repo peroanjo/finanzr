@@ -27,15 +27,29 @@ function makePosition(overrides: Partial<CryptoPosition> = {}): CryptoPosition {
 function makeOrder(overrides: Partial<CryptoOrder> = {}): CryptoOrder {
   return {
     id: "operation-1",
-    fecha_operacion: "2026-01-01",
-    titulos: 1,
-    importe_neto: 100,
-    cuenta_id: "00000000-0000-0000-0000-000000000001",
-    tipo_operacion: "Compra",
+    trade_date: "2026-01-01",
+    settlement_date: null,
+    quantity: 1,
+    net_amount: 100,
+    fee: 1,
+    account_id: "00000000-0000-0000-0000-000000000001",
+    account_name: "Account",
+    platform: "Platform",
+    operation_type: "buy",
+    cash_flow_type: "none",
     symbol: "CRYPTO-1",
-    nombre_activo: "Crypto 1",
-    precio_compra: 100,
-    comision: 1,
+    asset_name: "Crypto 1",
+    unit_price: 100,
+    currency: "EUR",
+    base_currency: "EUR",
+    base_unit_price: 100,
+    base_net_amount: 100,
+    base_fee: 1,
+    fx_rate_to_base: 1,
+    fx_rate_date: "2026-01-01",
+    fx_source: "identity",
+    market: "",
+    provider_operation_type: "Compra",
     ...overrides,
   };
 }
@@ -320,21 +334,24 @@ describe("useCryptoPortfolio", () => {
     const zeroBaseOrder = makeOrder({
       id: "zero-base",
       symbol: "CNE100000296",
-      nombre_activo: "Crypto split-like symbol",
-      titulos: 1,
-      importe_neto: 80,
-      importe_base: 0,
-      precio_compra: 40,
-      precio_base: 0,
-      comision: 0.8,
-      comision_base: 0,
+      asset_name: "Crypto split-like symbol",
+      quantity: 1,
+      net_amount: 80,
+      base_net_amount: 0,
+      unit_price: 40,
+      base_unit_price: 0,
+      fee: 0.8,
+      base_fee: 0,
     });
     const fallbackOrder = makeOrder({
       id: "fallback",
       symbol: "CNE100000296",
-      importe_neto: 90,
-      precio_compra: 45,
-      comision: 0.9,
+      net_amount: 90,
+      base_net_amount: null,
+      unit_price: 45,
+      base_unit_price: null,
+      fee: 0.9,
+      base_fee: null,
     });
     const portfolio = createPortfolio({
       positions: [
@@ -358,16 +375,16 @@ describe("useCryptoPortfolio", () => {
       {
         ...zeroBaseOrder,
         id: "zero-base",
-        precio_compra: 0,
-        importe_neto: 0,
-        comision: 0,
+        unit_price: 0,
+        net_amount: 0,
+        fee: 0,
       },
       {
         ...fallbackOrder,
         id: "fallback",
-        precio_compra: 45,
-        importe_neto: 90,
-        comision: 0.9,
+        unit_price: 45,
+        net_amount: 90,
+        fee: 0.9,
       },
     ]);
     expect(portfolio.selectedChartOrders.value[0]).not.toBe(zeroBaseOrder);
@@ -375,10 +392,10 @@ describe("useCryptoPortfolio", () => {
       "chartAdjustment",
     );
     expect(zeroBaseOrder).toMatchObject({
-      titulos: 1,
-      precio_compra: 40,
-      importe_neto: 80,
-      comision: 0.8,
+      quantity: 1,
+      unit_price: 40,
+      net_amount: 80,
+      fee: 0.8,
     });
     expect(portfolio.basePrice(zeroBaseOrder)).toBe(0);
     expect(portfolio.baseAmount(zeroBaseOrder)).toBe(0);
@@ -387,7 +404,7 @@ describe("useCryptoPortfolio", () => {
     expect(portfolio.baseAmount(fallbackOrder)).toBe(90);
     expect(portfolio.baseFee(fallbackOrder)).toBe(0.9);
     // Crypto orders do not receive the stock-only BYD split adjustment.
-    expect(portfolio.selectedChartOrders.value[0].titulos).toBe(1);
+    expect(portfolio.selectedChartOrders.value[0].quantity).toBe(1);
   });
 
   it("reacts to selection, order, and price changes and averages only open positions", () => {

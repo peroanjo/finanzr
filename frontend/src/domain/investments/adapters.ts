@@ -143,11 +143,13 @@ function movementMetadata(
 ): InvestmentMetadata {
   return {
     source,
-    operationType: text(item.tipo_operacion) || null,
-    accountId: item.cuenta_id ?? null,
-    accountName: text(item.cuenta_nombre) || null,
-    provider: text(item.plataforma) || null,
-    settlementDate: text(item.fecha_liquidacion) || null,
+    operationType: text(item.operation_type) || null,
+    cashFlowType: text(item.cash_flow_type) || null,
+    accountId: item.account_id ?? null,
+    accountName: text(item.account_name) || null,
+    provider: text(item.platform) || null,
+    settlementDate: text(item.settlement_date) || null,
+    providerOperationType: text(item.provider_operation_type) || null,
     originalCurrency: originalCurrencyCode,
   };
 }
@@ -319,19 +321,18 @@ export function adaptFundMovement(
   const assetId = text(value.isin);
   const currencies = currencyDetails(
     options,
-    value.moneda_base,
-    value.moneda,
-    value.divisa,
+    value.base_currency,
+    value.currency,
   );
-  const amount = number(value.importe_base, number(value.importe_neto));
+  const amount = number(value.base_net_amount, number(value.net_amount));
   return {
     kind: "fund",
     id: text(value.id),
     assetId,
     assetKey: assetKey("fund", assetId),
-    date: text(value.fecha_operacion),
-    quantity: number(value.titulos),
-    price: number(value.precio_base, number(value.precio_neto)),
+    date: text(value.trade_date),
+    quantity: number(value.quantity),
+    price: number(value.base_unit_price, number(value.unit_price)),
     cost: amount,
     amount,
     fee: null,
@@ -351,20 +352,24 @@ export function adaptStockMovement(
 ): NormalizedMovement {
   const value = record(item);
   const assetId = text(value.isin);
-  const currencies = currencyDetails(options, value.moneda_base, value.moneda);
-  const amount = number(value.importe_base, number(value.importe_neto));
-  const saveback = boolean(value.es_saveback);
+  const currencies = currencyDetails(
+    options,
+    value.base_currency,
+    value.currency,
+  );
+  const amount = number(value.base_net_amount, number(value.net_amount));
+  const saveback = boolean(value.is_saveback);
   return {
     kind: "stock",
     id: text(value.id),
     assetId,
     assetKey: assetKey("stock", assetId),
-    date: text(value.fecha_operacion),
-    quantity: number(value.titulos),
-    price: number(value.precio_base, number(value.precio_compra)),
+    date: text(value.trade_date),
+    quantity: number(value.quantity),
+    price: number(value.base_unit_price, number(value.unit_price)),
     cost: amount,
     amount,
-    fee: nullableNumber(value.comision_base) ?? nullableNumber(value.comision),
+    fee: nullableNumber(value.base_fee) ?? nullableNumber(value.fee),
     currency: currencies.currency,
     baseCurrency: currencies.baseCurrency,
     metadata: {
@@ -383,19 +388,23 @@ export function adaptCryptoMovement(
 ): NormalizedMovement {
   const value = record(item);
   const assetId = text(value.symbol);
-  const currencies = currencyDetails(options, value.moneda_base, value.moneda);
-  const amount = number(value.importe_base, number(value.importe_neto));
+  const currencies = currencyDetails(
+    options,
+    value.base_currency,
+    value.currency,
+  );
+  const amount = number(value.base_net_amount, number(value.net_amount));
   return {
     kind: "crypto",
     id: text(value.id),
     assetId,
     assetKey: assetKey("crypto", assetId),
-    date: text(value.fecha_operacion),
-    quantity: number(value.titulos),
-    price: number(value.precio_base, number(value.precio_compra)),
+    date: text(value.trade_date),
+    quantity: number(value.quantity),
+    price: number(value.base_unit_price, number(value.unit_price)),
     cost: amount,
     amount,
-    fee: nullableNumber(value.comision_base) ?? nullableNumber(value.comision),
+    fee: nullableNumber(value.base_fee) ?? nullableNumber(value.fee),
     currency: currencies.currency,
     baseCurrency: currencies.baseCurrency,
     metadata: {

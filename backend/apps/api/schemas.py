@@ -1,4 +1,4 @@
-"""OpenAPI serializers for the compatibility API's stable JSON envelopes."""
+"""OpenAPI serializers for the API's stable JSON envelopes."""
 
 from collections.abc import Mapping
 from decimal import Decimal
@@ -14,7 +14,7 @@ class ApiErrorSerializer(serializers.Serializer[dict[str, Any]]):
 
 
 class ApiPayloadSerializer(serializers.Serializer[dict[str, Any]]):
-    """Common request fields accepted by the legacy-compatible endpoints."""
+    """Common request fields accepted by legacy-shaped non-transaction endpoints."""
 
     nombre = serializers.CharField(required=False)
     tipo = serializers.CharField(required=False)
@@ -346,38 +346,43 @@ class BudgetRequestSerializer(BudgetRowSerializer):
     pass
 
 
+TRANSACTION_OPERATION_TYPES = ("buy", "sell", "transfer_in", "transfer_out")
+TRANSACTION_CASH_FLOW_TYPES = ("contribution", "withdrawal", "internal", "none")
+
+
 class TransactionRequestSerializer(StrictSerializer):
-    fecha_operacion = serializers.DateField(required=True)
-    fecha_liquidacion = serializers.DateField(required=False, allow_null=True)
-    tipo_operacion = serializers.CharField(required=True)
-    titulos = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
-    importe_neto = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
-    comision = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
+    trade_date = serializers.DateField(required=True)
+    settlement_date = serializers.DateField(required=False, allow_null=True)
+    operation_type = serializers.ChoiceField(choices=TRANSACTION_OPERATION_TYPES, required=True)
+    quantity = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+    net_amount = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+    fee = serializers.DecimalField(
+        max_digits=24, decimal_places=8, required=False, default=Decimal("0")
+    )
     account_id = serializers.UUIDField(required=True)
-    divisa = serializers.CharField(required=False, allow_blank=True, max_length=4)
-    moneda = serializers.CharField(required=False, allow_blank=True, max_length=4)
-    tipo_cambio = serializers.DecimalField(
+    currency = serializers.CharField(required=False, allow_blank=True, max_length=4)
+    fx_rate_to_base = serializers.DecimalField(
         max_digits=24, decimal_places=12, required=False, allow_null=True
     )
-    fecha_tipo_cambio = serializers.DateField(required=False, allow_null=True)
-    fuente_tipo_cambio = serializers.CharField(required=False, allow_blank=True, max_length=40)
-    mercado = serializers.CharField(required=False, allow_blank=True, max_length=80)
-    es_saveback = serializers.BooleanField(required=False)
+    fx_rate_date = serializers.DateField(required=False, allow_null=True)
+    fx_source = serializers.CharField(required=False, allow_blank=True, max_length=40)
+    market = serializers.CharField(required=False, allow_blank=True, max_length=80)
 
 
 class FundTransactionRequestSerializer(TransactionRequestSerializer):
     isin = serializers.CharField(required=True)
-    precio_neto = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+    unit_price = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
 
 
 class StockTransactionRequestSerializer(TransactionRequestSerializer):
     isin = serializers.CharField(required=True)
-    precio_compra = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+    unit_price = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+    is_saveback = serializers.BooleanField(required=False)
 
 
 class CryptoTransactionRequestSerializer(TransactionRequestSerializer):
     symbol = serializers.CharField(required=True)
-    precio_compra = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
+    unit_price = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
 
 
 class FundTransactionUpdateRequestSerializer(FundTransactionRequestSerializer):
@@ -426,32 +431,41 @@ class ManualAssetResponseSerializer(serializers.Serializer[dict[str, Any]]):
 
 class TransactionResponseSerializer(serializers.Serializer[dict[str, Any]]):
     id = serializers.UUIDField()
-    fecha_operacion = serializers.DateField(required=False)
-    tipo_operacion = serializers.CharField(required=False)
-    titulos = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    precio_neto = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    importe_neto = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    comision = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    cuenta_id = serializers.UUIDField(required=False)
-    cuenta_nombre = serializers.CharField(required=False)
-    plataforma = serializers.CharField(required=False)
-    moneda = serializers.CharField(required=False)
-    moneda_base = serializers.CharField(required=False)
-    importe_base = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    tipo_cambio = serializers.DecimalField(max_digits=24, decimal_places=12, required=False)
-    fecha_tipo_cambio = serializers.DateField(required=False)
-    fuente_tipo_cambio = serializers.CharField(required=False)
-    fecha_liquidacion = serializers.CharField(required=False, allow_blank=True)
-    mercado = serializers.CharField(required=False)
-    nombre_fondo = serializers.CharField(required=False)
-    nombre_activo = serializers.CharField(required=False)
-    divisa = serializers.CharField(required=False)
-    precio_compra = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    precio_base = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    comision_base = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    es_saveback = serializers.BooleanField(required=False)
-    isin = serializers.CharField(required=False)
-    symbol = serializers.CharField(required=False)
+    account_id = serializers.UUIDField()
+    account_name = serializers.CharField()
+    platform = serializers.CharField()
+    asset_name = serializers.CharField()
+    trade_date = serializers.DateField()
+    settlement_date = serializers.DateField(allow_null=True)
+    operation_type = serializers.ChoiceField(choices=TRANSACTION_OPERATION_TYPES)
+    cash_flow_type = serializers.ChoiceField(choices=TRANSACTION_CASH_FLOW_TYPES)
+    quantity = serializers.FloatField()
+    unit_price = serializers.FloatField()
+    net_amount = serializers.FloatField()
+    fee = serializers.FloatField()
+    currency = serializers.CharField()
+    base_currency = serializers.CharField()
+    base_unit_price = serializers.FloatField(allow_null=True)
+    base_net_amount = serializers.FloatField(allow_null=True)
+    base_fee = serializers.FloatField(allow_null=True)
+    fx_rate_to_base = serializers.FloatField(allow_null=True)
+    fx_rate_date = serializers.DateField(allow_null=True)
+    fx_source = serializers.CharField()
+    market = serializers.CharField()
+    provider_operation_type = serializers.CharField(allow_blank=True)
+
+
+class FundTransactionResponseSerializer(TransactionResponseSerializer):
+    isin = serializers.CharField()
+
+
+class StockTransactionResponseSerializer(TransactionResponseSerializer):
+    isin = serializers.CharField()
+    is_saveback = serializers.BooleanField()
+
+
+class CryptoTransactionResponseSerializer(TransactionResponseSerializer):
+    symbol = serializers.CharField()
 
 
 class PriceResponseSerializer(serializers.Serializer[dict[str, Any]]):

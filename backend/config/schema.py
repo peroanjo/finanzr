@@ -1,4 +1,4 @@
-"""Explicit OpenAPI mapping for function-based compatibility API views."""
+"""Explicit OpenAPI mapping for function-based API views."""
 
 from __future__ import annotations
 
@@ -19,11 +19,13 @@ from apps.api.schemas import (
     BudgetRowSerializer,
     CryptoInstrumentRequestSerializer,
     CryptoTransactionRequestSerializer,
+    CryptoTransactionResponseSerializer,
     CryptoTransactionUpdateRequestSerializer,
     CsrfSerializer,
     DeleteAccountRequestSerializer,
     FinancialObjectSerializer,
     FundTransactionRequestSerializer,
+    FundTransactionResponseSerializer,
     FundTransactionUpdateRequestSerializer,
     FxRateRequestSerializer,
     FxRateResponseSerializer,
@@ -63,10 +65,10 @@ from apps.api.schemas import (
     SavingsAccountUpdateRequestSerializer,
     StockSplitRequestSerializer,
     StockTransactionRequestSerializer,
+    StockTransactionResponseSerializer,
     StockTransactionUpdateRequestSerializer,
     TradedAccountRequestSerializer,
     TradedAccountUpdateRequestSerializer,
-    TransactionResponseSerializer,
     UploadRequestSerializer,
     UserSessionSerializer,
     WorkspaceRequestSerializer,
@@ -432,7 +434,12 @@ class PublicAutoSchema(AutoSchema):
         elif family_path == "/api/real-estate":
             response = RealEstateResponseSerializer(many=self.method == "GET")
         elif family_path in {"/api/orders", "/api/stock-orders", "/api/crypto-orders"}:
-            response = TransactionResponseSerializer(many=self.method == "GET")
+            response_serializer = {
+                "/api/orders": FundTransactionResponseSerializer,
+                "/api/stock-orders": StockTransactionResponseSerializer,
+                "/api/crypto-orders": CryptoTransactionResponseSerializer,
+            }[family_path]
+            response = response_serializer(many=self.method == "GET")
         elif family_path in {"/api/fund-prices", "/api/stock-prices", "/api/crypto-prices"}:
             response = PriceResponseSerializer(many=self.method == "GET")
         elif family_path == "/api/fx-rates":

@@ -901,7 +901,7 @@ def test_workspace_export_includes_legacy_and_native_savings_rows(
 
     assert exported.status_code == 200
     data = exported.json()
-    assert data["format"] == "finanzr-workspace-v2"
+    assert data["format"] == "finanzr-workspace-v3"
     assert {item["name"] for item in data["savings_accounts"]} == {
         "Native export savings",
         "Archived export savings",
@@ -1539,7 +1539,7 @@ def test_portfolio_export_includes_seeded_native_and_archived_assets(
 
     assert exported.status_code == 200
     data = exported.json()
-    assert data["format"] == "finanzr-workspace-v2"
+    assert data["format"] == "finanzr-workspace-v3"
     rows = {item["id"]: item for item in data["portfolio"]}
     assert set(rows) == {str(seeded_asset.id), native["id"], str(archived.id)}
     assert rows[str(seeded_asset.id)] == {
@@ -1605,6 +1605,20 @@ def test_traded_account_export_includes_legacy_native_and_archived_rows(
     )
     assert rows[native["id"]]["id"] == native["id"]
     assert rows[str(archived.id)]["name"] == "Archived traded export"
+    exported_orders = exported.json()["orders"]
+    assert exported_orders
+    assert all(
+        not {
+            "external_id",
+            "raw_metadata",
+            "import_batch",
+            "operacion_id",
+            "fecha_operacion",
+            "tipo_operacion",
+        }
+        & set(order)
+        for order in exported_orders
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1760,6 +1774,30 @@ def test_registered_parser_upload_is_persisted_and_deduplicated(
     assert listed.status_code == 200
     listed_row = next(row for row in listed.json() if row["id"] == str(imported.id))
     assert "operacion_id" not in listed_row
+    assert {
+        "id",
+        "account_id",
+        "asset_name",
+        "trade_date",
+        "operation_type",
+        "cash_flow_type",
+        "quantity",
+        "unit_price",
+        "net_amount",
+        "fee",
+        "currency",
+    } <= set(listed_row)
+    assert not {
+        "external_id",
+        "raw_metadata",
+        "import_batch",
+        "fecha_operacion",
+        "tipo_operacion",
+        "titulos",
+        "precio_compra",
+        "importe_neto",
+        "comision",
+    } & set(listed_row)
 
     duplicate = SimpleUploadedFile("again.csv", content, content_type="text/csv")
     response = client.post(
@@ -1853,13 +1891,13 @@ def test_traded_account_delete_removes_import_dependents_atomically(
         {
             "account_id": destination["id"],
             "symbol": "BTC",
-            "fecha_operacion": "2026-07-22",
-            "tipo_operacion": "Compra",
-            "titulos": "0.001",
-            "precio_compra": "100000",
-            "importe_neto": "101",
-            "comision": "1",
-            "divisa": "EUR",
+            "trade_date": "2026-07-22",
+            "operation_type": "buy",
+            "quantity": "0.001",
+            "unit_price": "100000",
+            "net_amount": "101",
+            "fee": "1",
+            "currency": "EUR",
         },
         format="json",
     )
@@ -1912,13 +1950,13 @@ def test_transaction_detail_is_scoped_by_uuid_and_workspace_kind(
     update_payload = {
         "account_id": str(first_account.id),
         "isin": isin,
-        "fecha_operacion": "2026-02-02",
-        "tipo_operacion": "Compra",
-        "titulos": "1",
-        "precio_compra": "10",
-        "importe_neto": "10",
-        "comision": "0",
-        "divisa": "EUR",
+        "trade_date": "2026-02-02",
+        "operation_type": "buy",
+        "quantity": "1",
+        "unit_price": "10",
+        "net_amount": "10",
+        "fee": "0",
+        "currency": "EUR",
     }
 
     updated = client.put(f"/api/stock-orders/{source.id}", update_payload, format="json")
@@ -1993,13 +2031,13 @@ def test_transaction_move_rejects_duplicate_external_id_without_mutation(
         {
             "account_id": str(target_account.id),
             "isin": isin,
-            "fecha_operacion": "2026-02-02",
-            "tipo_operacion": "Compra",
-            "titulos": "1",
-            "precio_compra": "10",
-            "importe_neto": "10",
-            "comision": "0",
-            "divisa": "EUR",
+            "trade_date": "2026-02-02",
+            "operation_type": "buy",
+            "quantity": "1",
+            "unit_price": "10",
+            "net_amount": "10",
+            "fee": "0",
+            "currency": "EUR",
         },
         format="json",
     )
@@ -2015,6 +2053,153 @@ def test_transaction_move_rejects_duplicate_external_id_without_mutation(
     assert duplicate.external_id == "shared-provider-move"
     assert ImportBatch.objects.filter(pk=source_batch.id, account=source_account).exists()
     assert ImportBatch.objects.filter(pk=target_batch.id, account=target_account).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_fund_canonical_operations_drive_positions_and_source_history(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    account = Account.objects.get(kind=Account.Kind.FUNDS)
+    instrument = Instrument.objects.get(kind=Instrument.Kind.FUND)
+    isin = instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+    payload = {
+        "account_id": str(account.id),
+        "isin": isin,
+        "trade_date": "2026-02-01",
+        "settlement_date": "2026-02-02",
+        "operation_type": "buy",
+        "quantity": "2",
+        "unit_price": "10",
+        "net_amount": "20",
+        "fee": "0",
+        "currency": "EUR",
+    }
+
+    created = client.post("/api/orders", payload, format="json")
+
+    assert created.status_code == 201, created.content
+    created_row = created.json()
+    assert created_row["operation_type"] == "buy"
+    assert created_row["provider_operation_type"] == "SUSCRIPCION"
+    transaction_id = created_row["id"]
+    position_after_buy = client.get(f"/api/fund-analysis?account_id={account.id}")
+    assert position_after_buy.status_code == 200
+    assert position_after_buy.json()[0]["participaciones"] == pytest.approx(12)
+
+    edited = client.put(
+        f"/api/orders/{transaction_id}",
+        {**payload, "operation_type": "sell", "quantity": "2", "net_amount": "20"},
+        format="json",
+    )
+
+    assert edited.status_code == 200, edited.content
+    edited_row = edited.json()
+    assert edited_row["operation_type"] == "sell"
+    assert edited_row["provider_operation_type"] == "REEMBOLSO"
+    position_after_sell = client.get(f"/api/fund-analysis?account_id={account.id}")
+    assert position_after_sell.status_code == 200
+    assert position_after_sell.json()[0]["participaciones"] == pytest.approx(8)
+
+    portfolio = client.get("/api/portfolio-analysis")
+    assert portfolio.status_code == 200
+    fund_item = next(
+        item
+        for item in portfolio.json()["items"]
+        if item["origen"] == "fund" and item["cuenta_id"].endswith(str(account.id))
+    )
+    assert fund_item["valor"] == pytest.approx(88)
+
+    assert (
+        client.patch(
+            "/api/auth/preferences", {"summary_sources": ["funds"]}, format="json"
+        ).status_code
+        == 200
+    )
+    history = client.get("/api/net-worth-history")
+    assert history.status_code == 200
+    assert history.json()[-1]["source_totals"]["funds"] == pytest.approx(88)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_imported_transaction_edit_preserves_provider_provenance_and_batch_policy(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
+    assert source is not None
+    source_account = source.account
+    source.external_id = "provider-provenance-001"
+    source.provider_operation_type = "Provider-specific buy label"
+    source.raw_metadata = {
+        "legacy_name": "Imported stock label",
+        "provider_field": "must survive edits",
+    }
+    source_batch = ImportBatch.objects.create(
+        workspace=source_account.workspace,
+        account=source_account,
+        importer_slug="synthetic",
+        source_filename="provenance.csv",
+        content_sha256="e" * 64,
+        status=ImportBatch.Status.COMPLETED,
+        source_rows=1,
+        imported_rows=1,
+    )
+    source.import_batch = source_batch
+    source.save(
+        update_fields=("external_id", "provider_operation_type", "raw_metadata", "import_batch")
+    )
+    isin = source.instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+    edit_payload = {
+        "account_id": str(source_account.id),
+        "isin": isin,
+        "trade_date": "2026-03-02",
+        "operation_type": "buy",
+        "quantity": "3",
+        "unit_price": "60",
+        "net_amount": "180",
+        "fee": "0",
+        "currency": "EUR",
+    }
+
+    edited = client.put(f"/api/stock-orders/{source.id}", edit_payload, format="json")
+
+    assert edited.status_code == 200, edited.content
+    source.refresh_from_db()
+    assert source.external_id == "provider-provenance-001"
+    assert source.provider_operation_type == "Provider-specific buy label"
+    assert source.raw_metadata == {
+        "legacy_name": "Imported stock label",
+        "provider_field": "must survive edits",
+    }
+    assert source.import_batch_id == source_batch.id
+    stock_analysis = client.get(f"/api/stock-analysis?account_id={source_account.id}")
+    assert stock_analysis.status_code == 200
+    assert stock_analysis.json()[0]["titulos"] == pytest.approx(3)
+
+    target_account = Account.objects.create(
+        workspace=source_account.workspace,
+        name="Provenance target",
+        kind=Account.Kind.STOCKS,
+        currency="EUR",
+    )
+    moved = client.put(
+        f"/api/stock-orders/{source.id}",
+        {**edit_payload, "account_id": str(target_account.id), "operation_type": "buy"},
+        format="json",
+    )
+
+    assert moved.status_code == 200, moved.content
+    source.refresh_from_db()
+    assert source.account_id == target_account.id
+    assert source.external_id == "provider-provenance-001"
+    assert source.provider_operation_type == "Provider-specific buy label"
+    assert source.raw_metadata == {
+        "legacy_name": "Imported stock label",
+        "provider_field": "must survive edits",
+    }
+    assert source.import_batch_id is None
+    assert ImportBatch.objects.filter(pk=source_batch.id, account=source_account).exists()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -2061,13 +2246,13 @@ def test_transaction_move_handles_raced_external_id_conflict_atomically(
         {
             "account_id": str(target_account.id),
             "isin": isin,
-            "fecha_operacion": "2026-02-03",
-            "tipo_operacion": "Compra",
-            "titulos": "2",
-            "precio_compra": "11",
-            "importe_neto": "22",
-            "comision": "0",
-            "divisa": "EUR",
+            "trade_date": "2026-02-03",
+            "operation_type": "buy",
+            "quantity": "2",
+            "unit_price": "11",
+            "net_amount": "22",
+            "fee": "0",
+            "currency": "EUR",
         },
         format="json",
     )
@@ -2124,13 +2309,13 @@ def test_transaction_move_reraises_unrelated_integrity_error_without_mutation(
             {
                 "account_id": str(target_account.id),
                 "isin": isin,
-                "fecha_operacion": "2026-02-04",
-                "tipo_operacion": "Compra",
-                "titulos": "3",
-                "precio_compra": "12",
-                "importe_neto": "36",
-                "comision": "0",
-                "divisa": "EUR",
+                "trade_date": "2026-02-04",
+                "operation_type": "buy",
+                "quantity": "3",
+                "unit_price": "12",
+                "net_amount": "36",
+                "fee": "0",
+                "currency": "EUR",
             },
             format="json",
         )
@@ -2198,16 +2383,16 @@ def test_transaction_uuid_detail_enforces_workspace_kind_and_roles(
 @pytest.mark.parametrize(
     ("endpoint", "account_kind", "asset_key", "asset_value", "price_key", "operation"),
     (
-        ("/api/orders", Account.Kind.FUNDS, "isin", "SYNTH-FUND-001", "precio_neto", "SUSCRIPCION"),
+        ("/api/orders", Account.Kind.FUNDS, "isin", "SYNTH-FUND-001", "unit_price", "buy"),
         (
             "/api/stock-orders",
             Account.Kind.STOCKS,
             "isin",
             "SYNTH-STOCK-001",
-            "precio_compra",
-            "Compra",
+            "unit_price",
+            "buy",
         ),
-        ("/api/crypto-orders", Account.Kind.CRYPTO, "symbol", "BTC", "precio_compra", "Compra"),
+        ("/api/crypto-orders", Account.Kind.CRYPTO, "symbol", "BTC", "unit_price", "buy"),
     ),
 )
 def test_manual_traded_transactions_validate_native_typed_contract(
@@ -2221,30 +2406,73 @@ def test_manual_traded_transactions_validate_native_typed_contract(
 ) -> None:
     client, _ = api_context
     account = Account.objects.get(kind=account_kind)
-    payload = {
+    payload: dict[str, object] = {
         "account_id": str(account.id),
         asset_key: asset_value,
-        "fecha_operacion": "2026-07-25",
-        "tipo_operacion": operation,
-        "titulos": "2.5",
+        "trade_date": "2026-07-25",
+        "operation_type": operation,
+        "quantity": "2.5",
         price_key: "40",
-        "importe_neto": "100",
-        "comision": "0.5",
-        "divisa": "EUR",
-        "es_saveback": True,
-        "tipo_cambio": "1",
-        "fecha_tipo_cambio": "2026-07-25",
-        "fuente_tipo_cambio": "identity",
-        "mercado": "Synthetic market",
+        "net_amount": "100",
+        "fee": "0.5",
+        "currency": "EUR",
+        "fx_rate_to_base": "1",
+        "fx_rate_date": "2026-07-25",
+        "fx_source": "identity",
+        "market": "Synthetic market",
     }
     if account_kind == Account.Kind.FUNDS:
-        payload["fecha_liquidacion"] = ""
+        payload["settlement_date"] = ""
+    if account_kind == Account.Kind.STOCKS:
+        payload["is_saveback"] = True
 
     created = client.post(endpoint, payload, format="json")
 
     assert created.status_code == 201, created.content
-    transaction_row = Transaction.objects.get(pk=created.json()["id"])
-    assert "operacion_id" not in created.json()
+    public = created.json()
+    transaction_row = Transaction.objects.get(pk=public["id"])
+    assert "operacion_id" not in public
+    assert not {"external_id", "raw_metadata", "import_batch"} & set(public)
+    assert {
+        "id",
+        "account_id",
+        "account_name",
+        "platform",
+        "asset_name",
+        "trade_date",
+        "settlement_date",
+        "operation_type",
+        "cash_flow_type",
+        "quantity",
+        "unit_price",
+        "net_amount",
+        "fee",
+        "currency",
+        "base_currency",
+        "base_unit_price",
+        "base_net_amount",
+        "base_fee",
+        "fx_rate_to_base",
+        "fx_rate_date",
+        "fx_source",
+        "market",
+        "provider_operation_type",
+    } <= set(public)
+    assert not {
+        "fecha_operacion",
+        "fecha_liquidacion",
+        "tipo_operacion",
+        "titulos",
+        "precio_neto",
+        "precio_compra",
+        "importe_neto",
+        "comision",
+        "cuenta_id",
+        "cuenta_nombre",
+        "plataforma",
+        "moneda",
+        "moneda_base",
+    } & set(public)
     assert transaction_row.external_id is None
     assert transaction_row.account_id == account.id
     assert transaction_row.market == "Synthetic market"
@@ -2254,6 +2482,13 @@ def test_manual_traded_transactions_validate_native_typed_contract(
 
     for invalid_field, invalid_value in (
         ("unknown", "rejected"),
+        ("fecha_operacion", "2026-07-25"),
+        ("tipo_operacion", "Compra"),
+        ("titulos", "1"),
+        ("precio_neto", "40"),
+        ("importe_neto", "100"),
+        ("comision", "0"),
+        ("divisa", "EUR"),
         ("cuenta_id", "1"),
         ("cuenta_id_original", "1"),
     ):
@@ -2460,9 +2695,9 @@ def test_crypto_accounts_can_be_created_and_filter_orders(
     analysis = client.get(f"/api/crypto-analysis?account_id={account_id}")
 
     assert orders.status_code == 200
-    assert [row["cuenta_id"] for row in orders.json()] == [account_id]
-    assert orders.json()[0]["cuenta_nombre"] == "Cuenta secundaria"
-    assert orders.json()[0]["plataforma"] == "Otro exchange"
+    assert [row["account_id"] for row in orders.json()] == [account_id]
+    assert orders.json()[0]["account_name"] == "Cuenta secundaria"
+    assert orders.json()[0]["platform"] == "Otro exchange"
     assert analysis.status_code == 200
     assert analysis.json()[0]["symbol"] == orders.json()[0]["symbol"]
 
@@ -2480,12 +2715,12 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
         {
             "account_id": fund_account["id"],
             "isin": fund["isin"],
-            "fecha_operacion": "2026-07-25",
-            "fecha_liquidacion": "2026-07-26",
-            "tipo_operacion": "SUSCRIPCION",
-            "titulos": 2,
-            "precio_neto": 50,
-            "importe_neto": 100,
+            "trade_date": "2026-07-25",
+            "settlement_date": "2026-07-26",
+            "operation_type": "buy",
+            "quantity": 2,
+            "unit_price": 50,
+            "net_amount": 100,
         },
         format="json",
     )
@@ -2499,18 +2734,18 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
         {
             "account_id": fund_account["id"],
             "isin": fund["isin"],
-            "fecha_operacion": "2026-07-25",
-            "fecha_liquidacion": "2026-07-27",
-            "tipo_operacion": "REEMBOLSO",
-            "titulos": 1,
-            "precio_neto": 55,
-            "importe_neto": 55,
+            "trade_date": "2026-07-25",
+            "settlement_date": "2026-07-27",
+            "operation_type": "sell",
+            "quantity": 1,
+            "unit_price": 55,
+            "net_amount": 55,
         },
         format="json",
     )
     assert updated_fund.status_code == 200
-    assert updated_fund.json()["tipo_operacion"] == "REEMBOLSO"
-    assert updated_fund.json()["importe_neto"] == 55
+    assert updated_fund.json()["operation_type"] == "sell"
+    assert updated_fund.json()["net_amount"] == 55
 
     crypto_account = client.get("/api/crypto-accounts").json()[0]
     crypto = client.get("/api/cryptos").json()[0]
@@ -2519,19 +2754,19 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
         {
             "account_id": crypto_account["id"],
             "symbol": crypto["symbol"],
-            "fecha_operacion": "2026-07-25",
-            "tipo_operacion": "Compra",
-            "titulos": 0.001,
-            "precio_compra": 70000,
-            "importe_neto": 70.5,
-            "comision": 0.5,
+            "trade_date": "2026-07-25",
+            "operation_type": "buy",
+            "quantity": 0.001,
+            "unit_price": 70000,
+            "net_amount": 70.5,
+            "fee": 0.5,
         },
         format="json",
     )
 
     assert created_crypto.status_code == 201
-    assert created_crypto.json()["tipo_operacion"] == "Compra"
-    assert created_crypto.json()["comision"] == 0.5
+    assert created_crypto.json()["operation_type"] == "buy"
+    assert created_crypto.json()["fee"] == 0.5
 
 
 @pytest.mark.django_db(transaction=True)
@@ -2547,19 +2782,19 @@ def test_stock_cashback_is_only_available_for_trade_republic(
         {
             "account_id": trade_republic["id"],
             "isin": stock["isin"],
-            "fecha_operacion": "2026-07-25",
-            "tipo_operacion": "Compra",
-            "titulos": 1,
-            "precio_compra": 25,
-            "importe_neto": 25,
-            "comision": 0,
-            "es_saveback": True,
+            "trade_date": "2026-07-25",
+            "operation_type": "buy",
+            "quantity": 1,
+            "unit_price": 25,
+            "net_amount": 25,
+            "fee": 0,
+            "is_saveback": True,
         },
         format="json",
     )
 
     assert created.status_code == 201
-    assert created.json()["es_saveback"] is True
+    assert created.json()["is_saveback"] is True
 
     other_account = client.post(
         "/api/stock-accounts",
@@ -2575,19 +2810,19 @@ def test_stock_cashback_is_only_available_for_trade_republic(
         {
             "account_id": other_account["id"],
             "isin": stock["isin"],
-            "fecha_operacion": "2026-07-25",
-            "tipo_operacion": "Compra",
-            "titulos": 1,
-            "precio_compra": 25,
-            "importe_neto": 25,
-            "comision": 0,
-            "es_saveback": True,
+            "trade_date": "2026-07-25",
+            "operation_type": "buy",
+            "quantity": 1,
+            "unit_price": 25,
+            "net_amount": 25,
+            "fee": 0,
+            "is_saveback": True,
         },
         format="json",
     )
 
     assert rejected_cashback.status_code == 201
-    assert rejected_cashback.json()["es_saveback"] is False
+    assert rejected_cashback.json()["is_saveback"] is False
 
     regular = client.get(f"/api/stock-analysis?account_id={trade_republic['id']}").json()
     cashback_as_benefit = client.get(
@@ -2722,7 +2957,7 @@ def test_fund_performance_uses_market_history_and_filters_by_account(
     orders = client.get(f"/api/orders?account_id={account_id}")
     assert analysis.status_code == 200
     assert len(analysis.json()) == 1
-    assert [row["cuenta_id"] for row in orders.json()] == [account_id]
+    assert [row["account_id"] for row in orders.json()] == [account_id]
 
 
 @pytest.mark.django_db(transaction=True)

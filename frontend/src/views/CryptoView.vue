@@ -453,7 +453,7 @@ const movementSymbols = computed(() => {
   orders.value.forEach((item) => {
     names.set(
       item.symbol,
-      item.nombre_activo || names.get(item.symbol) || item.symbol,
+      item.asset_name || names.get(item.symbol) || item.symbol,
     );
   });
   return [...names.entries()]
@@ -475,16 +475,15 @@ const filteredMovements = computed(() =>
     .filter(
       (item) =>
         !movementStart.value ||
-        item.fecha_operacion.slice(0, 10) >= movementStart.value,
+        item.trade_date.slice(0, 10) >= movementStart.value,
     )
     .filter(
       (item) =>
-        !movementEnd.value ||
-        item.fecha_operacion.slice(0, 10) <= movementEnd.value,
+        !movementEnd.value || item.trade_date.slice(0, 10) <= movementEnd.value,
     )
     .sort(
       (a, b) =>
-        b.fecha_operacion.localeCompare(a.fecha_operacion) ||
+        b.trade_date.localeCompare(a.trade_date) ||
         String(b.id).localeCompare(String(a.id)),
     ),
 );
@@ -601,9 +600,7 @@ function signedMoney(value: number) {
 function initializeMovementRange() {
   if (!orders.value.length || (movementStart.value && movementEnd.value))
     return;
-  const dates = orders.value
-    .map((item) => item.fecha_operacion.slice(0, 10))
-    .sort();
+  const dates = orders.value.map((item) => item.trade_date.slice(0, 10)).sort();
   movementStart.value = dates[0];
   movementEnd.value = dates.at(-1) ?? dates[0];
   movementDraftStart.value = movementStart.value;
@@ -971,7 +968,7 @@ function operationGroup(order: CryptoOrder) {
 }
 
 function hasOriginalCurrency(order: CryptoOrder) {
-  return Boolean(order.moneda && order.moneda !== reportingCurrency.value);
+  return Boolean(order.currency && order.currency !== reportingCurrency.value);
 }
 
 function assetTicker(position: CryptoPosition) {
@@ -1039,19 +1036,15 @@ function askDeleteMovement(order: CryptoOrder) {
 }
 
 function movementTone(order: CryptoOrder) {
-  const type = order.tipo_operacion.toLowerCase();
-  if (type.includes("compra") || type.includes("buy")) return "is-buy";
-  if (type.includes("venta") || type.includes("sell")) return "is-sell";
+  if (order.operation_type === "buy") return "is-buy";
+  if (order.operation_type === "sell") return "is-sell";
   return "is-neutral";
 }
 
 function movementLabel(order: CryptoOrder) {
-  const type = order.tipo_operacion.toLowerCase();
-  if (type.includes("compra") || type.includes("buy"))
-    return t("crypto.movements.buy");
-  if (type.includes("venta") || type.includes("sell"))
-    return t("crypto.movements.sell");
-  return order.tipo_operacion;
+  if (order.operation_type === "buy") return t("crypto.movements.buy");
+  if (order.operation_type === "sell") return t("crypto.movements.sell");
+  return order.provider_operation_type || order.operation_type;
 }
 
 function importerDescription(importer: ImporterCatalogItem) {
@@ -1634,7 +1627,7 @@ onMounted(loadDashboard);
                   :key="item.id"
                   :data-testid="`movement-${item.id}`"
                 >
-                  <td>{{ displayDate(item.fecha_operacion) }}</td>
+                  <td>{{ displayDate(item.trade_date) }}</td>
                   <td>
                     <span
                       class="operation-pill"
@@ -1643,32 +1636,32 @@ onMounted(loadDashboard);
                     >
                   </td>
                   <td>
-                    <strong>{{ item.nombre_activo }}</strong
+                    <strong>{{ item.asset_name }}</strong
                     ><small>{{ item.symbol }}</small>
                   </td>
                   <td>
-                    {{ item.cuenta_nombre || selectedAccountLabel
+                    {{ item.account_name || selectedAccountLabel
                     }}<small>{{
-                      item.plataforma || t("crypto.accounts.cryptoFallback")
+                      item.platform || t("crypto.accounts.cryptoFallback")
                     }}</small>
                   </td>
-                  <td>{{ n(item.titulos, "quantity") }}</td>
+                  <td>{{ n(item.quantity, "quantity") }}</td>
                   <td>
                     {{ money(basePrice(item))
                     }}<small v-if="hasOriginalCurrency(item)">{{
-                      originalMoney(item.precio_compra, item.moneda)
+                      originalMoney(item.unit_price, item.currency)
                     }}</small>
                   </td>
                   <td>
                     <strong>{{ money(baseAmount(item)) }}</strong
                     ><small v-if="hasOriginalCurrency(item)">{{
-                      originalMoney(item.importe_neto, item.moneda)
+                      originalMoney(item.net_amount, item.currency)
                     }}</small>
                   </td>
                   <td>
                     {{ money(baseFee(item))
                     }}<small v-if="hasOriginalCurrency(item)">{{
-                      originalMoney(item.comision, item.moneda)
+                      originalMoney(item.fee, item.currency)
                     }}</small>
                   </td>
                   <td>

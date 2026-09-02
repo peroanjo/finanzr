@@ -90,8 +90,8 @@ function operationAssetId(operation: ChartOperation) {
 }
 function operationAccount(operation: ChartOperation) {
   return (
-    operation.cuenta_nombre ||
-    operation.plataforma ||
+    operation.account_name ||
+    operation.platform ||
     t("shared.candlestick.investmentAccount")
   );
 }
@@ -115,16 +115,12 @@ const domain = computed(() => {
     values.push(props.averagePrice);
   props.operations.forEach((operation) => {
     const timestamp = Date.parse(
-      `${operation.fecha_operacion.slice(0, 10)}T00:00:00Z`,
+      `${operation.trade_date.slice(0, 10)}T00:00:00Z`,
     );
     const first = timestamps.value[0] ?? 0;
     const last = timestamps.value.at(-1) ?? 0;
-    if (
-      operation.precio_compra > 0 &&
-      timestamp >= first &&
-      timestamp <= last
-    ) {
-      values.push(operation.precio_compra);
+    if (operation.unit_price > 0 && timestamp >= first && timestamp <= last) {
+      values.push(operation.unit_price);
     }
   });
   const minimum = Math.min(...values);
@@ -320,10 +316,10 @@ const xTicks = computed(() => {
 const operationMarkers = computed(() => {
   const visible = props.operations.flatMap((operation) => {
     const timestamp = Date.parse(
-      `${operation.fecha_operacion.slice(0, 10)}T00:00:00Z`,
+      `${operation.trade_date.slice(0, 10)}T00:00:00Z`,
     );
     if (
-      !operation.precio_compra ||
+      !operation.unit_price ||
       timestamp < timeDomain.value.minimum ||
       timestamp > timeDomain.value.maximum
     )
@@ -332,27 +328,27 @@ const operationMarkers = computed(() => {
   });
   const groups = new Map<string, typeof visible>();
   visible.forEach((item) => {
-    const buy = item.operation.tipo_operacion.toLowerCase().includes("compra");
-    const key = `${item.operation.fecha_operacion.slice(0, 10)}:${buy ? "buy" : "sell"}`;
+    const buy = item.operation.operation_type === "buy";
+    const key = `${item.operation.trade_date.slice(0, 10)}:${buy ? "buy" : "sell"}`;
     const group = groups.get(key) ?? [];
     group.push(item);
     groups.set(key, group);
   });
   return Array.from(groups.values()).map((group) => {
     const { operation: firstOperation, timestamp } = group[0];
-    const buy = firstOperation.tipo_operacion.toLowerCase().includes("compra");
+    const buy = firstOperation.operation_type === "buy";
     const operationCount = group.length;
     const titles = group.reduce(
-      (total, item) => total + item.operation.titulos,
+      (total, item) => total + item.operation.quantity,
       0,
     );
     const weightedPrice = group.reduce(
       (total, item) =>
-        total + item.operation.precio_compra * item.operation.titulos,
+        total + item.operation.unit_price * item.operation.quantity,
       0,
     );
     const sameAccount = group.every(
-      (item) => item.operation.cuenta_nombre === firstOperation.cuenta_nombre,
+      (item) => item.operation.account_name === firstOperation.account_name,
     );
     const sameAdjustment = group.every(
       (item) =>
@@ -362,18 +358,15 @@ const operationMarkers = computed(() => {
     const operation = {
       ...firstOperation,
       id: group.map((item) => item.operation.id).join(":"),
-      titulos: titles,
-      importe_neto: group.reduce(
-        (total, item) => total + item.operation.importe_neto,
+      quantity: titles,
+      net_amount: group.reduce(
+        (total, item) => total + item.operation.net_amount,
         0,
       ),
-      comision: group.reduce(
-        (total, item) => total + item.operation.comision,
-        0,
-      ),
-      precio_compra:
-        titles > 0 ? weightedPrice / titles : firstOperation.precio_compra,
-      cuenta_nombre: sameAccount ? firstOperation.cuenta_nombre : "",
+      fee: group.reduce((total, item) => total + item.operation.fee, 0),
+      unit_price:
+        titles > 0 ? weightedPrice / titles : firstOperation.unit_price,
+      account_name: sameAccount ? firstOperation.account_name : "",
       chartAdjustment: sameAdjustment
         ? firstOperation.chartAdjustment
         : undefined,
@@ -383,7 +376,7 @@ const operationMarkers = computed(() => {
       bounds.left + markerHorizontalHalfWidth,
       Math.min(width - bounds.right - markerHorizontalHalfWidth, baseX),
     );
-    const position = markerPosition(timestamp, x, buy, operation.precio_compra);
+    const position = markerPosition(timestamp, x, buy, operation.unit_price);
     const { y } = position;
     return {
       ...operation,
@@ -820,7 +813,7 @@ function handlePointerLeave(event: PointerEvent) {
                 >
                   {{
                     t("shared.candlestick.total", {
-                      value: preciseMoney.format(row.operation.importe_neto),
+                      value: preciseMoney.format(row.operation.net_amount),
                     })
                   }}
                 </text>
@@ -830,7 +823,7 @@ function handlePointerLeave(event: PointerEvent) {
                   :y="row.y + 34"
                 >
                   {{
-                    `${quantity.format(row.operation.titulos)} ${operationAssetId(row.operation)} · ${money.format(row.operation.precio_compra)} / ${t("shared.candlestick.unit")} · ${t("shared.candlestick.fee", { value: preciseMoney.format(row.operation.comision) })}`
+                    `${quantity.format(row.operation.quantity)} ${operationAssetId(row.operation)} · ${money.format(row.operation.unit_price)} / ${t("shared.candlestick.unit")} · ${t("shared.candlestick.fee", { value: preciseMoney.format(row.operation.fee) })}`
                   }}
                 </text>
                 <text
@@ -854,7 +847,7 @@ function handlePointerLeave(event: PointerEvent) {
                 :y="operationTooltip.y + 60"
               >
                 {{
-                  `${quantity.format(operationTooltip.marker.titulos)} ${operationAssetId(operationTooltip.marker)} · ${money.format(operationTooltip.marker.precio_compra)} / ${t("shared.candlestick.unit")}`
+                  `${quantity.format(operationTooltip.marker.quantity)} ${operationAssetId(operationTooltip.marker)} · ${money.format(operationTooltip.marker.unit_price)} / ${t("shared.candlestick.unit")}`
                 }}
               </text>
               <text
@@ -865,9 +858,9 @@ function handlePointerLeave(event: PointerEvent) {
                 {{
                   t("shared.candlestick.totalAndFee", {
                     total: preciseMoney.format(
-                      operationTooltip.marker.importe_neto,
+                      operationTooltip.marker.net_amount,
                     ),
-                    fee: preciseMoney.format(operationTooltip.marker.comision),
+                    fee: preciseMoney.format(operationTooltip.marker.fee),
                   })
                 }}
               </text>

@@ -167,12 +167,12 @@ export function useFundsPortfolio(
   });
 
   function baseAmount(item: FundOrder) {
-    return item.importe_base ?? item.importe_neto;
+    return item.base_net_amount ?? item.net_amount;
   }
 
   function calculateRealizedPnl(items: FundOrder[]) {
-    const buyTypes = new Set(["SUSCRIPCION", "SUSCR.POR TRASPASO I"]);
-    const sellTypes = new Set(["REEMB.POR TRASPASO I", "REEMBOLSO"]);
+    const buyTypes = new Set(["buy", "transfer_in"]);
+    const sellTypes = new Set(["transfer_out", "sell"]);
     const grouped = new Map<string, FundOrder[]>();
     items.forEach((item) => {
       grouped.set(item.isin, [...(grouped.get(item.isin) ?? []), item]);
@@ -184,11 +184,11 @@ export function useFundsPortfolio(
       let soldQuantity = 0;
       let saleValue = 0;
       fundOrders.forEach((item) => {
-        if (buyTypes.has(item.tipo_operacion)) {
-          boughtQuantity += item.titulos;
+        if (buyTypes.has(item.operation_type)) {
+          boughtQuantity += item.quantity;
           buyCost += baseAmount(item);
-        } else if (sellTypes.has(item.tipo_operacion)) {
-          soldQuantity += item.titulos;
+        } else if (sellTypes.has(item.operation_type)) {
+          soldQuantity += item.quantity;
           saleValue += baseAmount(item);
         }
       });

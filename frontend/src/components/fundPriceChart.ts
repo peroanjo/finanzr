@@ -13,14 +13,10 @@ export interface FundOperationMarker extends FundOperationPoint {
   sourceOrders: FundOrder[];
 }
 
-const FUND_ENTRY_TYPES = new Set([
-  "SUSCRIPCION",
-  "SUSCR.POR TRASPASO I",
-  "COMPRA",
-]);
+const FUND_ENTRY_TYPES = new Set(["buy", "transfer_in"]);
 
 export function isFundEntryOperation(order: FundOrder) {
-  return FUND_ENTRY_TYPES.has(order.tipo_operacion.trim().toUpperCase());
+  return FUND_ENTRY_TYPES.has(order.operation_type);
 }
 
 function nearestDate(target: string, dates: string[]) {
@@ -47,22 +43,22 @@ export function visibleFundOperationPoints(
 
   return orders
     .filter((order) => {
-      const operationDate = order.fecha_operacion.slice(0, 10);
+      const operationDate = order.trade_date.slice(0, 10);
       return operationDate >= start && operationDate <= end;
     })
     .map((order) => ({
-      x: nearestDate(order.fecha_operacion.slice(0, 10), dates),
-      y: order.precio_base ?? order.precio_neto,
+      x: nearestDate(order.trade_date.slice(0, 10), dates),
+      y: order.base_unit_price ?? order.unit_price,
       order,
     }));
 }
 
 function amountForOrder(order: FundOrder) {
-  return order.importe_base ?? order.importe_neto;
+  return order.base_net_amount ?? order.net_amount;
 }
 
 function priceForOrder(order: FundOrder) {
-  return order.precio_base ?? order.precio_neto;
+  return order.base_unit_price ?? order.unit_price;
 }
 
 /**
@@ -76,7 +72,7 @@ export function groupFundOperationPoints(
   points.forEach((point) => {
     // The x label may be a weekly/monthly price point. Never use it as the
     // operation identity or distinct real trading days would be merged.
-    const operationDate = point.order.fecha_operacion.slice(0, 10);
+    const operationDate = point.order.trade_date.slice(0, 10);
     const key = `${operationDate}:${point.order.isin}:${isFundEntryOperation(point.order) ? "buy" : "sell"}`;
     groups.set(key, [...(groups.get(key) ?? []), point]);
   });
@@ -85,50 +81,50 @@ export function groupFundOperationPoints(
     const first = group[0];
     const sourceOrders = group.map(({ order }) => order);
     const titles = sourceOrders.reduce(
-      (total, order) => total + order.titulos,
+      (total, order) => total + order.quantity,
       0,
     );
     const weightedPrice = sourceOrders.reduce(
-      (total, order) => total + priceForOrder(order) * order.titulos,
+      (total, order) => total + priceForOrder(order) * order.quantity,
       0,
     );
     const sameAccount = sourceOrders.every(
       (order) =>
-        order.cuenta_nombre === first.order.cuenta_nombre &&
-        order.plataforma === first.order.plataforma,
+        order.account_name === first.order.account_name &&
+        order.platform === first.order.platform,
     );
     const operation: FundOrder = {
       ...first.order,
       id: sourceOrders.map((order) => order.id).join(":"),
-      titulos: titles,
-      precio_neto:
+      quantity: titles,
+      unit_price:
         titles > 0 ? weightedPrice / titles : priceForOrder(first.order),
-      importe_neto: sourceOrders.reduce(
-        (total, order) => total + order.importe_neto,
+      net_amount: sourceOrders.reduce(
+        (total, order) => total + order.net_amount,
         0,
       ),
-      ...(sourceOrders.some((order) => order.importe_base != null)
+      ...(sourceOrders.some((order) => order.base_net_amount != null)
         ? {
-            importe_base: sourceOrders.reduce(
+            base_net_amount: sourceOrders.reduce(
               (total, order) => total + amountForOrder(order),
               0,
             ),
           }
         : {}),
-      ...(sourceOrders.some((order) => order.precio_base != null)
+      ...(sourceOrders.some((order) => order.base_unit_price != null)
         ? {
-            precio_base:
+            base_unit_price:
               titles > 0 ? weightedPrice / titles : priceForOrder(first.order),
           }
         : {}),
-      cuenta_nombre: sameAccount ? first.order.cuenta_nombre : "",
-      plataforma: sameAccount ? first.order.plataforma : "",
+      account_name: sameAccount ? first.order.account_name : "",
+      platform: sameAccount ? first.order.platform : "",
     };
     const buy = isFundEntryOperation(first.order);
     return {
       id: `${first.x}:${buy ? "buy" : "sell"}:${sourceOrders.map((order) => order.id).join(":")}`,
       x: first.x,
-      y: operation.precio_base ?? operation.precio_neto,
+      y: operation.base_unit_price ?? operation.unit_price,
       order: operation,
       buy,
       operationCount: sourceOrders.length,

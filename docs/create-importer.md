@@ -255,8 +255,11 @@ tipo_operacion, isin, nombre_fondo, titulos, divisa,
 precio_neto, importe_neto, cuenta_id
 ```
 
-These names form the Django API input contract and must remain stable when they
-are converted into typed DTOs.
+These names form the private normalized importer/calculation record contract.
+They are intentionally separate from the strict English HTTP transaction DTO:
+`uploads.py` keeps `operacion_id` as the provider id and passes it to
+`Transaction.external_id` for idempotent persistence. Importer records must not
+be exposed directly by the public API or privacy export.
 
 ## Errors and Warnings
 

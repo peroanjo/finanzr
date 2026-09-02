@@ -21,16 +21,30 @@ function makePosition(overrides: Partial<StockPosition> = {}): StockPosition {
 function makeOrder(overrides: Partial<StockOrder> = {}): StockOrder {
   return {
     id: "operation-1",
-    fecha_operacion: "2026-01-01",
-    titulos: 1,
-    importe_neto: 100,
-    cuenta_id: "00000000-0000-0000-0000-000000000001",
-    tipo_operacion: "Compra",
+    trade_date: "2026-01-01",
+    settlement_date: null,
+    quantity: 1,
+    net_amount: 100,
+    fee: 1,
+    account_id: "00000000-0000-0000-0000-000000000001",
+    account_name: "Account",
+    platform: "Platform",
+    operation_type: "buy",
+    cash_flow_type: "none",
     isin: "STOCK-1",
-    nombre_activo: "Stock 1",
-    precio_compra: 100,
-    comision: 1,
-    es_saveback: false,
+    asset_name: "Stock 1",
+    unit_price: 100,
+    is_saveback: false,
+    currency: "EUR",
+    base_currency: "EUR",
+    base_unit_price: 100,
+    base_net_amount: 100,
+    base_fee: 1,
+    fx_rate_to_base: 1,
+    fx_rate_date: "2026-01-01",
+    fx_source: "identity",
+    market: "",
+    provider_operation_type: "Compra",
     ...overrides,
   };
 }
@@ -287,30 +301,33 @@ describe("useStocksPortfolio", () => {
     const sourceWithBase = makeOrder({
       id: "byd-before-split",
       isin: "CNE100000296",
-      fecha_operacion: "2025-02-03",
-      titulos: 1,
-      importe_neto: 34.07,
-      importe_base: 30,
-      precio_compra: 34.07,
-      precio_base: 30,
-      comision: 1,
-      comision_base: 0.5,
+      trade_date: "2025-02-03",
+      quantity: 1,
+      net_amount: 34.07,
+      base_net_amount: 30,
+      unit_price: 34.07,
+      base_unit_price: 30,
+      fee: 1,
+      base_fee: 0.5,
     });
     const sourceWithoutBase = makeOrder({
       id: "fallback",
-      importe_neto: 80,
-      precio_compra: 40,
-      comision: 0.8,
+      net_amount: 80,
+      unit_price: 40,
+      fee: 0.8,
+      base_net_amount: null,
+      base_unit_price: null,
+      base_fee: null,
     });
     const sourceWithZeroBase = makeOrder({
       id: "zero-base",
       isin: "ZERO-BASE",
-      importe_neto: 80,
-      importe_base: 0,
-      precio_compra: 40,
-      precio_base: 0,
-      comision: 0.8,
-      comision_base: 0,
+      net_amount: 80,
+      base_net_amount: 0,
+      unit_price: 40,
+      base_unit_price: 0,
+      fee: 0.8,
+      base_fee: 0,
     });
     const portfolio = createPortfolio({
       orders: [sourceWithBase, sourceWithoutBase, sourceWithZeroBase],
@@ -329,33 +346,33 @@ describe("useStocksPortfolio", () => {
 
     const [adjusted] = portfolio.selectedChartOrders.value;
     expect(adjusted).toMatchObject({
-      importe_neto: 30,
-      precio_compra: 10,
-      comision: 0.5,
-      titulos: 3,
+      net_amount: 30,
+      unit_price: 10,
+      fee: 0.5,
+      quantity: 3,
       chartAdjustment: {
         id: "byd-pre-june-10-2025-split-3-to-1",
       },
     });
     expect(sourceWithBase).toMatchObject({
-      importe_neto: 34.07,
-      precio_compra: 34.07,
-      titulos: 1,
+      net_amount: 34.07,
+      unit_price: 34.07,
+      quantity: 1,
     });
 
     portfolio.selectedIsin.value = "ZERO-BASE";
     expect(portfolio.selectedChartOrders.value[0]).toMatchObject({
-      importe_neto: 0,
-      precio_compra: 0,
-      comision: 0,
-      titulos: 1,
+      net_amount: 0,
+      unit_price: 0,
+      fee: 0,
+      quantity: 1,
     });
 
     portfolio.selectedIsin.value = "STOCK-1";
     expect(portfolio.selectedChartOrders.value[0]).toMatchObject({
-      importe_neto: 80,
-      precio_compra: 40,
-      comision: 0.8,
+      net_amount: 80,
+      unit_price: 40,
+      fee: 0.8,
     });
   });
 

@@ -228,27 +228,37 @@ export interface CryptoAccount {
   importer_slug: string;
   importer_name: string;
 }
-export interface CryptoOrder {
+export type TransactionOperationType =
+  "buy" | "sell" | "transfer_in" | "transfer_out";
+export type TransactionCashFlowType =
+  "contribution" | "withdrawal" | "internal" | "none";
+interface TransactionDtoBase {
   id: string;
-  fecha_operacion: string;
-  titulos: number;
-  importe_neto: number;
-  cuenta_id: string;
-  cuenta_nombre?: string;
-  plataforma?: string;
-  tipo_operacion: string;
+  account_id: string;
+  account_name: string;
+  platform: string;
+  asset_name: string;
+  trade_date: string;
+  settlement_date: string | null;
+  operation_type: TransactionOperationType;
+  cash_flow_type: TransactionCashFlowType;
+  quantity: number;
+  unit_price: number;
+  net_amount: number;
+  fee: number;
+  currency: string;
+  base_currency: string;
+  base_unit_price: number | null;
+  base_net_amount: number | null;
+  base_fee: number | null;
+  fx_rate_to_base: number | null;
+  fx_rate_date: string | null;
+  fx_source: string;
+  market: string;
+  provider_operation_type: string;
+}
+export interface CryptoOrder extends TransactionDtoBase {
   symbol: string;
-  nombre_activo: string;
-  precio_compra: number;
-  comision: number;
-  moneda?: string;
-  moneda_base?: string;
-  importe_base?: number;
-  precio_base?: number;
-  comision_base?: number;
-  tipo_cambio?: number;
-  fecha_tipo_cambio?: string;
-  fuente_tipo_cambio?: string;
 }
 export interface CryptoInstrument {
   symbol: string;
@@ -316,28 +326,9 @@ export interface StockAccount {
   importer_slug: string;
   importer_name: string;
 }
-export interface StockOrder {
-  id: string;
-  fecha_operacion: string;
-  titulos: number;
-  importe_neto: number;
-  cuenta_id: string;
-  cuenta_nombre?: string;
-  plataforma?: string;
-  tipo_operacion: string;
+export interface StockOrder extends TransactionDtoBase {
   isin: string;
-  nombre_activo: string;
-  precio_compra: number;
-  comision: number;
-  es_saveback: boolean;
-  moneda?: string;
-  moneda_base?: string;
-  importe_base?: number;
-  precio_base?: number;
-  comision_base?: number;
-  tipo_cambio?: number;
-  fecha_tipo_cambio?: string;
-  fuente_tipo_cambio?: string;
+  is_saveback: boolean;
 }
 export interface StockInstrument {
   isin: string;
@@ -399,27 +390,8 @@ export interface FundPosition {
   moneda?: string;
   moneda_base?: string;
 }
-export interface FundOrder {
-  id: string;
-  fecha_operacion: string;
-  fecha_liquidacion: string;
-  tipo_operacion: string;
+export interface FundOrder extends TransactionDtoBase {
   isin: string;
-  nombre_fondo: string;
-  titulos: number;
-  precio_neto: number;
-  importe_neto: number;
-  cuenta_id: string;
-  cuenta_nombre?: string;
-  plataforma?: string;
-  divisa?: string;
-  moneda?: string;
-  moneda_base?: string;
-  importe_base?: number;
-  precio_base?: number;
-  tipo_cambio?: number;
-  fecha_tipo_cambio?: string;
-  fuente_tipo_cambio?: string;
 }
 export interface FundPerformancePoint {
   fecha: string;

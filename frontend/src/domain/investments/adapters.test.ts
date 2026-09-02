@@ -209,24 +209,33 @@ describe("normalized investment adapters", () => {
   });
 
   it("maps fund movements to base amounts while retaining original currency metadata", () => {
-    const movement = adaptFundMovement({
+    const fundOrder: FundOrder = {
       id: "fund-1",
-      fecha_operacion: "2026-01-02",
-      fecha_liquidacion: "2026-01-03",
-      tipo_operacion: "SUSCRIPCION",
+      trade_date: "2026-01-02",
+      settlement_date: "2026-01-03",
+      operation_type: "buy",
+      cash_flow_type: "contribution",
       isin: "LU000",
-      nombre_fondo: "Global fund",
-      titulos: 2,
-      precio_neto: 50,
-      importe_neto: 100,
-      cuenta_id: "00000000-0000-0000-0000-000000000001",
-      moneda: "USD",
-      moneda_base: "EUR",
-      precio_base: 46,
-      importe_base: 92,
-      cuenta_nombre: "Broker",
-      plataforma: "Broker",
-    } as FundOrder);
+      asset_name: "Global fund",
+      quantity: 2,
+      unit_price: 50,
+      net_amount: 100,
+      fee: 0,
+      account_id: "00000000-0000-0000-0000-000000000001",
+      currency: "USD",
+      base_currency: "EUR",
+      base_unit_price: 46,
+      base_net_amount: 92,
+      base_fee: 0,
+      fx_rate_to_base: 0.92,
+      fx_rate_date: "2026-01-02",
+      fx_source: "test",
+      market: "",
+      account_name: "Broker",
+      platform: "Broker",
+      provider_operation_type: "SUSCRIPCION",
+    };
+    const movement = adaptFundMovement(fundOrder);
 
     expect(movement).toMatchObject({
       kind: "fund",
@@ -245,41 +254,51 @@ describe("normalized investment adapters", () => {
     });
     expect(movement.metadata).toMatchObject({
       originalCurrency: "USD",
-      operationType: "SUSCRIPCION",
+      operationType: "buy",
       accountId: "00000000-0000-0000-0000-000000000001",
       accountName: "Broker",
       settlementDate: "2026-01-03",
     });
 
     const nonEurBase = adaptFundMovement({
-      ...movement,
-      moneda: "GBP",
-      moneda_base: "USD",
-      importe_neto: 100,
-      precio_neto: 50,
-      importe_base: 80,
-      precio_base: 40,
-    } as unknown as FundOrder);
+      ...fundOrder,
+      currency: "GBP",
+      base_currency: "USD",
+      net_amount: 100,
+      unit_price: 50,
+      base_net_amount: 80,
+      base_unit_price: 40,
+    });
     expect(nonEurBase).toMatchObject({ currency: "USD", baseCurrency: "USD" });
     expect(nonEurBase.metadata).toMatchObject({ originalCurrency: "GBP" });
 
     const dtoBaseWins = adaptFundMovement(
       {
         id: "fund-conflict",
-        fecha_operacion: "2026-01-02",
-        fecha_liquidacion: "2026-01-03",
-        tipo_operacion: "SUSCRIPCION",
+        trade_date: "2026-01-02",
+        settlement_date: "2026-01-03",
+        operation_type: "buy",
+        cash_flow_type: "contribution",
         isin: "LU000",
-        nombre_fondo: "Global fund",
-        titulos: 2,
-        precio_neto: 50,
-        importe_neto: 100,
-        cuenta_id: "00000000-0000-0000-0000-000000000001",
-        moneda: "GBP",
-        moneda_base: "USD",
-        precio_base: 40,
-        importe_base: 80,
-      } as FundOrder,
+        asset_name: "Global fund",
+        quantity: 2,
+        unit_price: 50,
+        net_amount: 100,
+        fee: 0,
+        account_id: "00000000-0000-0000-0000-000000000001",
+        currency: "GBP",
+        base_currency: "USD",
+        base_unit_price: 40,
+        base_net_amount: 80,
+        base_fee: 0,
+        fx_rate_to_base: 0.8,
+        fx_rate_date: "2026-01-02",
+        fx_source: "test",
+        market: "",
+        account_name: "Broker",
+        platform: "Broker",
+        provider_operation_type: "SUSCRIPCION",
+      },
       { baseCurrency: "EUR" },
     );
     expect(dtoBaseWins).toMatchObject({ currency: "USD", baseCurrency: "USD" });
@@ -290,10 +309,13 @@ describe("normalized investment adapters", () => {
 
     const explicitBaseWithoutDtoBase = adaptFundMovement(
       {
-        ...movement,
-        moneda: "GBP",
-        moneda_base: undefined,
-      } as unknown as FundOrder,
+        ...fundOrder,
+        currency: "GBP",
+        base_currency: "",
+        base_unit_price: null,
+        base_net_amount: null,
+        base_fee: null,
+      },
       { baseCurrency: "USD" },
     );
     expect(explicitBaseWithoutDtoBase).toMatchObject({
@@ -308,21 +330,28 @@ describe("normalized investment adapters", () => {
   it("keeps stock fees, saveback, and split capability metadata", () => {
     const movement = adaptStockMovement({
       id: "stock-1",
-      fecha_operacion: "2026-01-02",
-      titulos: 3,
-      importe_neto: 300,
-      cuenta_id: "00000000-0000-0000-0000-000000000001",
-      tipo_operacion: "Compra",
+      trade_date: "2026-01-02",
+      quantity: 3,
+      net_amount: 300,
+      fee: 2,
+      account_id: "00000000-0000-0000-0000-000000000001",
+      account_name: "Broker",
+      platform: "Broker",
+      operation_type: "buy",
+      cash_flow_type: "none",
       isin: "US000",
-      nombre_activo: "Company",
-      precio_compra: 100,
-      comision: 2,
-      es_saveback: true,
-      moneda: "USD",
-      moneda_base: "EUR",
-      importe_base: 276,
-      precio_base: 92,
-      comision_base: 1.5,
+      asset_name: "Company",
+      unit_price: 100,
+      is_saveback: true,
+      currency: "USD",
+      base_currency: "EUR",
+      base_unit_price: 92,
+      base_net_amount: 276,
+      base_fee: 1.5,
+      fx_rate_to_base: 0.92,
+      fx_rate_date: "2026-01-02",
+      fx_source: "test",
+      market: "",
     } as StockOrder);
 
     expect(movement).toMatchObject({
@@ -344,16 +373,27 @@ describe("normalized investment adapters", () => {
   it("maps crypto fees and leaves saveback and split support disabled", () => {
     const movement = adaptCryptoMovement({
       id: "crypto-1",
-      fecha_operacion: "2026-01-02",
-      titulos: 0.01,
-      importe_neto: 500,
-      cuenta_id: "00000000-0000-0000-0000-000000000001",
-      tipo_operacion: "buy",
+      trade_date: "2026-01-02",
+      quantity: 0.01,
+      net_amount: 500,
+      fee: 1.2,
+      account_id: "00000000-0000-0000-0000-000000000001",
+      account_name: "Broker",
+      platform: "Broker",
+      operation_type: "buy",
+      cash_flow_type: "none",
       symbol: "BTC",
-      nombre_activo: "Bitcoin",
-      precio_compra: 50000,
-      comision: 1.2,
-      moneda: "EUR",
+      asset_name: "Bitcoin",
+      unit_price: 50000,
+      currency: "EUR",
+      base_currency: "EUR",
+      base_unit_price: 50000,
+      base_net_amount: 500,
+      base_fee: 1.2,
+      fx_rate_to_base: 1,
+      fx_rate_date: "2026-01-02",
+      fx_source: "identity",
+      market: "",
     } as CryptoOrder);
 
     expect(movement).toMatchObject({

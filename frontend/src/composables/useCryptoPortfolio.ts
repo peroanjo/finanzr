@@ -118,9 +118,9 @@ export function useCryptoPortfolio(
   const selectedChartOrders = computed(() =>
     selectedOrders.value.map((order) => ({
       ...order,
-      precio_compra: order.precio_base ?? order.precio_compra,
-      importe_neto: order.importe_base ?? order.importe_neto,
-      comision: order.comision_base ?? order.comision,
+      unit_price: order.base_unit_price ?? order.unit_price,
+      net_amount: order.base_net_amount ?? order.net_amount,
+      fee: order.base_fee ?? order.fee,
     })),
   );
   const averagePrice = computed(() => {
@@ -178,15 +178,15 @@ export function useCryptoPortfolio(
   });
 
   function baseAmount(order: CryptoOrder) {
-    return order.importe_base ?? order.importe_neto;
+    return order.base_net_amount ?? order.net_amount;
   }
 
   function basePrice(order: CryptoOrder) {
-    return order.precio_base ?? order.precio_compra;
+    return order.base_unit_price ?? order.unit_price;
   }
 
   function baseFee(order: CryptoOrder) {
-    return order.comision_base ?? order.comision;
+    return order.base_fee ?? order.fee;
   }
 
   function sortPositions(key: CryptoPositionSortKey) {

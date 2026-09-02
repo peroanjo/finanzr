@@ -20,9 +20,9 @@ describe("MovementDeleteDialog", () => {
     const wrapper = mount(MovementDeleteDialog, { props: { kind: "fund" } });
     const movement = {
       id: "provider/id",
-      cuenta_id: "12345678-1234-5678-1234-567812345678",
-      nombre_fondo: "Synthetic fund",
-      tipo_operacion: "SUSCRIPCION",
+      account_id: "12345678-1234-5678-1234-567812345678",
+      asset_name: "Synthetic fund",
+      operation_type: "buy",
     } as FundOrder;
     (wrapper.vm as unknown as { open(value: FundOrder): void }).open(movement);
 

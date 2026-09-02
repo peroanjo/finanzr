@@ -63,12 +63,14 @@ or a deployment secret store, never through fixtures or source control.
 6. Vue renders the result and localizes user-facing messages using the selected
    language, with English as the technical fallback.
 
-The workspace export is currently `finanzr-workspace-v2`. This document-level
+The workspace export is currently `finanzr-workspace-v3`. This document-level
 version records the native UUID/English account projections for savings,
 manual investments, funds, stocks, and crypto, including legacy-origin rows
-and archived history for complete exports. Traded orders retain their
-transitional Spanish envelope, but their `id` values are native transaction
-UUIDs and provider `external_id` values remain private import keys. There is no
+and archived history for complete exports. Traded orders use the same strict
+English transaction DTO as the HTTP API; provider `external_id`, import batch
+links, and raw metadata remain private import storage. Pure position and
+performance calculations consume a separate private Spanish-shaped projection
+so importer records and financial formulas remain unchanged. There is no
 parallel HTTP compatibility route.
 
 ## Deployment shape

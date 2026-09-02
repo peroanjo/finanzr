@@ -30,11 +30,11 @@ const AD_HOC_CHART_OPERATION_FIXES: AdHocChartOperationFix[] = [
     appliesTo: (operation) =>
       "isin" in operation &&
       operation.isin === "CNE100000296" &&
-      operation.fecha_operacion.slice(0, 10) < "2025-06-10",
+      operation.trade_date.slice(0, 10) < "2025-06-10",
     adjust: (operation) => ({
       ...operation,
-      titulos: operation.titulos * 3,
-      precio_compra: operation.precio_compra / 3,
+      quantity: operation.quantity * 3,
+      unit_price: operation.unit_price / 3,
     }),
   },
 ];

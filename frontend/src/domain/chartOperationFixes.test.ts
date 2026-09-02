@@ -4,18 +4,30 @@ import { applyAdHocChartOperationFixes } from "./chartOperationFixes";
 
 const bydOrder = (date: string): StockOrder => ({
   id: `byd-${date}`,
-  fecha_operacion: date,
-  titulos: 1,
-  importe_neto: 34.07,
-  cuenta_id: "00000000-0000-0000-0000-000000000001",
-  cuenta_nombre: "Trade Republic",
-  plataforma: "Trade Republic",
-  tipo_operacion: "Compra",
+  trade_date: date,
+  settlement_date: null,
+  quantity: 1,
+  net_amount: 34.07,
+  fee: 0,
+  account_id: "00000000-0000-0000-0000-000000000001",
+  account_name: "Trade Republic",
+  platform: "Trade Republic",
+  operation_type: "buy",
+  cash_flow_type: "none",
   isin: "CNE100000296",
-  nombre_activo: "BYD",
-  precio_compra: 34.07,
-  comision: 0,
-  es_saveback: false,
+  asset_name: "BYD",
+  unit_price: 34.07,
+  is_saveback: false,
+  currency: "EUR",
+  base_currency: "EUR",
+  base_unit_price: 34.07,
+  base_net_amount: 34.07,
+  base_fee: 0,
+  fx_rate_to_base: 1,
+  fx_rate_date: date,
+  fx_source: "identity",
+  market: "",
+  provider_operation_type: "Compra",
 });
 
 describe("applyAdHocChartOperationFixes", () => {
@@ -27,17 +39,17 @@ describe("applyAdHocChartOperationFixes", () => {
     const [adjustedFebruary, adjustedJuneNinth, untouchedSplitDate] =
       applyAdHocChartOperationFixes([february, juneNinth, splitDate]);
 
-    expect(adjustedFebruary.titulos).toBe(3);
-    expect(adjustedFebruary.precio_compra).toBeCloseTo(34.07 / 3);
+    expect(adjustedFebruary.quantity).toBe(3);
+    expect(adjustedFebruary.unit_price).toBeCloseTo(34.07 / 3);
     expect(adjustedFebruary.chartAdjustment).toEqual({
       id: "byd-pre-june-10-2025-split-3-to-1",
       label: "Split BYD 3:1",
     });
-    expect(adjustedJuneNinth.titulos).toBe(3);
-    expect(adjustedJuneNinth.precio_compra).toBeCloseTo(34.07 / 3);
+    expect(adjustedJuneNinth.quantity).toBe(3);
+    expect(adjustedJuneNinth.unit_price).toBeCloseTo(34.07 / 3);
     expect(untouchedSplitDate).toEqual(splitDate);
-    expect(february.titulos).toBe(1);
-    expect(february.precio_compra).toBe(34.07);
+    expect(february.quantity).toBe(1);
+    expect(february.unit_price).toBe(34.07);
   });
 
   it("does not modify other assets", () => {

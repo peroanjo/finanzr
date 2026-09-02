@@ -282,15 +282,12 @@ const filteredOrders = computed(() =>
     )
     .filter(
       (order) =>
-        !movementStart.value || order.fecha_operacion >= movementStart.value,
+        !movementStart.value || order.trade_date >= movementStart.value,
     )
     .filter(
-      (order) =>
-        !movementEnd.value || order.fecha_operacion <= movementEnd.value,
+      (order) => !movementEnd.value || order.trade_date <= movementEnd.value,
     )
-    .sort((a, b) =>
-      b.fecha_operacion.localeCompare(a.fecha_operacion, locale.value),
-    ),
+    .sort((a, b) => b.trade_date.localeCompare(a.trade_date, locale.value)),
 );
 const movementPages = computed(() =>
   Math.max(1, Math.ceil(filteredOrders.value.length / 15)),
@@ -464,11 +461,10 @@ function signedMoney(value: number) {
   return `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
 }
 function hasOriginalCurrency(order: StockOrder) {
-  return Boolean(order.moneda && order.moneda !== stockBaseCurrency.value);
+  return Boolean(order.currency && order.currency !== stockBaseCurrency.value);
 }
 function isBuy(order: StockOrder) {
-  const type = order.tipo_operacion.toLowerCase();
-  return type.includes("compra") || type.includes("buy");
+  return order.operation_type === "buy";
 }
 function operationGroup(order: StockOrder) {
   return isBuy(order) ? "in" : "out";
@@ -546,7 +542,7 @@ function chartQuery() {
 }
 function initializeMovementRange() {
   if (!orders.value.length || movementStart.value) return;
-  const dates = orders.value.map((order) => order.fecha_operacion).sort();
+  const dates = orders.value.map((order) => order.trade_date).sort();
   movementStart.value = dates[0];
   movementEnd.value = dates.at(-1) ?? dates[0];
 }
@@ -1430,29 +1426,29 @@ onMounted(loadDashboard);
               </thead>
               <tbody>
                 <tr v-for="order in displayedOrders" :key="order.id">
-                  <td>{{ displayDate(order.fecha_operacion) }}</td>
+                  <td>{{ displayDate(order.trade_date) }}</td>
                   <td>
                     <span class="operation-pill" :class="operationGroup(order)"
                       >{{ operationLabel(order)
-                      }}<small v-if="order.es_saveback">{{
+                      }}<small v-if="order.is_saveback">{{
                         t("stocks.movements.cashback")
                       }}</small></span
                     >
                   </td>
                   <td>
-                    <strong>{{ order.nombre_activo }}</strong
+                    <strong>{{ order.asset_name }}</strong
                     ><small>{{ order.isin }}</small>
                   </td>
                   <td>
-                    {{ order.cuenta_nombre ?? selectedAccountLabel
-                    }}<small>{{ order.plataforma }}</small>
+                    {{ order.account_name ?? selectedAccountLabel
+                    }}<small>{{ order.platform }}</small>
                   </td>
-                  <td>{{ quantity(order.titulos) }}</td>
+                  <td>{{ quantity(order.quantity) }}</td>
                   <td>
                     {{ money(basePrice(order))
                     }}<small v-if="hasOriginalCurrency(order)">{{
                       t("stocks.movements.originalValue", {
-                        value: originalMoney(order.precio_compra, order.moneda),
+                        value: originalMoney(order.unit_price, order.currency),
                       })
                     }}</small>
                   </td>
@@ -1460,7 +1456,7 @@ onMounted(loadDashboard);
                     <strong>{{ money(baseAmount(order)) }}</strong
                     ><small v-if="hasOriginalCurrency(order)">{{
                       t("stocks.movements.originalValue", {
-                        value: originalMoney(order.importe_neto, order.moneda),
+                        value: originalMoney(order.net_amount, order.currency),
                       })
                     }}</small>
                   </td>
@@ -1468,7 +1464,7 @@ onMounted(loadDashboard);
                     {{ money(baseFee(order)) }}
                     <small v-if="hasOriginalCurrency(order)">{{
                       t("stocks.movements.originalFee", {
-                        value: originalMoney(order.comision, order.moneda),
+                        value: originalMoney(order.fee, order.currency),
                       })
                     }}</small>
                   </td>
@@ -1476,12 +1472,12 @@ onMounted(loadDashboard);
                     <InvestmentMovementActions
                       :edit-label="
                         t('stocks.movements.editAria', {
-                          asset: order.nombre_activo,
+                          asset: order.asset_name,
                         })
                       "
                       :delete-label="
                         t('stocks.movements.deleteAria', {
-                          asset: order.nombre_activo,
+                          asset: order.asset_name,
                         })
                       "
                       @edit="openEditMovement(order)"

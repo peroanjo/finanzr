@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applyLocale, applyReportingCurrency } from "../i18n";
+import type { CryptoOrder, StockOrder } from "../types/api";
 import CryptoCandlestickChart from "./CryptoCandlestickChart.vue";
 
 const points = [
@@ -21,20 +22,32 @@ const points = [
     close: 71000,
   },
 ];
-const operations = [
+const operations: CryptoOrder[] = [
   {
     id: "btc-buy",
-    fecha_operacion: "2026-07-10",
-    titulos: 0.001,
-    importe_neto: 71.25,
-    cuenta_id: "00000000-0000-0000-0000-000000000001",
-    cuenta_nombre: "KrakenPro",
-    plataforma: "KrakenPro",
-    tipo_operacion: "Compra",
+    trade_date: "2026-07-10",
+    settlement_date: null,
+    quantity: 0.001,
+    net_amount: 71.25,
+    fee: 0.25,
+    account_id: "00000000-0000-0000-0000-000000000001",
+    account_name: "KrakenPro",
+    platform: "KrakenPro",
+    operation_type: "buy",
+    cash_flow_type: "none",
     symbol: "BTC",
-    nombre_activo: "Bitcoin",
-    precio_compra: 71000,
-    comision: 0.25,
+    asset_name: "Bitcoin",
+    unit_price: 71000,
+    currency: "EUR",
+    base_currency: "EUR",
+    base_unit_price: 71000,
+    base_net_amount: 71.25,
+    base_fee: 0.25,
+    fx_rate_to_base: 1,
+    fx_rate_date: "2026-07-10",
+    fx_source: "identity",
+    market: "",
+    provider_operation_type: "Compra",
   },
 ];
 
@@ -199,15 +212,19 @@ describe("CryptoCandlestickChart", () => {
     const sellOperation = {
       ...operations[0],
       id: "btc-sell",
-      fecha_operacion: "2026-07-09",
-      tipo_operacion: "Venta",
-      precio_compra: 69000,
+      trade_date: "2026-07-09",
+      operation_type: "sell" as const,
+      cash_flow_type: "none" as const,
+      provider_operation_type: "Venta",
+      unit_price: 69000,
+      base_unit_price: 69000,
     };
     const earlyBuyOperation = {
       ...operations[0],
       id: "btc-buy-early",
-      fecha_operacion: "2026-07-09",
-      precio_compra: 69000,
+      trade_date: "2026-07-09",
+      unit_price: 69000,
+      base_unit_price: 69000,
     };
     const wrapper = mount(CryptoCandlestickChart, {
       props: {
@@ -275,9 +292,11 @@ describe("CryptoCandlestickChart", () => {
     const secondBuy = {
       ...operations[0],
       id: "btc-buy-second",
-      titulos: 0.002,
-      importe_neto: 142.5,
-      comision: 0.5,
+      quantity: 0.002,
+      net_amount: 142.5,
+      fee: 0.5,
+      base_net_amount: 142.5,
+      base_fee: 0.5,
     };
     const wrapper = mount(CryptoCandlestickChart, {
       props: {
@@ -316,22 +335,36 @@ describe("CryptoCandlestickChart", () => {
   it("identifies a historical operation adjusted only for the chart", async () => {
     const adjustedOperation = {
       id: "byd-pre-split",
-      fecha_operacion: "2025-02-03",
-      titulos: 3,
-      importe_neto: 34.07,
-      cuenta_id: "00000000-0000-0000-0000-000000000001",
-      cuenta_nombre: "Trade Republic",
-      plataforma: "Trade Republic",
-      tipo_operacion: "Compra",
+      trade_date: "2025-02-03",
+      settlement_date: null,
+      quantity: 3,
+      net_amount: 34.07,
+      fee: 0,
+      account_id: "00000000-0000-0000-0000-000000000001",
+      account_name: "Trade Republic",
+      platform: "Trade Republic",
+      operation_type: "buy",
+      cash_flow_type: "none",
       isin: "CNE100000296",
-      nombre_activo: "BYD",
-      precio_compra: 34.07 / 3,
-      comision: 0,
-      es_saveback: false,
+      asset_name: "BYD",
+      unit_price: 34.07 / 3,
+      currency: "EUR",
+      base_currency: "EUR",
+      base_unit_price: 34.07 / 3,
+      base_net_amount: 34.07,
+      base_fee: 0,
+      fx_rate_to_base: 1,
+      fx_rate_date: "2025-02-03",
+      fx_source: "identity",
+      market: "",
+      provider_operation_type: "Compra",
+      is_saveback: false,
       chartAdjustment: {
         id: "byd-pre-june-10-2025-split-3-to-1",
         label: "Split BYD 3:1",
       },
+    } as StockOrder & {
+      chartAdjustment: { id: string; label: string };
     };
     const bydPoints = [
       {

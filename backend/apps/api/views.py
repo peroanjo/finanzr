@@ -43,7 +43,11 @@ from apps.api.schemas import (
     TradedAccountRequestSerializer,
     TradedAccountUpdateRequestSerializer,
 )
-from apps.api.transaction_projection import transaction_row
+from apps.api.transaction_projection import (
+    _calculation_operation_label,
+    _transaction_calculation_row,
+    transaction_row,
+)
 from apps.common.models import InstallationSettings
 from apps.common.summary_preferences import (
     SUMMARY_SOURCE_KEYS,
@@ -794,7 +798,7 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
 
     transaction_rows = []
     for item in valid_transactions:
-        row = transaction_row(item)
+        row = _transaction_calculation_row(item)
         row["importe_base"] = number(base_amounts[item.pk])
         transaction_rows.append(row)
     months = set(prices_by_month)
@@ -1543,21 +1547,35 @@ def transaction_list(request: Request, kind: str) -> Response:
     return Response([transaction_row(item) for item in queryset.order_by("trade_date")])
 
 
+def _transaction_calculation_list(
+    request: Request, kind: str, selected_account: Account | None = None
+) -> list[dict[str, Any]]:
+    """Return private legacy-shaped rows for pure position calculations."""
+    queryset = transaction_queryset(request, kind, selected_account)
+    return [_transaction_calculation_row(item) for item in queryset.order_by("trade_date")]
+
+
 FUND_MANUAL_OPERATIONS = {
-    "SUSCRIPCION": (Transaction.OperationType.BUY, Transaction.CashFlowType.CONTRIBUTION),
-    "SUSCR.POR TRASPASO I": (
+    Transaction.OperationType.BUY: (
+        Transaction.OperationType.BUY,
+        Transaction.CashFlowType.CONTRIBUTION,
+    ),
+    Transaction.OperationType.TRANSFER_IN: (
         Transaction.OperationType.TRANSFER_IN,
         Transaction.CashFlowType.INTERNAL,
     ),
-    "REEMB.POR TRASPASO I": (
+    Transaction.OperationType.TRANSFER_OUT: (
         Transaction.OperationType.TRANSFER_OUT,
         Transaction.CashFlowType.INTERNAL,
     ),
-    "REEMBOLSO": (Transaction.OperationType.SELL, Transaction.CashFlowType.WITHDRAWAL),
+    Transaction.OperationType.SELL: (
+        Transaction.OperationType.SELL,
+        Transaction.CashFlowType.WITHDRAWAL,
+    ),
 }
 CRYPTO_MANUAL_OPERATIONS = {
-    "Compra": (Transaction.OperationType.BUY, Transaction.CashFlowType.NONE),
-    "Venta": (Transaction.OperationType.SELL, Transaction.CashFlowType.NONE),
+    Transaction.OperationType.BUY: (Transaction.OperationType.BUY, Transaction.CashFlowType.NONE),
+    Transaction.OperationType.SELL: (Transaction.OperationType.SELL, Transaction.CashFlowType.NONE),
 }
 TRANSACTION_EXTERNAL_ID_CONSTRAINT = "transaction_external_id_unique"
 
@@ -1587,7 +1605,7 @@ def save_manual_transaction(
     if "cuenta_id" in raw_data or "cuenta_id_original" in raw_data:
         return Response({"error": _("Use account_id for account selection")}, status=400)
     data = dict(raw_data)
-    for optional_field in ("fecha_liquidacion", "tipo_cambio", "fecha_tipo_cambio"):
+    for optional_field in ("settlement_date", "fx_rate_to_base", "fx_rate_date"):
         if data.get(optional_field) == "":
             data[optional_field] = None
     serializer_class = {
@@ -1613,7 +1631,7 @@ def save_manual_transaction(
     operations = (
         FUND_MANUAL_OPERATIONS if kind == Instrument.Kind.FUND else CRYPTO_MANUAL_OPERATIONS
     )
-    operation_label = str(data.get("tipo_operacion", ""))
+    operation_label = cast(Transaction.OperationType, data.get("operation_type", ""))
     if operation_label not in operations:
         return Response({"error": _("The transaction type is not valid")}, status=400)
     try:
@@ -1622,14 +1640,13 @@ def save_manual_transaction(
         instrument = workspace_instrument(request, scheme, str(data[asset_key]))
         if instrument.kind != kind:
             return Response({"error": _("The asset does not belong in this section")}, status=400)
-        trade_date = date.fromisoformat(str(data["fecha_operacion"])[:10])
-        settlement_value = str(data.get("fecha_liquidacion") or "")[:10]
+        trade_date = date.fromisoformat(str(data["trade_date"])[:10])
+        settlement_value = str(data.get("settlement_date") or "")[:10]
         settlement_date = date.fromisoformat(settlement_value) if settlement_value else None
-        quantity = decimal(data["titulos"])
-        price_key = "precio_neto" if kind == Instrument.Kind.FUND else "precio_compra"
-        unit_price = decimal(data[price_key])
-        amount = decimal(data["importe_neto"])
-        fee = decimal(data.get("comision"))
+        quantity = decimal(data["quantity"])
+        unit_price = decimal(data["unit_price"])
+        amount = decimal(data["net_amount"])
+        fee = decimal(data.get("fee"))
     except (KeyError, TypeError, ValueError):
         return Response({"error": _("Check the required transaction fields")}, status=400)
     if quantity <= 0 or unit_price < 0 or amount < 0 or fee < 0:
@@ -1674,7 +1691,7 @@ def save_manual_transaction(
     item.net_amount = amount
     item.fee = fee
     provider = provider_name(account).casefold()
-    requested_saveback = data.get("es_saveback", False) in {
+    requested_saveback = data.get("is_saveback", False) in {
         True,
         "1",
         "true",
@@ -1683,22 +1700,20 @@ def save_manual_transaction(
     item.is_saveback = bool(
         kind == Instrument.Kind.STOCK and "trade republic" in provider and requested_saveback
     )
-    if "mercado" in data:
-        item.market = str(data["mercado"])
+    if "market" in data:
+        item.market = str(data["market"])
     try:
         currency = normalize_currency(
-            data.get("divisa")
-            or data.get("moneda")
-            or (item.currency if not creating else account.currency)
+            data.get("currency") or (item.currency if not creating else account.currency)
         )
         base_currency = normalize_currency(account.workspace.base_currency)
         provided_rate = (
-            decimal(data["tipo_cambio"]) if data.get("tipo_cambio") not in (None, "") else None
+            decimal(data["fx_rate_to_base"])
+            if data.get("fx_rate_to_base") not in (None, "")
+            else None
         )
         provided_rate_date = (
-            date.fromisoformat(str(data["fecha_tipo_cambio"])[:10])
-            if data.get("fecha_tipo_cambio")
-            else None
+            date.fromisoformat(str(data["fx_rate_date"])[:10]) if data.get("fx_rate_date") else None
         )
         conversion = rate_to_base(
             currency,
@@ -1706,7 +1721,7 @@ def save_manual_transaction(
             settlement_date or trade_date,
             provided_rate=provided_rate,
             provided_date=provided_rate_date,
-            provided_source=str(data.get("fuente_tipo_cambio") or "manual"),
+            provided_source=str(data.get("fx_source") or "manual"),
             workspace=account.workspace,
         )
     except (CurrencyConversionError, ValueError) as exc:
@@ -1719,12 +1734,13 @@ def save_manual_transaction(
     item.fx_rate_to_base = conversion.rate
     item.fx_rate_date = conversion.rate_date
     item.fx_source = conversion.source
-    item.provider_operation_type = operation_label
-    item.raw_metadata = {
-        **item.raw_metadata,
-        "legacy_name": instrument.name,
-        "manual": True,
-    }
+    if item.external_id is None:
+        item.provider_operation_type = _calculation_operation_label(item)
+        item.raw_metadata = {
+            **item.raw_metadata,
+            "legacy_name": instrument.name,
+            "manual": True,
+        }
     try:
         # The precheck avoids the common query, while this atomic save closes
         # the race with another import or edit claiming the same provider ID.
@@ -1967,13 +1983,9 @@ def analysis(request: Request, kind: str) -> Response:
     selected_account = _selected_traded_account(request, kind)
     if isinstance(selected_account, Response):
         return selected_account
-    listed = transaction_list(request, kind)
-    if listed.status_code != 200:
-        return listed
     account_filter = selected_account.id if selected_account is not None else None
-    return Response(
-        analyzed_positions(request, kind, list(listed.data), account_filter=account_filter)
-    )
+    rows = _transaction_calculation_list(request, kind, selected_account)
+    return Response(analyzed_positions(request, kind, rows, account_filter=account_filter))
 
 
 @api_view(["GET"])
@@ -2052,7 +2064,7 @@ def portfolio_analysis(request: Request) -> Response:
         "crypto": "Criptomoneda",
     }
     for kind, account_kind in account_kinds.items():
-        all_rows = list(transaction_list(request, kind).data)
+        all_rows = _transaction_calculation_list(request, kind)
         identity_key = "symbol" if kind == "crypto" else "isin"
         for account in kind_accounts(request, account_kind):
             account_uuid = str(account.id)
@@ -2469,7 +2481,7 @@ def investment_performance(request: Request, kind: str) -> Response:
     if cached is not None:
         return Response(cached)
 
-    rows = list(transaction_list(request, instrument_kind).data)
+    rows = _transaction_calculation_list(request, instrument_kind, selected_account)
     result_base: dict[str, Any] = {
         "range": response_range,
         "account_id": account_value,
