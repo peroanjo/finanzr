@@ -392,7 +392,8 @@ def test_real_estate_uses_uuid_and_native_fields(
         "currency",
     }
     assert project["status"] == "active"
-    assert client.delete("/api/real-estate/1").status_code == 404
+    delete_response = client.delete("/api/real-estate/1")
+    assert delete_response.status_code == 404
     rejected = client.post(
         "/api/real-estate",
         {
@@ -1484,26 +1485,24 @@ def test_portfolio_native_contract_isolates_uuid_scope_and_types(
 
     assert client.get("/api/portfolio/not-a-uuid").status_code == 404
     assert client.get("/api/portfolio/1").status_code == 404
-    assert client.put("/api/portfolio/1", {}, format="json").status_code == 404
+    put_numeric_id = client.put("/api/portfolio/1", {}, format="json")
+    assert put_numeric_id.status_code == 404
     deleted_legacy_id = client.delete("/api/portfolio/1")
     assert deleted_legacy_id.status_code == 404
-    assert client.put("/api/portfolio/not-a-uuid", {}, format="json").status_code == 404
-    assert (
-        client.put(
-            f"/api/portfolio/{savings_id}",
-            {"name": "Wrong type"},
-            format="json",
-        ).status_code
-        == 404
+    put_invalid_uuid = client.put("/api/portfolio/not-a-uuid", {}, format="json")
+    assert put_invalid_uuid.status_code == 404
+    put_savings_id = client.put(
+        f"/api/portfolio/{savings_id}",
+        {"name": "Wrong type"},
+        format="json",
     )
-    assert (
-        client.put(
-            f"/api/portfolio/{foreign_asset.id}",
-            {"name": "Should remain hidden"},
-            format="json",
-        ).status_code
-        == 404
+    assert put_savings_id.status_code == 404
+    put_foreign_asset = client.put(
+        f"/api/portfolio/{foreign_asset.id}",
+        {"name": "Should remain hidden"},
+        format="json",
     )
+    assert put_foreign_asset.status_code == 404
 
 
 @pytest.mark.django_db(transaction=True)

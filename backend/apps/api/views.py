@@ -23,7 +23,6 @@ from apps.api.investment_projection import investment_account_row, investment_sn
 from apps.api.legacy import (
     account_row,
     instrument_row,
-    next_legacy_id,
     number,
     price_row,
     provider_name,
