@@ -65,6 +65,7 @@ from apps.api.schemas import (
     SavingsAccountRequestSerializer,
     SavingsAccountUpdateRequestSerializer,
     StockSplitRequestSerializer,
+    StockSplitResponseSerializer,
     StockTransactionRequestSerializer,
     StockTransactionResponseSerializer,
     StockTransactionUpdateRequestSerializer,
@@ -458,6 +459,8 @@ class PublicAutoSchema(AutoSchema):
             response = PriceFetchResponseSerializer
         elif family_path == "/api/fx-rates":
             response = FxRateResponseSerializer(many=self.method == "GET")
+        elif family_path == "/api/stock-splits":
+            response = StockSplitResponseSerializer(many=self.method == "GET")
         elif path == "/api/budget":
             response = BudgetRowSerializer(many=True)
         elif family_path in {

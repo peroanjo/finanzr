@@ -79,7 +79,7 @@ urlpatterns = [
     path("stock-analysis", views.stock_analysis),
     path("crypto-analysis", views.crypto_analysis),
     path("stock-splits", views.stock_splits),
-    path("stock-splits/<str:asset_id>/<str:value_date>", views.stock_split_detail),
+    path("stock-splits/<uuid:split_id>", views.stock_split_detail),
     path("fund-chart/<str:asset_id>", views.fund_chart),
     path("stock-chart/<str:asset_id>", views.stock_chart),
     path("crypto-chart/<str:asset_id>", views.crypto_chart),

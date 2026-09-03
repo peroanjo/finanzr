@@ -46,6 +46,7 @@ from apps.api.schemas import (
     RealEstateUpdateRequestSerializer,
     SavingsAccountRequestSerializer,
     SavingsAccountUpdateRequestSerializer,
+    StockSplitRequestSerializer,
     StockTransactionRequestSerializer,
     TradedAccountRequestSerializer,
     TradedAccountUpdateRequestSerializer,
@@ -2316,59 +2317,71 @@ def portfolio_analysis(request: Request) -> Response:
 
 @api_view(["GET", "POST"])
 def stock_splits(request: Request) -> Response:
-    queryset = (
-        StockSplit.objects.filter(workspace=workspace(request))
-        .select_related("instrument")
-        .prefetch_related("instrument__identifiers")
+    current_workspace = workspace(request)
+    queryset = StockSplit.objects.filter(
+        workspace=current_workspace,
+        instrument__kind=Instrument.Kind.STOCK,
     )
-    if request.method == "POST":
-        if denied := forbidden_if_readonly(request):
-            return denied
-        data = payload(request)
-        instrument = workspace_instrument(
-            request, InstrumentIdentifier.Scheme.ISIN, str(data["isin"])
+    if request.method == "GET":
+        return Response([_stock_split_row(split) for split in queryset])
+    if denied := forbidden_if_readonly(request):
+        return denied
+
+    serializer = StockSplitRequestSerializer(data=payload(request))
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+    data = cast(dict[str, Any], serializer.validated_data)
+    instrument = (
+        workspace_instruments(request, Instrument.Kind.STOCK)
+        .filter(pk=data["instrument_id"])
+        .first()
+    )
+    if instrument is None:
+        return Response(
+            {"error": _("The instrument is not available in this workspace")}, status=400
         )
-        if instrument.kind != Instrument.Kind.STOCK:
-            return Response({"error": _("The asset does not belong in this section")}, status=400)
-        StockSplit.objects.update_or_create(
-            workspace=workspace(request),
-            instrument=instrument,
-            effective_date=str(data["fecha"])[:10],
+
+    with transaction.atomic():
+        locked_instrument = Instrument.objects.select_for_update().get(pk=instrument.pk)
+        split, _created = StockSplit.objects.select_for_update().update_or_create(
+            workspace=current_workspace,
+            instrument=locked_instrument,
+            effective_date=data["effective_date"],
             defaults={
-                "ratio": decimal(data["ratio"]),
-                "source": data.get("fuente", "manual"),
+                "ratio": data["ratio"],
+                "source": data["source"],
                 "confirmed_by": cast(User, request.user),
             },
         )
-        cache.clear()
-        return Response({"ok": True})
-    return Response(
-        [
-            {
-                "isin": identifier(s.instrument, InstrumentIdentifier.Scheme.ISIN),
-                "fecha": s.effective_date.isoformat(),
-                "ratio": number(s.ratio),
-                "fuente": s.source,
-            }
-            for s in queryset
-        ]
-    )
+    cache.clear()
+    return Response(_stock_split_row(split), status=200)
 
 
 @api_view(["DELETE"])
-def stock_split_detail(request: Request, asset_id: str, value_date: str) -> Response:
+def stock_split_detail(request: Request, split_id: UUID) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    instrument = workspace_instrument(request, InstrumentIdentifier.Scheme.ISIN, asset_id)
-    if instrument.kind != Instrument.Kind.STOCK:
-        return Response({"error": _("The asset does not belong in this section")}, status=400)
-    StockSplit.objects.filter(
-        workspace=workspace(request),
-        instrument=instrument,
-        effective_date=value_date,
-    ).delete()
+    split = get_object_or_404(
+        StockSplit.objects.filter(
+            workspace=workspace(request),
+            instrument__kind=Instrument.Kind.STOCK,
+        ),
+        pk=split_id,
+    )
+    split.delete()
     cache.clear()
     return Response({"ok": True})
+
+
+def _stock_split_row(split: StockSplit) -> dict[str, Any]:
+    """Return the native public representation of a stock split."""
+    return {
+        "id": str(split.id),
+        "instrument_id": str(split.instrument_id),
+        "effective_date": split.effective_date.isoformat(),
+        "ratio": number(split.ratio),
+        "source": split.source,
+    }
 
 
 def workspace_instrument(request: Request, scheme: str, value: str) -> Instrument:

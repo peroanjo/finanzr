@@ -550,10 +550,26 @@ class CryptoTransactionUpdateRequestSerializer(CryptoTransactionRequestSerialize
     pass
 
 
-class StockSplitRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    fecha = serializers.DateField(required=True)
-    ratio = serializers.DecimalField(max_digits=12, decimal_places=6, required=True)
-    isin = serializers.CharField(required=True)
+class StockSplitRequestSerializer(StrictSerializer):
+    instrument_id = serializers.UUIDField(required=True)
+    effective_date = serializers.DateField(required=True)
+    ratio = serializers.DecimalField(max_digits=24, decimal_places=12, required=True)
+    source = serializers.CharField(
+        required=False, allow_blank=False, max_length=120, default="manual"
+    )  # type: ignore[assignment]
+
+    def validate_ratio(self, value: Decimal) -> Decimal:
+        if not value.is_finite() or value <= 0:
+            raise serializers.ValidationError(_("Ratio must be finite and greater than zero."))
+        return value
+
+
+class StockSplitResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    id = serializers.UUIDField()
+    instrument_id = serializers.UUIDField()
+    effective_date = serializers.DateField()
+    ratio = serializers.DecimalField(max_digits=24, decimal_places=12, coerce_to_string=False)
+    source = serializers.CharField()  # type: ignore[assignment]
 
 
 class PriceRequestSerializer(StrictSerializer):
