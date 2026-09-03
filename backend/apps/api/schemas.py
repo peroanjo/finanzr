@@ -672,6 +672,37 @@ class PriceFetchResponseSerializer(serializers.Serializer[dict[str, Any]]):
     results = PriceFetchResultSerializer(many=True)
 
 
+class FundChartPointSerializer(serializers.Serializer[dict[str, Any]]):
+    date = serializers.DateField()
+    close = serializers.DecimalField(max_digits=24, decimal_places=6, coerce_to_string=False)
+
+
+class MarketChartPointSerializer(serializers.Serializer[dict[str, Any]]):
+    date = serializers.DateField()
+    open = serializers.DecimalField(max_digits=24, decimal_places=6, coerce_to_string=False)
+    high = serializers.DecimalField(max_digits=24, decimal_places=6, coerce_to_string=False)
+    low = serializers.DecimalField(max_digits=24, decimal_places=6, coerce_to_string=False)
+    close = serializers.DecimalField(max_digits=24, decimal_places=6, coerce_to_string=False)
+
+
+class FundChartResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    instrument_id = serializers.UUIDField()
+    ticker = serializers.CharField()
+    currency = serializers.CharField()
+    base_currency = serializers.CharField()
+    range = serializers.CharField()
+    data = FundChartPointSerializer(many=True)  # type: ignore[assignment]
+
+
+class MarketChartResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    instrument_id = serializers.UUIDField()
+    ticker = serializers.CharField()
+    currency = serializers.CharField()
+    base_currency = serializers.CharField()
+    range = serializers.CharField()
+    data = MarketChartPointSerializer(many=True)  # type: ignore[assignment]
+
+
 class FxRateResponseSerializer(serializers.Serializer[dict[str, Any]]):
     id = serializers.UUIDField(required=False)
     quote_currency = serializers.CharField()

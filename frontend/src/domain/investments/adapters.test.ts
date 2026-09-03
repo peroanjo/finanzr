@@ -463,25 +463,23 @@ describe("normalized investment adapters", () => {
       { baseCurrency: "EUR" },
     );
     const fundChart = adaptFundChart({
-      isin: "LU000",
+      instrument_id: "00000000-0000-0000-0000-000000000101",
       ticker: "GLOBAL",
-      moneda: "GBP",
-      moneda_base: "USD",
+      currency: "GBP",
+      base_currency: "USD",
       range: "1y",
-      data: [
-        { fecha: "2026-01-01", precio: 50, precio_orig: 50, precio_base: 42 },
-      ],
+      data: [{ date: "2026-01-01", close: 42 }],
     } as FundChartResponse);
     const explicitChartBase = adaptStockChart(
       {
-        isin: "US000",
+        instrument_id: "00000000-0000-0000-0000-000000000102",
         ticker: "CMP",
-        moneda: "GBP",
+        currency: "GBP",
+        base_currency: "USD",
         range: "1y",
         data: [
           {
-            fecha: "2026-01-01",
-            precio: 50,
+            date: "2026-01-01",
             open: 48,
             high: 52,
             low: 47,
@@ -492,9 +490,10 @@ describe("normalized investment adapters", () => {
       { baseCurrency: "USD" },
     );
     const emptyChart = adaptStockChart({
-      isin: "US000",
+      instrument_id: "00000000-0000-0000-0000-000000000102",
       ticker: "CMP",
-      moneda: "USD",
+      currency: "USD",
+      base_currency: "USD",
       range: "1y",
       data: null as never,
     } as StockChartResponse);
@@ -515,8 +514,8 @@ describe("normalized investment adapters", () => {
     });
     expect(fundChart).toMatchObject({
       kind: "fund",
-      assetId: "LU000",
-      assetKey: "fund:LU000",
+      assetId: "00000000-0000-0000-0000-000000000101",
+      assetKey: "fund:00000000-0000-0000-0000-000000000101",
       currency: "USD",
       baseCurrency: "USD",
       seriesKind: "line",
@@ -550,7 +549,7 @@ describe("normalized investment adapters", () => {
     ).toMatchObject({ currency: "UNSPECIFIED", baseCurrency: null });
     expect(emptyChart).toMatchObject({
       kind: "stock",
-      assetId: "US000",
+      assetId: "00000000-0000-0000-0000-000000000102",
       currency: "USD",
       data: [],
     });
@@ -628,15 +627,14 @@ describe("normalized investment adapters", () => {
 
   it("maps OHLC market candles and crypto chart identity without changing DTOs", () => {
     const chart = adaptCryptoChart({
-      symbol: "BTC",
+      instrument_id: "00000000-0000-0000-0000-000000000201",
       ticker: "BTC-EUR",
-      moneda: "EUR",
-      moneda_base: "EUR",
+      currency: "EUR",
+      base_currency: "EUR",
       range: "1y",
       data: [
         {
-          fecha: "2026-01-01",
-          precio: 51000,
+          date: "2026-01-01",
           open: 50000,
           high: 52000,
           low: 49000,
@@ -647,8 +645,8 @@ describe("normalized investment adapters", () => {
 
     expect(chart).toMatchObject({
       kind: "crypto",
-      assetId: "BTC",
-      assetKey: "crypto:BTC",
+      assetId: "00000000-0000-0000-0000-000000000201",
+      assetKey: "crypto:00000000-0000-0000-0000-000000000201",
       ticker: "BTC-EUR",
       currency: "EUR",
       baseCurrency: "EUR",
@@ -665,38 +663,35 @@ describe("normalized investment adapters", () => {
 
   it("filters market candles with missing or non-finite OHLC fields", () => {
     const chart = adaptStockChart({
-      isin: "US000",
+      instrument_id: "00000000-0000-0000-0000-000000000102",
       ticker: "CMP",
-      moneda: "USD",
+      currency: "USD",
+      base_currency: "USD",
       range: "1y",
       data: [
         {
-          fecha: "2026-01-01",
-          precio: 50,
+          date: "2026-01-01",
           open: 48,
           high: 52,
           low: 47,
           close: 50,
         },
         {
-          fecha: "2026-01-02",
-          precio: 51,
+          date: "2026-01-02",
           open: null as unknown as number,
           high: 53,
           low: 49,
           close: 51,
         },
         {
-          fecha: "2026-01-03",
-          precio: 52,
+          date: "2026-01-03",
           open: 50,
           high: Number.NaN,
           low: 49,
           close: 52,
         },
         {
-          fecha: "2026-01-04",
-          precio: 53,
+          date: "2026-01-04",
           open: 51,
           high: 55,
           low: 50,

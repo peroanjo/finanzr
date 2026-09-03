@@ -9,7 +9,7 @@ from apps.api import views
 from apps.api.market_data_projection import instrument_calculation_row
 from apps.common.models import InstallationSettings
 from apps.imports.models import ImportBatch, ImportIssue
-from apps.market_data.fx import FxConversion
+from apps.market_data.fx import CurrencyConversionError, FxConversion
 from apps.market_data.models import (
     Instrument,
     InstrumentIdentifier,
@@ -2660,11 +2660,204 @@ def test_crypto_chart_returns_ohlc_data(
         ),
     )
 
-    response = client.get("/api/crypto-chart/BTC?range=1m&interval=1d")
+    crypto_id = Instrument.objects.get(kind=Instrument.Kind.CRYPTO).pk
+    response = client.get(f"/api/crypto-chart/{crypto_id}?range=1m&interval=1d")
 
     assert response.status_code == 200
-    assert response.json()["symbol"] == "BTC"
+    assert response.json()["instrument_id"] == str(crypto_id)
+    assert response.json()["currency"] == "EUR"
+    assert response.json()["base_currency"] == "EUR"
+    assert set(response.json()) == {
+        "instrument_id",
+        "ticker",
+        "currency",
+        "base_currency",
+        "range",
+        "data",
+    }
+    assert set(response.json()["data"][0]) == {
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+    }
     assert response.json()["data"][0]["close"] == 70000
+
+
+@pytest.mark.django_db(transaction=True)
+def test_market_charts_use_native_uuid_rows_and_per_date_fx(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    instrument_ids: dict[str, str] = {
+        "fund": str(Instrument.objects.get(kind=Instrument.Kind.FUND).pk),
+        "stock": str(Instrument.objects.get(kind=Instrument.Kind.STOCK).pk),
+        "crypto": str(Instrument.objects.get(kind=Instrument.Kind.CRYPTO).pk),
+    }
+    calls: list[dict[str, Any]] = []
+
+    def fake_chart(
+        ticker: str, **kwargs: str | None
+    ) -> tuple[dict[str, str], list[dict[str, int | str]]]:
+        calls.append({"ticker": ticker, **kwargs})
+        return (
+            {"currency": "USD"},
+            [
+                {
+                    "fecha": "2026-01-01",
+                    "precio": 10,
+                    "open": 9,
+                    "high": 11,
+                    "low": 8,
+                    "close": 10,
+                    "provider_only": "must-not-leak",
+                },
+                {
+                    "fecha": "2026-01-02",
+                    "precio": 20,
+                    "open": 19,
+                    "high": 21,
+                    "low": 18,
+                    "close": 20,
+                    "provider_only": "must-not-leak",
+                },
+            ],
+        )
+
+    def fake_rates(
+        _currency: str,
+        _base_currency: str,
+        dates: list[date],
+        *,
+        workspace: Any,
+    ) -> dict[date, FxConversion]:
+        assert workspace is not None
+        assert dates == [date(2026, 1, 1), date(2026, 1, 2)]
+        return {
+            dates[0]: FxConversion(Decimal("1.23456789"), dates[0], "test"),
+            dates[1]: FxConversion(Decimal("0.987654321"), dates[1], "test"),
+        }
+
+    monkeypatch.setattr(views, "yahoo_chart", fake_chart)
+    monkeypatch.setattr(views, "rates_to_base", fake_rates)
+
+    for kind, expected_keys in {
+        "fund": {"date", "close"},
+        "stock": {"date", "open", "high", "low", "close"},
+        "crypto": {"date", "open", "high", "low", "close"},
+    }.items():
+        response = client.get(
+            f"/api/{kind}-chart/{instrument_ids[kind]}"
+            "?range=2y&interval=invalid&start=2026-01-01&end=2026-01-02"
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert set(payload) == {
+            "instrument_id",
+            "ticker",
+            "currency",
+            "base_currency",
+            "range",
+            "data",
+        }
+        assert payload["instrument_id"] == instrument_ids[kind]
+        assert payload["currency"] == "USD"
+        assert payload["base_currency"] == "EUR"
+        assert payload["range"] == "2y"
+        assert all(set(point) == expected_keys for point in payload["data"])
+
+        if kind == "fund":
+            assert payload["data"] == [
+                {"date": "2026-01-01", "close": 12.345679},
+                {"date": "2026-01-02", "close": 19.753086},
+            ]
+        else:
+            assert payload["data"][0] == {
+                "date": "2026-01-01",
+                "open": 11.111111,
+                "high": 13.580247,
+                "low": 9.876543,
+                "close": 12.345679,
+            }
+
+    assert [call["interval"] for call in calls] == ["1d", "1d", "1d"]
+    assert all(
+        call["range_name"] == "2y" and call["start"] == "2026-01-01" and call["end"] == "2026-01-02"
+        for call in calls
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_market_chart_uuid_scope_rejects_before_provider_access(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    fund = Instrument.objects.get(kind=Instrument.Kind.FUND)
+    foreign_workspace = Workspace.objects.create(
+        name="Foreign chart workspace",
+        slug="foreign-chart-workspace",
+        base_currency="EUR",
+    )
+    foreign_stock = Instrument.objects.create(
+        kind=Instrument.Kind.STOCK,
+        name="Foreign chart stock",
+        quote_currency="EUR",
+    )
+    WorkspaceInstrument.objects.create(workspace=foreign_workspace, instrument=foreign_stock)
+
+    provider_calls = 0
+
+    def unexpected_ticker(_instrument: Instrument) -> str:
+        nonlocal provider_calls
+        provider_calls += 1
+        raise AssertionError("Rejected chart requests must not access the provider")
+
+    monkeypatch.setattr(views, "yahoo_ticker", unexpected_ticker)
+    for path in (
+        f"/api/stock-chart/{UUID(int=0)}",
+        f"/api/stock-chart/{fund.pk}",
+        f"/api/stock-chart/{foreign_stock.pk}",
+        "/api/stock-chart/not-a-uuid",
+        "/api/stock-chart/SYNTH-STOCK-001",
+    ):
+        res = client.get(path)
+        assert res.status_code == 404
+    assert provider_calls == 0
+
+
+@pytest.mark.django_db(transaction=True)
+def test_market_chart_preserves_provider_and_currency_errors(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    stock = Instrument.objects.get(kind=Instrument.Kind.STOCK)
+    monkeypatch.setattr(views, "yahoo_ticker", lambda _instrument: "SYNTH")
+
+    def unavailable_chart(*_args: Any, **_kwargs: Any) -> Any:
+        raise views.MarketDataError("synthetic provider error")
+
+    monkeypatch.setattr(views, "yahoo_chart", unavailable_chart)
+    provider_error = client.get(f"/api/stock-chart/{stock.pk}")
+    assert provider_error.status_code == 502
+    assert provider_error.json() == {"error": "synthetic provider error"}
+
+    monkeypatch.setattr(
+        views,
+        "yahoo_chart",
+        lambda *_args, **_kwargs: (
+            {"currency": "USD"},
+            [{"fecha": "2026-01-01", "precio": 10, "open": 9, "high": 11, "low": 8, "close": 10}],
+        ),
+    )
+
+    def unavailable_rates(*_args: Any, **_kwargs: Any) -> Any:
+        raise CurrencyConversionError("synthetic currency error")
+
+    monkeypatch.setattr(views, "rates_to_base", unavailable_rates)
+    currency_error = client.get(f"/api/stock-chart/{stock.pk}")
+    assert currency_error.status_code == 502
+    assert currency_error.json() == {"error": "synthetic currency error"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -3214,7 +3407,7 @@ def test_identifier_selection_matches_public_projection_and_market_consumers(
         "yahoo_chart",
         fake_chart,
     )
-    chart = client.get("/api/stock-chart/SELECT-001")
+    chart = client.get(f"/api/stock-chart/{instrument.pk}")
     assert chart.status_code == 200
     assert chart.json()["ticker"] == "SELECT.STALE"
     assert chart_tickers == ["SELECT.STALE"]
@@ -3299,9 +3492,11 @@ def test_canonical_identity_resolvers_ignore_nondefault_aliases(
             ],
         ),
     )
-    chart = client.get(f"/api/stock-chart/{canonical}")
+    chart = client.get(f"/api/stock-chart/{first_instrument.pk}")
     assert chart.status_code == 200
     assert chart.json()["ticker"] == "OWNER.MC"
+    legacy_chart = client.get(f"/api/stock-chart/{canonical}")
+    assert legacy_chart.status_code == 404
 
     price = client.put(f"/api/stock-prices/{first_instrument.pk}", {"close": 123}, format="json")
     assert price.status_code == 200

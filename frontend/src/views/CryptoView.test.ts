@@ -232,6 +232,12 @@ let mockInstruments: CryptoInstrument[] = [
     "ETH-EUR",
     "Ethereum",
   ),
+  makeCryptoInstrument(
+    "00000000-0000-0000-0000-000000000520",
+    "T15",
+    "T15-EUR",
+    "Test 15",
+  ),
 ];
 let mockPrices: CryptoPrice[] = [
   {
@@ -269,6 +275,12 @@ function installApiMock() {
       "ETH",
       "ETH-EUR",
       "Ethereum",
+    ),
+    makeCryptoInstrument(
+      "00000000-0000-0000-0000-000000000520",
+      "T15",
+      "T15-EUR",
+      "Test 15",
     ),
   ];
   mockPrices = [
@@ -421,15 +433,24 @@ function installApiMock() {
         range: new URLSearchParams(path.split("?")[1]).get("range") ?? "custom",
       };
     if (path.startsWith("/crypto-chart/")) {
-      const symbol = decodeURIComponent(
+      const instrumentId = decodeURIComponent(
         path.split("/")[2]?.split("?")[0] ?? "BTC",
       );
+      const symbol = mockInstruments.find((item) => item.id === instrumentId)
+        ? instrumentIdentity(
+            mockInstruments.find((item) => item.id === instrumentId)!,
+          )
+        : instrumentId;
       return {
-        symbol,
+        instrument_id: instrumentId,
         ticker: `${symbol}-EUR`,
-        moneda: "EUR",
+        currency: "EUR",
+        base_currency: "EUR",
         range: "1y",
-        data: candles,
+        data: candles.map(({ fecha, precio: _precio, ...candle }) => ({
+          date: fecha,
+          ...candle,
+        })),
       };
     }
     if (path.startsWith("/account-imports/crypto/") && method === "POST")
@@ -678,7 +699,7 @@ describe("CryptoView canonical migration", () => {
     expect(wrapper.findAll(".fund-inline-detail-row")).toHaveLength(1);
     expect(wrapper.find('[data-testid="crypto-chart"]').exists()).toBe(true);
     expect(apiMock).toHaveBeenCalledWith(
-      "/crypto-chart/T15?range=1y&interval=1d",
+      "/crypto-chart/00000000-0000-0000-0000-000000000520?range=1y&interval=1d",
     );
   });
 
@@ -1061,19 +1082,32 @@ describe("CryptoView canonical migration", () => {
     await rows[0].trigger("click");
     await rows.find((row) => row.text().includes("T15"))!.trigger("click");
     resolveSecond?.({
-      symbol: "T15",
+      instrument_id: "00000000-0000-0000-0000-000000000520",
       ticker: "T15-EUR",
-      moneda: "EUR",
+      currency: "EUR",
+      base_currency: "EUR",
       range: "1y",
-      data: [candles[0]],
+      data: [
+        {
+          date: candles[0].fecha,
+          open: candles[0].open,
+          high: candles[0].high,
+          low: candles[0].low,
+          close: candles[0].close,
+        },
+      ],
     });
     await flushPromises();
     resolveFirst?.({
-      symbol: "BTC",
+      instrument_id: "00000000-0000-0000-0000-000000000501",
       ticker: "BTC-EUR",
-      moneda: "EUR",
+      currency: "EUR",
+      base_currency: "EUR",
       range: "1y",
-      data: candles,
+      data: candles.map(({ fecha, precio: _precio, ...candle }) => ({
+        date: fecha,
+        ...candle,
+      })),
     });
     await flushPromises();
 

@@ -296,6 +296,7 @@ export interface MarketPrice {
   source: string;
 }
 export type CryptoPrice = MarketPrice;
+/** Internal chart point shape consumed by the existing chart components. */
 export interface MarketCandle {
   fecha: string;
   precio: number;
@@ -305,14 +306,22 @@ export interface MarketCandle {
   close: number;
   moneda_base?: string;
 }
-export interface CryptoChartResponse {
-  symbol: string;
-  ticker: string;
-  moneda: string;
-  moneda_base?: string;
-  range: string;
-  data: MarketCandle[];
+export interface MarketChartCandle {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
 }
+export interface MarketChartResponse {
+  instrument_id: string;
+  ticker: string;
+  currency: string;
+  base_currency: string;
+  range: string;
+  data: MarketChartCandle[];
+}
+export type CryptoChartResponse = MarketChartResponse;
 export interface CryptoPerformancePoint {
   fecha: string;
   valor: number;
@@ -356,14 +365,7 @@ export interface StockInstrument extends Instrument {
   kind: "stock" | "etf";
 }
 export type StockPrice = MarketPrice;
-export interface StockChartResponse {
-  isin: string;
-  ticker: string;
-  moneda: string;
-  moneda_base?: string;
-  range: string;
-  data: MarketCandle[];
-}
+export type StockChartResponse = MarketChartResponse;
 export interface StockPerformancePoint {
   fecha: string;
   valor: number;
@@ -440,13 +442,17 @@ export interface FundPricePoint {
   precio_orig?: number;
   precio_base?: number;
 }
+export interface FundChartPoint {
+  date: string;
+  close: number;
+}
 export interface FundChartResponse {
-  isin: string;
+  instrument_id: string;
   ticker: string;
-  moneda: string;
-  moneda_base?: string;
+  currency: string;
+  base_currency: string;
   range: string;
-  data: FundPricePoint[];
+  data: FundChartPoint[];
 }
 export interface FxRateItem {
   id: string;

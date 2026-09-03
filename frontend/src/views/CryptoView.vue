@@ -379,7 +379,7 @@ const displayedRange = computed(() => {
 const chartRangeLabel = computed(() => {
   const points = chart.value?.data ?? [];
   if (points.length)
-    return `${displayDate(points[0].fecha)} → ${displayDate(points.at(-1)?.fecha ?? points[0].fecha)}`;
+    return `${displayDate(points[0].date)} → ${displayDate(points.at(-1)?.date ?? points[0].date)}`;
   if (chartRange.value === "custom")
     return `${displayDate(chartCustomStart.value)} → ${displayDate(chartCustomEnd.value)}`;
   return (
@@ -851,11 +851,21 @@ function chartQuery() {
 async function loadChart(generation = dashboardGeneration) {
   if (generation !== dashboardGeneration || !selectedSymbol.value) return;
   const request = ++chartRequestGeneration;
+  const instrumentId = instrumentByIdentity(
+    instruments.value,
+    selectedSymbol.value,
+  )?.id;
+  if (!instrumentId) {
+    chart.value = null;
+    chartLoading.value = false;
+    chartError.value = t("crypto.errors.chart");
+    return;
+  }
   chartLoading.value = true;
   chartError.value = "";
   try {
     const result = await api<CryptoChartResponse>(
-      `/crypto-chart/${encodeURIComponent(selectedSymbol.value)}?${chartQuery()}`,
+      `/crypto-chart/${encodeURIComponent(instrumentId)}?${chartQuery()}`,
     );
     if (
       generation !== dashboardGeneration ||

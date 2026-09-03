@@ -2446,11 +2446,8 @@ def yahoo_ticker(instrument: Instrument) -> str:
     return ticker
 
 
-def market_chart(request: Request, kind: str, asset_id: str) -> Response:
-    scheme = "crypto_symbol" if kind == "crypto" else "isin"
-    instrument = workspace_instrument(request, scheme, asset_id)
-    if instrument.kind != kind:
-        return Response({"error": _("The asset does not belong in this section")}, status=400)
+def market_chart(request: Request, kind: str, instrument_id: UUID) -> Response:
+    instrument = get_object_or_404(workspace_instruments(request, kind), pk=instrument_id)
     try:
         ticker = yahoo_ticker(instrument)
         interval = request.query_params.get("interval", "1d")
@@ -2475,8 +2472,8 @@ def market_chart(request: Request, kind: str, asset_id: str) -> Response:
         if kind == "fund":
             data = [
                 {
-                    "fecha": row["fecha"],
-                    "precio": round(
+                    "date": row["fecha"],
+                    "close": round(
                         float(row["precio"])
                         * float(conversions[date.fromisoformat(row["fecha"])].rate),
                         6,
@@ -2487,7 +2484,7 @@ def market_chart(request: Request, kind: str, asset_id: str) -> Response:
         else:
             data = [
                 {
-                    **row,
+                    "date": row["fecha"],
                     **{
                         key: round(
                             float(row[key])
@@ -2499,13 +2496,12 @@ def market_chart(request: Request, kind: str, asset_id: str) -> Response:
                 }
                 for row in points
             ]
-        key = "symbol" if kind == "crypto" else "isin"
         return Response(
             {
-                key: asset_id,
+                "instrument_id": str(instrument.id),
                 "ticker": ticker,
-                "moneda": currency,
-                "moneda_base": base_currency,
+                "currency": currency,
+                "base_currency": base_currency,
                 "range": request.query_params.get("range", "1y"),
                 "data": data,
             }
@@ -2515,18 +2511,18 @@ def market_chart(request: Request, kind: str, asset_id: str) -> Response:
 
 
 @api_view(["GET"])
-def fund_chart(request: Request, asset_id: str) -> Response:
-    return market_chart(request, "fund", asset_id)
+def fund_chart(request: Request, instrument_id: UUID) -> Response:
+    return market_chart(request, "fund", instrument_id)
 
 
 @api_view(["GET"])
-def stock_chart(request: Request, asset_id: str) -> Response:
-    return market_chart(request, "stock", asset_id)
+def stock_chart(request: Request, instrument_id: UUID) -> Response:
+    return market_chart(request, "stock", instrument_id)
 
 
 @api_view(["GET"])
-def crypto_chart(request: Request, asset_id: str) -> Response:
-    return market_chart(request, "crypto", asset_id)
+def crypto_chart(request: Request, instrument_id: UUID) -> Response:
+    return market_chart(request, "crypto", instrument_id)
 
 
 def fetch_prices(request: Request, kind: str) -> Response:

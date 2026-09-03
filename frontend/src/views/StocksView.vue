@@ -247,7 +247,7 @@ const displayedRange = computed(() =>
 );
 const chartRangeLabel = computed(() =>
   chart.value?.data.length
-    ? `${displayDate(chart.value.data[0].fecha)} → ${displayDate(chart.value.data.at(-1)?.fecha ?? "")}`
+    ? `${displayDate(chart.value.data[0].date)} → ${displayDate(chart.value.data.at(-1)?.date ?? "")}`
     : chartRange.value === "custom"
       ? `${displayDate(chartCustomStart.value)} → ${displayDate(chartCustomEnd.value)}`
       : (ranges.value.find((item) => item.key === chartRange.value)?.label ??
@@ -654,11 +654,21 @@ async function loadPerformance(generation = dashboardGeneration) {
 async function loadChart(generation = dashboardGeneration) {
   if (generation !== dashboardGeneration || !selectedIsin.value) return;
   const request = ++chartRequestGeneration;
+  const instrumentId = instrumentByIdentity(
+    instruments.value,
+    selectedIsin.value,
+  )?.id;
+  if (!instrumentId) {
+    chart.value = null;
+    chartLoading.value = false;
+    chartError.value = t("stocks.errors.chart");
+    return;
+  }
   chartLoading.value = true;
   chartError.value = "";
   try {
     const result = await api<StockChartResponse>(
-      `/stock-chart/${encodeURIComponent(selectedIsin.value)}?${chartQuery()}`,
+      `/stock-chart/${encodeURIComponent(instrumentId)}?${chartQuery()}`,
     );
     if (
       generation !== dashboardGeneration ||
