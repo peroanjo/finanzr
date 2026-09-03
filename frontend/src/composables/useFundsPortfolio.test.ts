@@ -27,7 +27,7 @@ function makePosition(overrides: Partial<FundPosition> = {}): FundPosition {
 
 function makeOrder(overrides: Partial<FundOrder> = {}): FundOrder {
   return {
-    operacion_id: "operation-1",
+    id: "operation-1",
     fecha_operacion: "2026-01-01",
     fecha_liquidacion: "2026-01-02",
     tipo_operacion: "SUSCRIPCION",
@@ -176,13 +176,13 @@ describe("useFundsPortfolio", () => {
     const portfolio = createPortfolio({
       orders: [
         makeOrder({
-          operacion_id: "a-buy",
+          id: "a-buy",
           isin: "FUND-A",
           titulos: 4,
           importe_neto: 400,
         }),
         makeOrder({
-          operacion_id: "a-transfer-in",
+          id: "a-transfer-in",
           isin: "FUND-A",
           tipo_operacion: "SUSCR.POR TRASPASO I",
           titulos: 2,
@@ -190,7 +190,7 @@ describe("useFundsPortfolio", () => {
           importe_base: 200,
         }),
         makeOrder({
-          operacion_id: "a-transfer-out",
+          id: "a-transfer-out",
           isin: "FUND-A",
           tipo_operacion: "REEMB.POR TRASPASO I",
           titulos: 3,
@@ -198,27 +198,27 @@ describe("useFundsPortfolio", () => {
           importe_base: 390,
         }),
         makeOrder({
-          operacion_id: "b-buy",
+          id: "b-buy",
           isin: "FUND-B",
           titulos: 2,
           importe_neto: 100,
         }),
         makeOrder({
-          operacion_id: "b-sale",
+          id: "b-sale",
           isin: "FUND-B",
           tipo_operacion: "REEMBOLSO",
           titulos: 1,
           importe_neto: 75,
         }),
         makeOrder({
-          operacion_id: "ignored-buy",
+          id: "ignored-buy",
           isin: "FUND-C",
           tipo_operacion: "Compra",
           titulos: 1,
           importe_neto: 100,
         }),
         makeOrder({
-          operacion_id: "ignored-sale",
+          id: "ignored-sale",
           isin: "FUND-C",
           tipo_operacion: "Venta",
           titulos: 1,

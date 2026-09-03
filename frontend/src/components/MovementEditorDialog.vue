@@ -28,7 +28,6 @@ const { t } = useI18n();
 const dialog = ref<HTMLDialogElement>();
 const mode = ref<"create" | "edit">("create");
 const movementId = ref("");
-const originalAccountId = ref("");
 const accountId = ref("");
 const assetId = ref("");
 const operationType = ref("");
@@ -110,7 +109,6 @@ const canUseSaveback = computed(
 
 function reset() {
   movementId.value = "";
-  originalAccountId.value = "";
   accountId.value =
     props.selectedAccount === "all"
       ? String(props.accounts[0]?.id ?? "")
@@ -136,8 +134,7 @@ function openCreate() {
 
 function openEdit(movement: FundOrder | CryptoOrder | StockOrder) {
   mode.value = "edit";
-  movementId.value = movement.operacion_id;
-  originalAccountId.value = String(movement.cuenta_id);
+  movementId.value = movement.id;
   accountId.value = String(movement.cuenta_id);
   assetId.value = "isin" in movement ? movement.isin : movement.symbol;
   operationType.value = movement.tipo_operacion;
@@ -184,8 +181,6 @@ async function save() {
     if (props.kind === "stock")
       payload.es_saveback = canUseSaveback.value && saveback.value ? 1 : 0;
   }
-  if (mode.value === "edit")
-    payload.original_account_id = originalAccountId.value;
   try {
     const target =
       mode.value === "edit"

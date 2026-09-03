@@ -3,7 +3,7 @@ import type { StockOrder } from "../types/api";
 import { applyAdHocChartOperationFixes } from "./chartOperationFixes";
 
 const bydOrder = (date: string): StockOrder => ({
-  operacion_id: `byd-${date}`,
+  id: `byd-${date}`,
   fecha_operacion: date,
   titulos: 1,
   importe_neto: 34.07,

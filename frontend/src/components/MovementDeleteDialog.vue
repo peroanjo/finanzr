@@ -52,12 +52,9 @@ async function remove() {
   busy.value = true;
   error.value = "";
   try {
-    await api(
-      `${endpoint.value}/${encodeURIComponent(movement.value.operacion_id)}?account_id=${encodeURIComponent(String(movement.value.cuenta_id))}`,
-      {
-        method: "DELETE",
-      },
-    );
+    await api(`${endpoint.value}/${encodeURIComponent(movement.value.id)}`, {
+      method: "DELETE",
+    });
     dialog.value?.close();
     movement.value = null;
     emit("deleted");

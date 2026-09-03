@@ -776,7 +776,7 @@ onBeforeUnmount(() => {
         >
           <div
             v-for="row in operationTooltip.rows"
-            :key="row.order.operacion_id"
+            :key="row.order.id"
             class="operation-tooltip-row"
             role="listitem"
             :style="{ gridColumn: row.column + 1, gridRow: row.row + 1 }"

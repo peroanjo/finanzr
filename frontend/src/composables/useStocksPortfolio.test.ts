@@ -20,7 +20,7 @@ function makePosition(overrides: Partial<StockPosition> = {}): StockPosition {
 
 function makeOrder(overrides: Partial<StockOrder> = {}): StockOrder {
   return {
-    operacion_id: "operation-1",
+    id: "operation-1",
     fecha_operacion: "2026-01-01",
     titulos: 1,
     importe_neto: 100,
@@ -255,7 +255,7 @@ describe("useStocksPortfolio", () => {
       ],
       orders: [
         makeOrder({ isin: "STOCK-A" }),
-        makeOrder({ isin: "STOCK-B", operacion_id: "operation-2" }),
+        makeOrder({ isin: "STOCK-B", id: "operation-2" }),
       ],
       selectedIsin: "STOCK-A",
     });
@@ -271,8 +271,8 @@ describe("useStocksPortfolio", () => {
     expect(portfolio.averagePrice.value).toBe(50);
 
     portfolio.orders.value = [
-      makeOrder({ isin: "STOCK-B", operacion_id: "operation-3" }),
-      makeOrder({ isin: "STOCK-B", operacion_id: "operation-4" }),
+      makeOrder({ isin: "STOCK-B", id: "operation-3" }),
+      makeOrder({ isin: "STOCK-B", id: "operation-4" }),
     ];
     expect(portfolio.selectedOrders.value).toHaveLength(2);
 
@@ -285,7 +285,7 @@ describe("useStocksPortfolio", () => {
 
   it("uses base currency fallbacks and preserves source orders before chart fixes", () => {
     const sourceWithBase = makeOrder({
-      operacion_id: "byd-before-split",
+      id: "byd-before-split",
       isin: "CNE100000296",
       fecha_operacion: "2025-02-03",
       titulos: 1,
@@ -297,13 +297,13 @@ describe("useStocksPortfolio", () => {
       comision_base: 0.5,
     });
     const sourceWithoutBase = makeOrder({
-      operacion_id: "fallback",
+      id: "fallback",
       importe_neto: 80,
       precio_compra: 40,
       comision: 0.8,
     });
     const sourceWithZeroBase = makeOrder({
-      operacion_id: "zero-base",
+      id: "zero-base",
       isin: "ZERO-BASE",
       importe_neto: 80,
       importe_base: 0,

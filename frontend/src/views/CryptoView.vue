@@ -485,7 +485,7 @@ const filteredMovements = computed(() =>
     .sort(
       (a, b) =>
         b.fecha_operacion.localeCompare(a.fecha_operacion) ||
-        String(b.operacion_id).localeCompare(String(a.operacion_id)),
+        String(b.id).localeCompare(String(a.id)),
     ),
 );
 const movementPages = computed(() =>
@@ -1631,8 +1631,8 @@ onMounted(loadDashboard);
               <tbody>
                 <tr
                   v-for="item in displayedMovements"
-                  :key="item.operacion_id"
-                  :data-testid="`movement-${item.operacion_id}`"
+                  :key="item.id"
+                  :data-testid="`movement-${item.id}`"
                 >
                   <td>{{ displayDate(item.fecha_operacion) }}</td>
                   <td>

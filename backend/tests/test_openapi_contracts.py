@@ -314,21 +314,24 @@ class OpenApiMutationContractTests(SimpleTestCase):
             "fecha_operacion"
             in self._resolve(
                 document,
-                document["paths"]["/api/orders/{external_id}"]["put"]["requestBody"]["content"][
+                document["paths"]["/api/orders/{transaction_id}"]["put"]["requestBody"]["content"][
                     "application/json"
                 ]["schema"],
             )["properties"]
         )
-        update_order = self._request_schema(document, "/api/orders/{external_id}", "put")
-        assert "original_account_id" in update_order["required"]
-        delete_order_parameters = document["paths"]["/api/orders/{external_id}"]["delete"][
+        update_order = self._request_schema(document, "/api/orders/{transaction_id}", "put")
+        assert "original_account_id" not in update_order.get("properties", {})
+        delete_order_parameters = document["paths"]["/api/orders/{transaction_id}"]["delete"][
             "parameters"
         ]
-        delete_account = next(
-            parameter for parameter in delete_order_parameters if parameter["name"] == "account_id"
+        transaction_parameter = next(
+            parameter
+            for parameter in delete_order_parameters
+            if parameter["name"] == "transaction_id"
         )
-        assert delete_account["required"] is True
-        assert delete_account["schema"]["format"] == "uuid"
+        assert transaction_parameter["required"] is True
+        assert transaction_parameter["schema"]["format"] == "uuid"
+        assert not any(parameter["name"] == "account_id" for parameter in delete_order_parameters)
 
         traded_account = self._request_schema(document, "/api/fund-accounts", "post")
         assert set(traded_account["properties"]) == {

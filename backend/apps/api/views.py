@@ -5,10 +5,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from django.core.cache import cache
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -1559,6 +1559,23 @@ CRYPTO_MANUAL_OPERATIONS = {
     "Compra": (Transaction.OperationType.BUY, Transaction.CashFlowType.NONE),
     "Venta": (Transaction.OperationType.SELL, Transaction.CashFlowType.NONE),
 }
+TRANSACTION_EXTERNAL_ID_CONSTRAINT = "transaction_external_id_unique"
+
+
+def _is_transaction_external_id_conflict(error: IntegrityError) -> bool:
+    """Recognize only the scoped external-id uniqueness constraint."""
+    cause = error.__cause__
+    constraint_name = getattr(getattr(cause, "diag", None), "constraint_name", None)
+    if constraint_name:
+        return str(constraint_name) == TRANSACTION_EXTERNAL_ID_CONSTRAINT
+
+    error_text = " ".join(str(part) for part in (cause, error) if part).casefold()
+    if TRANSACTION_EXTERNAL_ID_CONSTRAINT.casefold() in error_text:
+        return True
+    if "unique constraint failed:" not in error_text:
+        return False
+    table = Transaction._meta.db_table.casefold()
+    return f"{table}.account_id" in error_text and f"{table}.external_id" in error_text
 
 
 def save_manual_transaction(
@@ -1624,8 +1641,26 @@ def save_manual_transaction(
     operation_type, cash_flow_type = operations[operation_label]
     creating = item is None
     previous_account_id = item.account_id if item is not None else None
+    if (
+        item is not None
+        and item.account_id != account.id
+        and item.external_id is not None
+        and Transaction.objects.filter(account=account, external_id=item.external_id)
+        .exclude(pk=item.pk)
+        .exists()
+    ):
+        return Response(
+            {
+                "error": _(
+                    "A transaction with this provider ID already exists in the target account"
+                )
+            },
+            status=400,
+        )
     if item is None:
-        item = Transaction(external_id=f"manual:{uuid4()}")
+        # Manual transactions have no provider identity.  The model UUID is
+        # their sole public and persistent identity.
+        item = Transaction()
     item.account = account
     if previous_account_id is not None and previous_account_id != account.id:
         item.import_batch = None
@@ -1690,7 +1725,22 @@ def save_manual_transaction(
         "legacy_name": instrument.name,
         "manual": True,
     }
-    item.save()
+    try:
+        # The precheck avoids the common query, while this atomic save closes
+        # the race with another import or edit claiming the same provider ID.
+        with transaction.atomic():
+            item.save()
+    except IntegrityError as exc:
+        if not _is_transaction_external_id_conflict(exc):
+            raise
+        return Response(
+            {
+                "error": _(
+                    "A transaction with this provider ID already exists in the target account"
+                )
+            },
+            status=400,
+        )
     cache.clear()
     return Response(transaction_row(item), status=201 if creating else 200)
 
@@ -1718,53 +1768,48 @@ def crypto_orders(request: Request) -> Response:
     return transaction_collection(request, Instrument.Kind.CRYPTO)
 
 
-@api_view(["PUT", "DELETE"])
-def transaction_detail(request: Request, external_id: str) -> Response:
+def transaction_detail(request: Request, kind: str, transaction_id: UUID) -> Response:
+    """Edit or remove one transaction by UUID within the active workspace."""
     if denied := forbidden_if_readonly(request):
         return denied
     if request.method == "PUT":
         data = payload(request)
         if "cuenta_id" in data or "cuenta_id_original" in data:
             return Response({"error": _("Use account_id for account selection")}, status=400)
-        original_account = data.get("original_account_id")
-        if original_account in (None, ""):
-            return Response({"error": _("The original account ID is required")}, status=400)
-        try:
-            original_account_uuid = UUID(str(original_account))
-        except (TypeError, ValueError):
-            return Response({"error": _("A valid account ID was expected")}, status=400)
         queryset = Transaction.objects.filter(
             account__workspace=workspace(request),
-            account_id=original_account_uuid,
-            external_id=external_id,
+            instrument__kind=kind,
+            pk=transaction_id,
         )
         item = get_object_or_404(queryset.select_related("instrument"))
-        if item.instrument.kind not in {
-            Instrument.Kind.FUND,
-            Instrument.Kind.STOCK,
-            Instrument.Kind.CRYPTO,
-        }:
-            return Response({"error": _("This transaction cannot be edited manually")}, status=400)
         return save_manual_transaction(request, item.instrument.kind, item)
     if "cuenta_id" in request.query_params:
         return Response({"error": _("Use account_id for account selection")}, status=400)
-    raw_account_id = request.query_params.get("account_id")
-    if not raw_account_id:
-        return Response({"error": _("The account ID is required")}, status=400)
-    try:
-        account_id = UUID(raw_account_id)
-    except (TypeError, ValueError):
-        return Response({"error": _("A valid account ID was expected")}, status=400)
     item = get_object_or_404(
         Transaction.objects.filter(
             account__workspace=workspace(request),
-            account_id=account_id,
-            external_id=external_id,
+            instrument__kind=kind,
+            pk=transaction_id,
         )
     )
     item.delete()
     cache.clear()
     return Response({"ok": True})
+
+
+@api_view(["PUT", "DELETE"])
+def fund_transaction_detail(request: Request, transaction_id: UUID) -> Response:
+    return transaction_detail(request, Instrument.Kind.FUND, transaction_id)
+
+
+@api_view(["PUT", "DELETE"])
+def stock_transaction_detail(request: Request, transaction_id: UUID) -> Response:
+    return transaction_detail(request, Instrument.Kind.STOCK, transaction_id)
+
+
+@api_view(["PUT", "DELETE"])
+def crypto_transaction_detail(request: Request, transaction_id: UUID) -> Response:
+    return transaction_detail(request, Instrument.Kind.CRYPTO, transaction_id)
 
 
 def price_list(request: Request, kind: str) -> Response:

@@ -99,7 +99,7 @@ export function groupFundOperationPoints(
     );
     const operation: FundOrder = {
       ...first.order,
-      operacion_id: sourceOrders.map((order) => order.operacion_id).join(":"),
+      id: sourceOrders.map((order) => order.id).join(":"),
       titulos: titles,
       precio_neto:
         titles > 0 ? weightedPrice / titles : priceForOrder(first.order),
@@ -126,7 +126,7 @@ export function groupFundOperationPoints(
     };
     const buy = isFundEntryOperation(first.order);
     return {
-      id: `${first.x}:${buy ? "buy" : "sell"}:${sourceOrders.map((order) => order.operacion_id).join(":")}`,
+      id: `${first.x}:${buy ? "buy" : "sell"}:${sourceOrders.map((order) => order.id).join(":")}`,
       x: first.x,
       y: operation.precio_base ?? operation.precio_neto,
       order: operation,

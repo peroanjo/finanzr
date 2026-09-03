@@ -26,7 +26,7 @@ function makePosition(overrides: Partial<CryptoPosition> = {}): CryptoPosition {
 
 function makeOrder(overrides: Partial<CryptoOrder> = {}): CryptoOrder {
   return {
-    operacion_id: "operation-1",
+    id: "operation-1",
     fecha_operacion: "2026-01-01",
     titulos: 1,
     importe_neto: 100,
@@ -268,9 +268,9 @@ describe("useCryptoPortfolio", () => {
         }),
       ],
       orders: [
-        makeOrder({ symbol: "BTC", operacion_id: "btc-order" }),
-        makeOrder({ symbol: "BTC-EUR", operacion_id: "pair-order" }),
-        makeOrder({ symbol: "btc", operacion_id: "lowercase-order" }),
+        makeOrder({ symbol: "BTC", id: "btc-order" }),
+        makeOrder({ symbol: "BTC-EUR", id: "pair-order" }),
+        makeOrder({ symbol: "btc", id: "lowercase-order" }),
       ],
       instruments: [
         makeInstrument({ symbol: "BTC", ticker: "000" }),
@@ -280,9 +280,9 @@ describe("useCryptoPortfolio", () => {
     });
 
     expect(portfolio.selectedPosition.value?.symbol).toBe("BTC-EUR");
-    expect(
-      portfolio.selectedOrders.value.map((item) => item.operacion_id),
-    ).toEqual(["pair-order"]);
+    expect(portfolio.selectedOrders.value.map((item) => item.id)).toEqual([
+      "pair-order",
+    ]);
     expect(
       portfolio.normalizedTopPositions.value.map((item) => item.assetId),
     ).toEqual(["BTC", "BTC-EUR", "btc"]);
@@ -311,14 +311,14 @@ describe("useCryptoPortfolio", () => {
 
     portfolio.selectedSymbol.value = "btc";
     expect(portfolio.selectedPosition.value?.symbol).toBe("btc");
-    expect(
-      portfolio.selectedOrders.value.map((item) => item.operacion_id),
-    ).toEqual(["lowercase-order"]);
+    expect(portfolio.selectedOrders.value.map((item) => item.id)).toEqual([
+      "lowercase-order",
+    ]);
   });
 
   it("tracks selected positions and orders and projects chart currency fallbacks without mutation", () => {
     const zeroBaseOrder = makeOrder({
-      operacion_id: "zero-base",
+      id: "zero-base",
       symbol: "CNE100000296",
       nombre_activo: "Crypto split-like symbol",
       titulos: 1,
@@ -330,7 +330,7 @@ describe("useCryptoPortfolio", () => {
       comision_base: 0,
     });
     const fallbackOrder = makeOrder({
-      operacion_id: "fallback",
+      id: "fallback",
       symbol: "CNE100000296",
       importe_neto: 90,
       precio_compra: 45,
@@ -350,20 +350,21 @@ describe("useCryptoPortfolio", () => {
     });
 
     expect(portfolio.selectedPosition.value?.symbol).toBe("CNE100000296");
-    expect(
-      portfolio.selectedOrders.value.map((item) => item.operacion_id),
-    ).toEqual(["zero-base", "fallback"]);
+    expect(portfolio.selectedOrders.value.map((item) => item.id)).toEqual([
+      "zero-base",
+      "fallback",
+    ]);
     expect(portfolio.selectedChartOrders.value).toEqual([
       {
         ...zeroBaseOrder,
-        operacion_id: "zero-base",
+        id: "zero-base",
         precio_compra: 0,
         importe_neto: 0,
         comision: 0,
       },
       {
         ...fallbackOrder,
-        operacion_id: "fallback",
+        id: "fallback",
         precio_compra: 45,
         importe_neto: 90,
         comision: 0.9,
@@ -403,7 +404,7 @@ describe("useCryptoPortfolio", () => {
       ],
       orders: [
         makeOrder({ symbol: "BTC" }),
-        makeOrder({ symbol: "ETH", operacion_id: "operation-2" }),
+        makeOrder({ symbol: "ETH", id: "operation-2" }),
       ],
       selectedSymbol: "BTC",
     });
@@ -419,8 +420,8 @@ describe("useCryptoPortfolio", () => {
     expect(portfolio.averagePrice.value).toBeNull();
 
     portfolio.orders.value = [
-      makeOrder({ symbol: "ETH", operacion_id: "operation-3" }),
-      makeOrder({ symbol: "ETH", operacion_id: "operation-4" }),
+      makeOrder({ symbol: "ETH", id: "operation-3" }),
+      makeOrder({ symbol: "ETH", id: "operation-4" }),
     ];
     expect(portfolio.selectedOrders.value).toHaveLength(2);
 

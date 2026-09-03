@@ -103,7 +103,7 @@ const stockPositions = [
   })),
 ];
 const order = {
-  operacion_id: "stock-1",
+  id: "stock-1",
   fecha_operacion: "2026-05-02",
   titulos: 1,
   importe_neto: 100,
@@ -121,7 +121,7 @@ const stockOrders = [
   order,
   ...Array.from({ length: 15 }, (_, index) => ({
     ...order,
-    operacion_id: `stock-${index + 2}`,
+    id: `stock-${index + 2}`,
     fecha_operacion: `2026-04-${String(index + 1).padStart(2, "0")}`,
     isin: `TEST${index}`,
     nombre_activo: `Test stock ${index}`,
@@ -213,7 +213,7 @@ describe("StocksView", () => {
         return [
           {
             ...order,
-            operacion_id: "second-account-1",
+            id: "second-account-1",
             cuenta_id: secondAccount.id,
             cuenta_nombre: secondAccount.name,
             isin: secondAccountPosition.isin,
