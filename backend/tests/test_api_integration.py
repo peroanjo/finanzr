@@ -904,7 +904,7 @@ def test_workspace_export_includes_legacy_and_native_savings_rows(
 
     assert exported.status_code == 200
     data = exported.json()
-    assert data["format"] == "finanzr-workspace-v3"
+    assert data["format"] == "finanzr-workspace-v4"
     for section in ("funds", "stocks", "cryptos"):
         assert all(
             set(item)
@@ -1558,7 +1558,7 @@ def test_portfolio_export_includes_seeded_native_and_archived_assets(
 
     assert exported.status_code == 200
     data = exported.json()
-    assert data["format"] == "finanzr-workspace-v3"
+    assert data["format"] == "finanzr-workspace-v4"
     rows = {item["id"]: item for item in data["portfolio"]}
     assert set(rows) == {str(seeded_asset.id), native["id"], str(archived.id)}
     assert rows[str(seeded_asset.id)] == {
@@ -3232,7 +3232,9 @@ def test_identifier_selection_matches_public_projection_and_market_consumers(
     )
     fetched = client.post("/api/stock-prices/fetch", format="json")
     assert fetched.status_code == 200
-    selected_result = next(row for row in fetched.json()["results"] if row["isin"] == "SELECT-001")
+    selected_result = next(
+        row for row in fetched.json()["results"] if row["instrument_id"] == str(instrument.id)
+    )
     assert selected_result["ticker"] == "SELECT.STALE"
     assert "SELECT.STALE" in fetch_tickers
 
@@ -3301,7 +3303,7 @@ def test_canonical_identity_resolvers_ignore_nondefault_aliases(
     assert chart.status_code == 200
     assert chart.json()["ticker"] == "OWNER.MC"
 
-    price = client.put(f"/api/stock-prices/{canonical}", {"precio": 123}, format="json")
+    price = client.put(f"/api/stock-prices/{first_instrument.pk}", {"close": 123}, format="json")
     assert price.status_code == 200
     override = WorkspaceMarketPriceOverride.objects.get(instrument=first_instrument)
     assert override.close == Decimal("123")
@@ -3732,7 +3734,8 @@ def test_price_refresh_endpoints_share_the_internal_handler(
 
         assert response.status_code == 200, (endpoint, response.content)
         assert response.json()["results"]
-        assert all(item["precio"] == 90.0 for item in response.json()["results"])
+        assert all(item["base_close"] == 90.0 for item in response.json()["results"])
+        assert all(item["close"] == 100.0 for item in response.json()["results"])
 
 
 @pytest.mark.django_db(transaction=True)
@@ -3745,7 +3748,7 @@ def test_stock_prices_and_analysis_use_only_the_latest_spot_quote(
     )
     assert transaction is not None
     instrument = transaction.instrument
-    isin = instrument.identifiers.get(scheme="isin").value
+    isin = instrument.identifiers.get(scheme="isin", venue="").value
     MarketPrice.objects.create(
         instrument=instrument,
         quoted_at="2030-01-01T12:00:00Z",
@@ -3759,19 +3762,20 @@ def test_stock_prices_and_analysis_use_only_the_latest_spot_quote(
     analysis = client.get("/api/stock-analysis")
 
     assert prices.status_code == 200
-    matching_prices = [row for row in prices.json() if row["isin"] == isin]
+    matching_prices = [row for row in prices.json() if row["instrument_id"] == str(instrument.id)]
     assert matching_prices == [
         {
-            "isin": isin,
-            "precio": 123.45,
-            "updated": "2030-01-01",
-            "moneda": "EUR",
-            "moneda_base": "EUR",
-            "precio_orig": 123.45,
-            "tipo_cambio": 1.0,
-            "fecha_tipo_cambio": "2030-01-01",
-            "fuente_tipo_cambio": "identity",
-            "fecha": "2030-01-01",
+            "id": str(MarketPrice.objects.get(instrument=instrument, source="test-latest").id),
+            "instrument_id": str(instrument.id),
+            "quoted_at": "2030-01-01T12:00:00+00:00",
+            "close": 123.45,
+            "currency": "EUR",
+            "base_close": 123.45,
+            "base_currency": "EUR",
+            "fx_rate_to_base": 1.0,
+            "fx_rate_date": "2030-01-01",
+            "fx_source": "identity",
+            "source": "test-latest",
         }
     ]
     assert analysis.status_code == 200

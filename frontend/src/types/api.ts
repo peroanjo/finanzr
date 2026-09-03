@@ -282,14 +282,20 @@ export interface Instrument {
 export interface CryptoInstrument extends Instrument {
   kind: "crypto";
 }
-export interface CryptoPrice {
-  symbol: string;
-  precio: number;
-  updated: string;
-  moneda: string;
-  moneda_base?: string;
-  precio_orig: number;
+export interface MarketPrice {
+  id: string;
+  instrument_id: string;
+  quoted_at: string;
+  close: number;
+  currency: string;
+  base_close: number;
+  base_currency: string;
+  fx_rate_to_base: number;
+  fx_rate_date: string;
+  fx_source: string;
+  source: string;
 }
+export type CryptoPrice = MarketPrice;
 export interface MarketCandle {
   fecha: string;
   precio: number;
@@ -349,14 +355,7 @@ export interface StockOrder extends TransactionDtoBase {
 export interface StockInstrument extends Instrument {
   kind: "stock" | "etf";
 }
-export interface StockPrice {
-  isin: string;
-  precio: number;
-  updated: string;
-  moneda: string;
-  moneda_base?: string;
-  precio_orig: number;
-}
+export type StockPrice = MarketPrice;
 export interface StockChartResponse {
   isin: string;
   ticker: string;
@@ -423,13 +422,17 @@ export interface FundPerformanceResponse {
 export interface FundInstrument extends Instrument {
   kind: "fund";
 }
-export interface FundPrice {
-  isin: string;
-  precio: number;
-  updated: string;
-  moneda?: string;
-  moneda_base?: string;
-  precio_orig?: number;
+export type FundPrice = MarketPrice;
+export interface PriceFetchResult {
+  instrument_id: string;
+  base_close: number | null;
+  close: number | null;
+  currency: string | null;
+  ticker: string | null;
+  error: string | null;
+}
+export interface PriceFetchResponse {
+  results: PriceFetchResult[];
 }
 export interface FundPricePoint {
   fecha: string;

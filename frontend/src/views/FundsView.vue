@@ -37,6 +37,7 @@ import type {
   FundPosition,
   FundPrice,
   ImporterCatalogItem,
+  PriceFetchResponse,
 } from "../types/api";
 import {
   adaptFundAccount,
@@ -107,6 +108,7 @@ const editFundType = ref("");
 const editFundSubtype = ref("");
 const editFundTicker = ref("");
 const editFundPrice = ref("");
+const editFundPriceCurrency = ref("EUR");
 const fundEditBusy = ref(false);
 const fundEditError = ref("");
 const movementFund = ref("all");
@@ -135,7 +137,7 @@ const {
   totalPnl,
   selectedFundPosition,
   selectedFundOrders,
-  latestPriceByIsin,
+  latestPriceByInstrumentId,
   pricedPositions,
   positionSortKey,
   positionSortDirection,
@@ -265,7 +267,7 @@ const importConfig = computed<InvestmentImportConfig | null>(() =>
 );
 const latestUpdate = computed(() => {
   const dates = prices.value
-    .map((item) => item.updated)
+    .map((item) => item.quoted_at.slice(0, 10))
     .filter(Boolean)
     .sort();
   return dates.length
@@ -893,10 +895,9 @@ async function refreshFundPrices() {
   refreshingPrices.value = true;
   priceMessage.value = "";
   try {
-    const response = await api<{ results: Array<{ error: string | null }> }>(
-      "/fund-prices/fetch",
-      { method: "POST" },
-    );
+    const response = await api<PriceFetchResponse>("/fund-prices/fetch", {
+      method: "POST",
+    });
     const failures = response.results.filter((item) => item.error).length;
     priceMessage.value = failures
       ? t("funds.prices.updatedWithErrors", {
@@ -923,8 +924,10 @@ function openFundEditor(position: FundPosition) {
   editFundType.value = editingFund.value.asset_class ?? "";
   editFundSubtype.value = editingFund.value.subtype ?? "";
   editFundTicker.value = instrumentTicker(editingFund.value);
-  const nativePrice = latestPriceByIsin.value.get(position.isin)?.precio_orig;
-  editFundPrice.value = nativePrice == null ? "" : String(nativePrice);
+  const nativePrice = latestPriceByInstrumentId.value.get(editingFund.value.id);
+  editFundPrice.value = nativePrice == null ? "" : String(nativePrice.close);
+  editFundPriceCurrency.value =
+    nativePrice?.currency ?? editingFund.value.quote_currency;
   fundEditError.value = "";
   fundEditDialog.value?.showModal();
 }
@@ -972,10 +975,10 @@ async function saveFundEditor() {
     );
     if (editFundPrice.value !== "") {
       await api(
-        "/fund-prices/" + instrumentIdentity(editingFund.value),
+        "/fund-prices/" + editingFund.value.id,
         json("PUT", {
-          precio: Number(editFundPrice.value),
-          moneda: editingFund.value.quote_currency,
+          close: Number(editFundPrice.value),
+          currency: editFundPriceCurrency.value,
         }),
       );
     }
@@ -1765,7 +1768,10 @@ onMounted(loadDashboard);
             <label
               ><span>{{
                 t("funds.editor.manualPrice", {
-                  currency: editingFund?.quote_currency ?? "EUR",
+                  currency:
+                    editFundPriceCurrency ||
+                    editingFund?.quote_currency ||
+                    "EUR",
                 })
               }}</span
               ><input v-model="editFundPrice" type="number" min="0" step="any"

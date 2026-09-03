@@ -513,12 +513,51 @@ class OpenApiMutationContractTests(SimpleTestCase):
             )["properties"]
         )
 
-        price = document["paths"]["/api/stock-prices/{asset_id}"]["put"]
+        price = document["paths"]["/api/stock-prices/{instrument_id}"]["put"]
         price_properties = self._resolve(
             document, price["requestBody"]["content"]["application/json"]["schema"]
         )["properties"]
-        assert {"precio", "moneda"} <= set(price_properties)
+        assert set(price_properties) == {"close", "currency"}
+        assert price_properties["close"]["type"] == "string"
+        assert price["parameters"][0]["name"] == "instrument_id"
+        assert price["parameters"][0]["schema"] == {"type": "string", "format": "uuid"}
         assert "200" in price["responses"]
+
+        price_response = self._resolve(
+            document,
+            document["paths"]["/api/stock-prices"]["get"]["responses"]["200"]["content"][
+                "application/json"
+            ]["schema"]["items"],
+        )
+        assert set(price_response["properties"]) == {
+            "id",
+            "instrument_id",
+            "quoted_at",
+            "close",
+            "currency",
+            "base_close",
+            "base_currency",
+            "fx_rate_to_base",
+            "fx_rate_date",
+            "fx_source",
+            "source",
+        }
+        assert not {"isin", "symbol", "precio", "moneda"} & set(price_response["properties"])
+        assert price_response["properties"]["close"]["type"] == "number"
+        assert price_response["properties"]["base_close"]["type"] == "number"
+        assert price_response["properties"]["fx_rate_to_base"]["type"] == "number"
+        fetch = document["paths"]["/api/stock-prices/fetch"]["post"]
+        assert "requestBody" not in fetch
+        fetch_response = self._resolve(
+            document,
+            fetch["responses"]["200"]["content"]["application/json"]["schema"],
+        )
+        assert set(fetch_response["properties"]) == {"results"}
+        fetch_item = self._resolve(document, fetch_response["properties"]["results"]["items"])
+        assert fetch_item["properties"]["base_close"]["type"] == "number"
+        assert fetch_item["properties"]["base_close"]["nullable"] is True
+        assert fetch_item["properties"]["close"]["type"] == "number"
+        assert fetch_item["properties"]["close"]["nullable"] is True
 
         delete_account = document["paths"]["/api/account"]["delete"]
         delete_schema = self._resolve(

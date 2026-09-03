@@ -72,6 +72,32 @@ def price_row(
     fx_source: str,
 ) -> dict[str, Any]:
     instrument = price.instrument
+    return {
+        "id": str(price.id),
+        "instrument_id": str(instrument.id),
+        "quoted_at": price.quoted_at.isoformat(),
+        "close": number(price.close),
+        "currency": price.currency,
+        "base_close": number(converted_price),
+        "base_currency": base_currency,
+        "fx_rate_to_base": number(fx_rate),
+        "fx_rate_date": fx_rate_date.isoformat(),
+        "fx_source": fx_source,
+        "source": price.source,
+    }
+
+
+def price_calculation_row(
+    price: MarketPrice | WorkspaceMarketPriceOverride,
+    *,
+    converted_price: Decimal,
+    base_currency: str,
+    fx_rate: Decimal,
+    fx_rate_date: date,
+    fx_source: str,
+) -> dict[str, Any]:
+    """Return the private legacy-shaped row consumed by position calculators."""
+    instrument = price.instrument
     is_crypto = instrument.kind == Instrument.Kind.CRYPTO
     scheme = (
         InstrumentIdentifier.Scheme.CRYPTO_SYMBOL if is_crypto else InstrumentIdentifier.Scheme.ISIN

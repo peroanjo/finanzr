@@ -556,9 +556,11 @@ class StockSplitRequestSerializer(serializers.Serializer[dict[str, Any]]):
     isin = serializers.CharField(required=True)
 
 
-class PriceRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    precio = serializers.DecimalField(max_digits=24, decimal_places=8, required=True)
-    moneda = serializers.CharField(required=False, default="EUR")
+class PriceRequestSerializer(StrictSerializer):
+    """Native workspace price override request addressed by instrument UUID."""
+
+    close = serializers.DecimalField(max_digits=24, decimal_places=10, required=True)
+    currency = serializers.CharField(required=False, max_length=4, allow_blank=False)
 
 
 class FxRateRequestSerializer(serializers.Serializer[dict[str, Any]]):
@@ -622,11 +624,36 @@ class CryptoTransactionResponseSerializer(TransactionResponseSerializer):
 
 
 class PriceResponseSerializer(serializers.Serializer[dict[str, Any]]):
-    ok = serializers.BooleanField(required=False)
-    isin = serializers.CharField(required=False)
-    symbol = serializers.CharField(required=False)
-    precio = serializers.DecimalField(max_digits=24, decimal_places=8, required=False)
-    moneda = serializers.CharField(required=False)
+    id = serializers.UUIDField()
+    instrument_id = serializers.UUIDField()
+    quoted_at = serializers.DateTimeField()
+    close = serializers.DecimalField(max_digits=24, decimal_places=10, coerce_to_string=False)
+    currency = serializers.CharField()
+    base_close = serializers.DecimalField(max_digits=24, decimal_places=10, coerce_to_string=False)
+    base_currency = serializers.CharField()
+    fx_rate_to_base = serializers.DecimalField(
+        max_digits=24, decimal_places=12, coerce_to_string=False
+    )
+    fx_rate_date = serializers.DateField()
+    fx_source = serializers.CharField()
+    source = serializers.CharField()  # type: ignore[assignment]
+
+
+class PriceFetchResultSerializer(serializers.Serializer[dict[str, Any]]):
+    instrument_id = serializers.UUIDField()
+    base_close = serializers.DecimalField(
+        max_digits=24, decimal_places=10, allow_null=True, coerce_to_string=False
+    )
+    close = serializers.DecimalField(
+        max_digits=24, decimal_places=10, allow_null=True, coerce_to_string=False
+    )
+    currency = serializers.CharField(allow_null=True)
+    ticker = serializers.CharField(allow_null=True)
+    error = serializers.CharField(allow_null=True)
+
+
+class PriceFetchResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    results = PriceFetchResultSerializer(many=True)
 
 
 class FxRateResponseSerializer(serializers.Serializer[dict[str, Any]]):

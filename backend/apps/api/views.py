@@ -25,6 +25,7 @@ from apps.api.investment_projection import investment_account_row, investment_sn
 from apps.api.market_data_projection import (
     instrument_calculation_row,
     instrument_row,
+    price_calculation_row,
     price_row,
 )
 from apps.api.portfolio_projection import manual_asset_row
@@ -40,6 +41,7 @@ from apps.api.schemas import (
     ManualAssetUpdateRequestSerializer,
     NativeInvestmentSnapshotRequestSerializer,
     NativeSavingsSnapshotRequestSerializer,
+    PriceRequestSerializer,
     RealEstateRequestSerializer,
     RealEstateUpdateRequestSerializer,
     SavingsAccountRequestSerializer,
@@ -1980,14 +1982,16 @@ def crypto_transaction_detail(request: Request, transaction_id: UUID) -> Respons
     return transaction_detail(request, Instrument.Kind.CRYPTO, transaction_id)
 
 
-def price_list(request: Request, kind: str) -> Response:
+def _selected_market_prices(
+    request: Request, kind: str
+) -> tuple[Workspace, list[MarketPrice | WorkspaceMarketPriceOverride]]:
     current_workspace = workspace(request)
-    base_currency = normalize_currency(current_workspace.base_currency)
+    instruments = workspace_instruments(request, kind)
     queryset = (
         MarketPrice.objects.select_related("instrument")
         .prefetch_related("instrument__identifiers")
         .filter(
-            instrument__in=workspace_instruments(request, kind),
+            instrument__in=instruments,
             granularity=MarketPrice.Granularity.SPOT,
         )
         .order_by("instrument_id", "-quoted_at", "-created_at")
@@ -2000,7 +2004,7 @@ def price_list(request: Request, kind: str) -> Response:
         .prefetch_related("instrument__identifiers")
         .filter(
             workspace=current_workspace,
-            instrument__in=workspace_instruments(request, kind),
+            instrument__in=instruments,
         )
     )
     selected: dict[Any, MarketPrice | WorkspaceMarketPriceOverride] = dict(latest_by_instrument)
@@ -2008,10 +2012,16 @@ def price_list(request: Request, kind: str) -> Response:
         existing = selected.get(override.instrument_id)
         if existing is None or override.quoted_at >= existing.quoted_at:
             selected[override.instrument_id] = override
+    return current_workspace, list(selected.values())
+
+
+def price_list(request: Request, kind: str) -> Response:
+    current_workspace, selected_prices = _selected_market_prices(request, kind)
+    base_currency = normalize_currency(current_workspace.base_currency)
 
     rows = []
     try:
-        for selected_price in selected.values():
+        for selected_price in selected_prices:
             conversion = rate_to_base(
                 selected_price.currency,
                 base_currency,
@@ -2020,6 +2030,34 @@ def price_list(request: Request, kind: str) -> Response:
             )
             rows.append(
                 price_row(
+                    selected_price,
+                    converted_price=selected_price.close * conversion.rate,
+                    base_currency=base_currency,
+                    fx_rate=conversion.rate,
+                    fx_rate_date=conversion.rate_date,
+                    fx_source=conversion.source,
+                )
+            )
+    except CurrencyConversionError as exc:
+        return Response({"error": str(exc)}, status=502)
+    return Response(rows)
+
+
+def _calculation_price_list(request: Request, kind: str) -> Response:
+    """Return the private transitional price shape used by domain calculators."""
+    current_workspace, selected_prices = _selected_market_prices(request, kind)
+    base_currency = normalize_currency(current_workspace.base_currency)
+    rows = []
+    try:
+        for selected_price in selected_prices:
+            conversion = rate_to_base(
+                selected_price.currency,
+                base_currency,
+                selected_price.quoted_at.date(),
+                workspace=current_workspace,
+            )
+            rows.append(
+                price_calculation_row(
                     selected_price,
                     converted_price=selected_price.close * conversion.rate,
                     base_currency=base_currency,
@@ -2048,19 +2086,28 @@ def crypto_prices(request: Request) -> Response:
     return price_list(request, "crypto")
 
 
-def update_price(request: Request, asset_id: str, kind: str) -> Response:
+def update_price(request: Request, instrument_id: UUID, kind: str) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    instrument = workspace_instrument(request, InstrumentIdentifier.Scheme.ISIN, asset_id)
-    if instrument.kind != kind:
-        return Response({"error": _("The asset does not belong in this section")}, status=400)
-    data = payload(request)
-    if data.get("precio") in (None, ""):
-        return Response({"error": _("The price is required")}, status=400)
+    current_workspace = workspace(request)
+    instrument = (
+        Instrument.objects.filter(pk=instrument_id, kind=kind)
+        .filter(
+            Q(workspace_links__workspace=current_workspace)
+            | Q(transactions__account__workspace=current_workspace)
+        )
+        .first()
+    )
+    if instrument is None:
+        raise Http404
+    serializer = PriceRequestSerializer(data=payload(request))
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+    data = cast(dict[str, Any], serializer.validated_data)
     try:
-        value = decimal(data["precio"])
+        value = data["close"]
         currency = normalize_currency(
-            data.get("moneda") or instrument.quote_currency or workspace(request).base_currency
+            data.get("currency") or instrument.quote_currency or current_workspace.base_currency
         )
     except (ValueError, CurrencyConversionError) as exc:
         return Response({"error": str(exc)}, status=400)
@@ -2082,13 +2129,13 @@ def update_price(request: Request, asset_id: str, kind: str) -> Response:
 
 
 @api_view(["PUT"])
-def fund_price_detail(request: Request, asset_id: str) -> Response:
-    return update_price(request, asset_id, "fund")
+def fund_price_detail(request: Request, instrument_id: UUID) -> Response:
+    return update_price(request, instrument_id, "fund")
 
 
 @api_view(["PUT"])
-def stock_price_detail(request: Request, asset_id: str) -> Response:
-    return update_price(request, asset_id, "stock")
+def stock_price_detail(request: Request, instrument_id: UUID) -> Response:
+    return update_price(request, instrument_id, "stock")
 
 
 def analyzed_positions(
@@ -2098,7 +2145,7 @@ def analyzed_positions(
     *,
     account_filter: int | str | UUID | None = None,
 ) -> list[dict[str, Any]]:
-    prices = price_list(request, kind).data
+    prices = _calculation_price_list(request, kind).data
     key = "symbol" if kind == "crypto" else "isin"
     price_map = {row[key]: row["precio"] for row in prices}
     if kind == "stock":
@@ -2476,11 +2523,12 @@ def fetch_prices(request: Request, kind: str) -> Response:
     base_currency = normalize_currency(workspace(request).base_currency)
     results = []
     for instrument in instruments_qs:
-        asset_scheme = "crypto_symbol" if kind == "crypto" else "isin"
-        asset_id = identifier(instrument, asset_scheme)
         result: dict[str, Any] = {
-            "symbol" if kind == "crypto" else "isin": asset_id,
-            "precio": None,
+            "instrument_id": str(instrument.id),
+            "base_close": None,
+            "close": None,
+            "currency": None,
+            "ticker": None,
             "error": None,
         }
         try:
@@ -2511,9 +2559,9 @@ def fetch_prices(request: Request, kind: str) -> Response:
             )
             result.update(
                 ticker=ticker,
-                precio=round(price_base, 6),
-                precio_orig=original,
-                moneda=currency,
+                base_close=number(round(price_base, 6)),
+                close=number(original),
+                currency=currency,
             )
         except (MarketDataError, CurrencyConversionError) as exc:
             result["error"] = str(exc)
