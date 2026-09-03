@@ -280,11 +280,17 @@ describe("StocksView", () => {
       if (path === "/stock-prices")
         return [
           {
-            isin: position.isin,
-            precio: 185,
-            updated: "2026-07-21",
-            moneda: "EUR",
-            precio_orig: 185,
+            id: "00000000-0000-0000-0000-000000000604",
+            instrument_id: "00000000-0000-0000-0000-000000000603",
+            quoted_at: "2026-07-21T00:00:00+00:00",
+            close: 185,
+            currency: "EUR",
+            base_close: 185,
+            base_currency: "EUR",
+            fx_rate_to_base: 1,
+            fx_rate_date: "2026-07-21",
+            fx_source: "identity",
+            source: "yahoo",
           },
         ];
       if (path.startsWith(`/stock-chart/${position.isin}?`))

@@ -253,11 +253,20 @@ The public instrument projection is a strict English DTO with `id` (UUID),
 `subtype`, and `is_active`. Collection writes require the identifier scheme
 appropriate to the instrument kind, and detail writes address the UUID within
 the active workspace. Legacy Spanish keys, `legacy_id`, and raw metadata are
-not accepted or returned. Price, chart, split, and transaction endpoints keep
-their existing textual instrument identifiers while resolving through the
-preserved ISIN/symbol identifiers.
+not accepted or returned. Price collections use the native effective-price
+projection below and manual fund/stock price writes address the instrument
+UUID. Chart, split, and transaction endpoints retain their existing textual
+instrument identifiers while resolving through the preserved ISIN/symbol
+identifiers.
 
 ### `MarketPrice`
+
+The public spot-price response is an English DTO containing `id` (the provider
+price or workspace override UUID), `instrument_id`, `quoted_at`, native
+`close`/`currency`, converted `base_close`/`base_currency`, `fx_rate_to_base`,
+`fx_rate_date`, `fx_source`, and `source`. Manual price writes accept only
+`close` and optional `currency`; fetch results contain `instrument_id`,
+nullable native and base closes/currency, `ticker`, and `error`.
 
 | Field | Type | Rules |
 |---|---|---|

@@ -56,6 +56,7 @@ from apps.api.schemas import (
     PasswordResetRequestSerializer,
     PortfolioAnalysisResponseSerializer,
     PreferencesRequestSerializer,
+    PriceFetchResponseSerializer,
     PriceRequestSerializer,
     PriceResponseSerializer,
     RealEstateRequestSerializer,
@@ -307,6 +308,12 @@ class PublicAutoSchema(AutoSchema):
             return UploadRequestSerializer()
         if "/upload" in self.path:
             return AccountUploadRequestSerializer()
+        if path in {
+            "/api/fund-prices/fetch",
+            "/api/stock-prices/fetch",
+            "/api/crypto-prices/fetch",
+        }:
+            return None
         if family_path in {"/api/orders", "/api/stock-orders", "/api/crypto-orders"}:
             if family_path == "/api/orders":
                 return (
@@ -441,6 +448,14 @@ class PublicAutoSchema(AutoSchema):
             response = response_serializer(many=self.method == "GET")
         elif family_path in {"/api/fund-prices", "/api/stock-prices", "/api/crypto-prices"}:
             response = PriceResponseSerializer(many=self.method == "GET")
+            if self.method == "PUT":
+                response = OkSerializer
+        elif path in {
+            "/api/fund-prices/fetch",
+            "/api/stock-prices/fetch",
+            "/api/crypto-prices/fetch",
+        }:
+            response = PriceFetchResponseSerializer
         elif family_path == "/api/fx-rates":
             response = FxRateResponseSerializer(many=self.method == "GET")
         elif path == "/api/budget":

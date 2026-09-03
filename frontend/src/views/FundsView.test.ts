@@ -245,11 +245,17 @@ const instruments = [
 ];
 const prices = [
   {
-    isin: "TEST",
-    precio: 120,
-    precio_orig: 100,
-    moneda: "USD",
-    updated: "2026-07-01",
+    id: "00000000-0000-0000-0000-000000000021",
+    instrument_id: instruments[0].id,
+    quoted_at: "2026-07-01T23:30:00-05:00",
+    close: 100,
+    currency: "GBP",
+    base_close: 120,
+    base_currency: "EUR",
+    fx_rate_to_base: 1.2,
+    fx_rate_date: "2026-07-01",
+    fx_source: "test",
+    source: "test",
   },
 ];
 const chart = {
@@ -344,11 +350,25 @@ describe("FundsView", () => {
       if (path === "/fund-prices") return prices;
       if (path.startsWith("/fund-chart/")) return chart;
       if (path === "/fund-prices/fetch" && init?.method === "POST") {
-        return { results: [{ isin: "TEST", precio: 121, error: null }] };
+        return {
+          results: [
+            {
+              instrument_id: instruments[0].id,
+              base_close: 121,
+              close: 100.833333,
+              currency: "USD",
+              ticker: "TEST.MC",
+              error: null,
+            },
+          ],
+        };
       }
       if (path === `/funds/${instruments[0].id}` && init?.method === "PUT")
         return { ...instruments[0] };
-      if (path === "/fund-prices/TEST" && init?.method === "PUT")
+      if (
+        path === `/fund-prices/${instruments[0].id}` &&
+        init?.method === "PUT"
+      )
         return { ok: true };
       if (path === "/orders" && init?.method === "POST") {
         return { ...orders[0], id: "manual:fund" };
@@ -384,6 +404,7 @@ describe("FundsView", () => {
     expect(wrapper.text()).toContain("1000,00");
     expect(wrapper.text()).toContain("20 %");
     expect(wrapper.text()).toContain("01/01/2026 → 01/07/2026");
+    expect(wrapper.get(".fund-utility").text()).toContain("01 jul 2026");
     expect(wrapper.get('[data-testid="fund-performance-chart"]').text()).toBe(
       "2-value",
     );
@@ -1242,7 +1263,7 @@ describe("FundsView", () => {
     const dialog = wrapper.get('dialog[aria-labelledby="fund-editor-title"]');
     const inputs = dialog.findAll("input");
     expect(inputs[4].element.value).toBe("100");
-    expect(dialog.text()).toContain("Precio manual (USD)");
+    expect(dialog.text()).toContain("Precio manual (GBP)");
     await inputs[0].setValue("Fondo global editado");
     await inputs[4].setValue("125");
     await dialog.get("form").trigger("submit");
@@ -1275,9 +1296,9 @@ describe("FundsView", () => {
         }),
       }),
     );
-    expect(apiMock).toHaveBeenCalledWith("/fund-prices/TEST", {
+    expect(apiMock).toHaveBeenCalledWith(`/fund-prices/${instruments[0].id}`, {
       method: "PUT",
-      body: JSON.stringify({ precio: 125, moneda: "USD" }),
+      body: JSON.stringify({ close: 125, currency: "GBP" }),
     });
   });
 
@@ -1315,6 +1336,23 @@ describe("FundsView", () => {
         }),
       }),
     );
+  });
+
+  it("saves an existing zero native price instead of treating it as missing", async () => {
+    const wrapper = mount(FundsView);
+    await flushPromises();
+
+    await wrapper.get('button[aria-label="Editar fondo"]').trigger("click");
+    const dialog = wrapper.get('dialog[aria-labelledby="fund-editor-title"]');
+    const inputs = dialog.findAll("input");
+    await inputs[4].setValue("0");
+    await dialog.get("form").trigger("submit");
+    await flushPromises();
+
+    expect(apiMock).toHaveBeenCalledWith(`/fund-prices/${instruments[0].id}`, {
+      method: "PUT",
+      body: JSON.stringify({ close: 0, currency: "GBP" }),
+    });
   });
 
   it("keeps a nonprimary selected Yahoo feed and its venue on a name-only edit", async () => {

@@ -49,6 +49,7 @@ import type {
   StockPerformanceResponse,
   StockPosition,
   StockPrice,
+  PriceFetchResponse,
 } from "../types/api";
 import {
   instrumentByIdentity,
@@ -377,7 +378,7 @@ const allocationTotal = computed(() =>
 );
 const latestUpdate = computed(() => {
   const dates = prices.value
-    .map((price) => price.updated)
+    .map((price) => price.quoted_at.slice(0, 10))
     .filter(Boolean)
     .sort();
   return dates.length
@@ -829,10 +830,9 @@ async function deleteAccount() {
 async function refreshPrices() {
   refreshingPrices.value = true;
   try {
-    const result = await api<{ results: Array<{ error: string | null }> }>(
-      "/stock-prices/fetch",
-      { method: "POST" },
-    );
+    const result = await api<PriceFetchResponse>("/stock-prices/fetch", {
+      method: "POST",
+    });
     const failed = result.results.filter((item) => item.error).length;
     priceMessage.value = failed
       ? t("stocks.prices.failed", failed)

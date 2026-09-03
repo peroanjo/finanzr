@@ -63,8 +63,8 @@ or a deployment secret store, never through fixtures or source control.
 6. Vue renders the result and localizes user-facing messages using the selected
    language, with English as the technical fallback.
 
-The workspace export is currently `finanzr-workspace-v3`. This document-level
-version records native UUID/English account and instrument projections for
+The workspace export is currently `finanzr-workspace-v4`. This document-level
+version records native UUID/English account, instrument, and market-price projections for
 savings, manual investments, funds, stocks, and crypto, including
 legacy-origin rows and archived history for complete exports. Instrument
 identities are represented by their typed `identifiers` list; legacy IDs and

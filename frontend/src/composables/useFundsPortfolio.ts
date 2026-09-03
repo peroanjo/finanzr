@@ -47,7 +47,7 @@ export interface UseFundsPortfolio {
   totalPnl: ComputedRef<number>;
   selectedFundPosition: ComputedRef<FundPosition | null>;
   selectedFundOrders: ComputedRef<FundOrder[]>;
-  latestPriceByIsin: ComputedRef<Map<string, FundPrice>>;
+  latestPriceByInstrumentId: ComputedRef<Map<string, FundPrice>>;
   pricedPositions: ComputedRef<number>;
   positionSortKey: Ref<FundPositionSortKey>;
   positionSortDirection: Ref<FundSortDirection>;
@@ -114,13 +114,17 @@ export function useFundsPortfolio(
   const selectedFundOrders = computed(() =>
     orders.value.filter((item) => item.isin === selectedFund.value),
   );
-  const latestPriceByIsin = computed(
-    () => new Map(prices.value.map((item) => [item.isin, item])),
+  const latestPriceByInstrumentId = computed(
+    () => new Map(prices.value.map((item) => [item.instrument_id, item])),
   );
   const pricedPositions = computed(
     () =>
-      positions.value.filter((item) => latestPriceByIsin.value.has(item.isin))
-        .length,
+      positions.value.filter((item) => {
+        const instrument = instrumentByIdentity(instruments.value, item.isin);
+        return instrument
+          ? latestPriceByInstrumentId.value.has(instrument.id)
+          : false;
+      }).length,
   );
   const sortedPositions = computed(() => {
     const collator = new Intl.Collator(locale.value, {
@@ -227,7 +231,7 @@ export function useFundsPortfolio(
     totalPnl,
     selectedFundPosition,
     selectedFundOrders,
-    latestPriceByIsin,
+    latestPriceByInstrumentId,
     pricedPositions,
     positionSortKey,
     positionSortDirection,

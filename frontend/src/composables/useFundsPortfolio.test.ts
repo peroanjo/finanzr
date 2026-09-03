@@ -76,9 +76,17 @@ function makeInstrument(
 
 function makePrice(overrides: Partial<FundPrice> = {}): FundPrice {
   return {
-    isin: "FUND-1",
-    precio: 120,
-    updated: "2026-07-01",
+    id: "00000000-0000-0000-0000-000000000401",
+    instrument_id: "00000000-0000-0000-0000-000000000301",
+    quoted_at: "2026-07-01T00:00:00+00:00",
+    close: 120,
+    currency: "EUR",
+    base_close: 120,
+    base_currency: "EUR",
+    fx_rate_to_base: 1,
+    fx_rate_date: "2026-07-01",
+    fx_source: "identity",
+    source: "test",
     ...overrides,
   };
 }
@@ -317,25 +325,66 @@ describe("useFundsPortfolio", () => {
         makePosition({ isin: "FUND-B", nombre: "Fund B" }),
       ],
       orders: [makeOrder({ isin: "FUND-A" })],
-      prices: [makePrice({ isin: "FUND-A" })],
+      instruments: [
+        makeInstrument({
+          identifiers: [
+            { scheme: "isin", value: "FUND-A", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          id: "00000000-0000-0000-0000-000000000302",
+          identifiers: [
+            { scheme: "isin", value: "FUND-B", venue: "", is_primary: true },
+          ],
+        }),
+      ],
+      prices: [makePrice()],
       selectedFund: "FUND-A",
     });
 
     expect(portfolio.selectedFundPosition.value?.isin).toBe("FUND-A");
     expect(portfolio.selectedFundOrders.value).toHaveLength(1);
     expect(portfolio.pricedPositions.value).toBe(1);
-    expect(portfolio.latestPriceByIsin.value.get("FUND-A")?.precio).toBe(120);
+    expect(
+      portfolio.latestPriceByInstrumentId.value.get(
+        "00000000-0000-0000-0000-000000000301",
+      )?.close,
+    ).toBe(120);
 
     portfolio.selectedFund.value = "FUND-B";
     expect(portfolio.selectedFundPosition.value?.isin).toBe("FUND-B");
     expect(portfolio.selectedFundOrders.value).toHaveLength(0);
 
     portfolio.prices.value = [
-      makePrice({ isin: "FUND-A" }),
-      makePrice({ isin: "FUND-B", precio: 80 }),
+      makePrice({
+        instrument_id: "00000000-0000-0000-0000-000000000301",
+      }),
+      makePrice({
+        id: "00000000-0000-0000-0000-000000000402",
+        instrument_id: "00000000-0000-0000-0000-000000000302",
+        close: 80,
+      }),
+    ];
+    portfolio.instruments.value = [
+      makeInstrument({
+        identifiers: [
+          { scheme: "isin", value: "FUND-A", venue: "", is_primary: true },
+        ],
+      }),
+      makeInstrument({
+        id: "00000000-0000-0000-0000-000000000302",
+        identifiers: [
+          { scheme: "isin", value: "FUND-B", venue: "", is_primary: true },
+          { scheme: "yahoo", value: "FUND2.MC", venue: "", is_primary: true },
+        ],
+      }),
     ];
     expect(portfolio.pricedPositions.value).toBe(2);
-    expect(portfolio.latestPriceByIsin.value.get("FUND-B")?.precio).toBe(80);
+    expect(
+      portfolio.latestPriceByInstrumentId.value.get(
+        "00000000-0000-0000-0000-000000000302",
+      )?.close,
+    ).toBe(80);
   });
 
   it("preserves initial sort state, null ordering, locale collation, and handlers", () => {

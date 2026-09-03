@@ -47,6 +47,7 @@ import type {
   CryptoPosition,
   CryptoPrice,
   CryptoPerformanceResponse,
+  PriceFetchResponse,
   ImporterCatalogItem,
   MarketCandle,
 } from "../types/api";
@@ -335,7 +336,7 @@ const periodLabel = computed(() =>
 );
 const latestUpdate = computed(() => {
   const dates = prices.value
-    .map((item) => item.updated)
+    .map((item) => item.quoted_at.slice(0, 10))
     .filter(Boolean)
     .sort();
   return dates.length
@@ -1067,12 +1068,9 @@ async function refreshPrices() {
   refreshingPrices.value = true;
   priceMessage.value = "";
   try {
-    const result = await api<{ results: Array<{ error: string | null }> }>(
-      "/crypto-prices/fetch",
-      {
-        method: "POST",
-      },
-    );
+    const result = await api<PriceFetchResponse>("/crypto-prices/fetch", {
+      method: "POST",
+    });
     const failures = result.results.filter((item) => item.error).length;
     priceMessage.value = failures
       ? t(

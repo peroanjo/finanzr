@@ -33,7 +33,7 @@ def _view_data(view: Callable[[Any], Any], request: Request) -> object:
 def _native_savings_sections(
     request: Request,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    """Serialize every savings row for the workspace export's v3 contract."""
+    """Serialize every savings row for the workspace export's v4 contract."""
 
     accounts = list(
         Account.objects.filter(
@@ -73,7 +73,7 @@ def _native_investment_sections(
 
 
 def _native_portfolio_section(request: Request) -> list[dict[str, object]]:
-    """Serialize every manual asset so the v3 export is complete."""
+    """Serialize every manual asset so the v4 export is complete."""
 
     assets = ManualAsset.objects.filter(workspace=views.workspace(request)).select_related(
         "provider"
@@ -97,8 +97,9 @@ def export_payload(request: Request) -> dict[str, object]:
     savings_accounts, savings_history = _native_savings_sections(request)
     investment_accounts, investment_history = _native_investment_sections(request)
     return {
-        # v3 records native transaction HTTP DTOs and native instrument UUID/identifier projections.
-        "format": "finanzr-workspace-v3",
+        # v4 records native transaction HTTP DTOs, native instrument UUID/identifier
+        # projections, and native market-price contracts.
+        "format": "finanzr-workspace-v4",
         "workspace": user_payload(user, request),
         "summary": views._overview_calculation(request)[0],
         "savings_accounts": savings_accounts,

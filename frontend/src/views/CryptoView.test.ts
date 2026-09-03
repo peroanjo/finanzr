@@ -235,11 +235,17 @@ let mockInstruments: CryptoInstrument[] = [
 ];
 let mockPrices: CryptoPrice[] = [
   {
-    symbol: "BTC",
-    precio: 70000,
-    updated: "2026-07-10",
-    moneda: "EUR",
-    precio_orig: 70000,
+    id: "00000000-0000-0000-0000-000000000701",
+    instrument_id: "00000000-0000-0000-0000-000000000501",
+    quoted_at: "2026-07-10T00:00:00+00:00",
+    close: 70000,
+    currency: "EUR",
+    base_close: 70000,
+    base_currency: "EUR",
+    fx_rate_to_base: 1,
+    fx_rate_date: "2026-07-10",
+    fx_source: "identity",
+    source: "yahoo",
   },
 ];
 
@@ -267,11 +273,17 @@ function installApiMock() {
   ];
   mockPrices = [
     {
-      symbol: "BTC",
-      precio: 70000,
-      updated: "2026-07-10",
-      moneda: "EUR",
-      precio_orig: 70000,
+      id: "00000000-0000-0000-0000-000000000701",
+      instrument_id: "00000000-0000-0000-0000-000000000501",
+      quoted_at: "2026-07-10T00:00:00+00:00",
+      close: 70000,
+      currency: "EUR",
+      base_close: 70000,
+      base_currency: "EUR",
+      fx_rate_to_base: 1,
+      fx_rate_date: "2026-07-10",
+      fx_source: "identity",
+      source: "yahoo",
     },
   ];
   apiMock.mockReset();
