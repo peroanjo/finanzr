@@ -255,9 +255,9 @@ appropriate to the instrument kind, and detail writes address the UUID within
 the active workspace. Legacy Spanish keys, `legacy_id`, and raw metadata are
 not accepted or returned. Price collections use the native effective-price
 projection below and manual fund/stock price writes address the instrument
-UUID. Chart, split, and transaction endpoints retain their existing textual
-instrument identifiers while resolving through the preserved ISIN/symbol
-identifiers.
+UUID. Chart and transaction endpoints retain their existing textual instrument
+identifiers while resolving through the preserved ISIN/symbol identifiers;
+stock-split collection writes and deletes use native instrument/split UUIDs.
 
 ### `MarketPrice`
 

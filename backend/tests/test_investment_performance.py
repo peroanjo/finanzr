@@ -588,13 +588,18 @@ def test_stock_split_mutation_invalidates_performance_cache() -> None:
 
     response = client.post(
         "/api/stock-splits",
-        {"isin": "STOCK", "fecha": "2026-02-01", "ratio": 2},
+        {
+            "instrument_id": str(instrument.pk),
+            "effective_date": "2026-02-01",
+            "ratio": 2,
+        },
         format="json",
     )
 
     assert response.status_code == 200
     assert cache.get(cache_key) is None
     cache.set(cache_key, {"data": ["stale"]}, timeout=3600)
-    deleted = client.delete("/api/stock-splits/STOCK/2026-02-01")
+    split_id = response.json()["id"]
+    deleted = client.delete(f"/api/stock-splits/{split_id}")
     assert deleted.status_code == 200
     assert cache.get(cache_key) is None

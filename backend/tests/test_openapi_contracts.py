@@ -575,6 +575,60 @@ class OpenApiMutationContractTests(SimpleTestCase):
         assert "200" in document["paths"]["/api/fx-rates"]["post"]["responses"]
         assert "201" not in document["paths"]["/api/stock-splits"]["post"]["responses"]
 
+        stock_split = document["paths"]["/api/stock-splits"]
+        split_request = self._resolve(
+            document,
+            stock_split["post"]["requestBody"]["content"]["application/json"]["schema"],
+        )
+        assert set(split_request["properties"]) == {
+            "instrument_id",
+            "effective_date",
+            "ratio",
+            "source",
+        }
+        assert set(split_request["required"]) == {
+            "instrument_id",
+            "effective_date",
+            "ratio",
+        }
+        assert split_request["properties"]["instrument_id"] == {
+            "type": "string",
+            "format": "uuid",
+        }
+        assert split_request["properties"]["effective_date"] == {
+            "type": "string",
+            "format": "date",
+        }
+        assert split_request["properties"]["ratio"]["type"] == "string"
+        split_response = self._resolve(
+            document,
+            stock_split["get"]["responses"]["200"]["content"]["application/json"]["schema"][
+                "items"
+            ],
+        )
+        assert set(split_response["properties"]) == {
+            "id",
+            "instrument_id",
+            "effective_date",
+            "ratio",
+            "source",
+        }
+        assert split_response["properties"]["ratio"]["type"] == "number"
+        split_delete = document["paths"]["/api/stock-splits/{split_id}"]["delete"]
+        assert split_delete["parameters"] == [
+            {
+                "in": "path",
+                "name": "split_id",
+                "schema": {"type": "string", "format": "uuid"},
+                "required": True,
+            }
+        ]
+        assert self._resolve(
+            document,
+            split_delete["responses"]["200"]["content"]["application/json"]["schema"],
+        ) == {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+        assert "/api/stock-splits/{asset_id}/{value_date}" not in document["paths"]
+
     @staticmethod
     def _temp_schema() -> str:
         import tempfile

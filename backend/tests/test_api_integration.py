@@ -26,7 +26,7 @@ from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -3385,7 +3385,7 @@ def test_stock_split_mutations_target_the_canonical_instrument_only(
         source="second",
     )
 
-    deleted = client.delete(f"/api/stock-splits/{canonical}/{split_date.isoformat()}")
+    deleted = client.delete(f"/api/stock-splits/{first_split.pk}")
     assert deleted.status_code == 200
     assert not StockSplit.objects.filter(pk=first_split.pk).exists()
     second_split.refresh_from_db()
@@ -3397,14 +3397,282 @@ def test_stock_split_mutations_target_the_canonical_instrument_only(
 
     created = client.post(
         "/api/stock-splits",
-        {"isin": canonical, "fecha": split_date.isoformat(), "ratio": "4"},
+        {
+            "instrument_id": str(first_instrument.pk),
+            "effective_date": split_date.isoformat(),
+            "ratio": "4",
+        },
         format="json",
     )
     assert created.status_code == 200
+    assert set(created.json()) == {
+        "id",
+        "instrument_id",
+        "effective_date",
+        "ratio",
+        "source",
+    }
     first_split = StockSplit.objects.get(instrument=first_instrument, effective_date=split_date)
+    assert created.json()["id"] == str(first_split.pk)
     second_split.refresh_from_db()
     assert (first_split.ratio, first_split.source) == (Decimal("4"), "manual")
     assert (second_split.ratio, second_split.source) == (Decimal("3"), "second")
+
+
+@pytest.mark.django_db(transaction=True)
+def test_native_stock_split_contract_rejects_invalid_payloads_without_mutation(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, owner = api_context
+    stock = Instrument.objects.get(
+        identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
+        identifiers__value="SYNTH-STOCK-001",
+    )
+    fund = Instrument.objects.get(
+        identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
+        identifiers__value="SYNTH-FUND-001",
+    )
+    split = StockSplit.objects.get(instrument=stock)
+
+    listed = client.get("/api/stock-splits")
+    assert listed.status_code == 200
+    listed_row = next(row for row in listed.json() if row["id"] == str(split.pk))
+    assert set(listed_row) == {
+        "id",
+        "instrument_id",
+        "effective_date",
+        "ratio",
+        "source",
+    }
+    assert listed_row["instrument_id"] == str(stock.pk)
+    assert listed_row["effective_date"] == split.effective_date.isoformat()
+    assert listed_row["ratio"] == 2.0
+
+    updated = client.post(
+        "/api/stock-splits",
+        {
+            "instrument_id": str(stock.pk),
+            "effective_date": split.effective_date.isoformat(),
+            "ratio": "0.5",
+        },
+        format="json",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["id"] == str(split.pk)
+    split.refresh_from_db()
+    assert (split.ratio, split.source) == (Decimal("0.5"), "manual")
+
+    split_count = StockSplit.objects.filter(workspace=split.workspace).count()
+    minimum = client.post(
+        "/api/stock-splits",
+        {
+            "instrument_id": str(stock.pk),
+            "effective_date": split.effective_date.isoformat(),
+            "ratio": "0.000000000001",
+            "source": "boundary",
+        },
+        format="json",
+    )
+    assert minimum.status_code == 200
+    assert minimum.json()["id"] == str(split.pk)
+    maximum = None
+    if connection.vendor != "sqlite":
+        maximum = client.post(
+            "/api/stock-splits",
+            {
+                "instrument_id": str(stock.pk),
+                "effective_date": split.effective_date.isoformat(),
+                "ratio": "999999999999.999999999999",
+                "source": "boundary",
+            },
+            format="json",
+        )
+        assert maximum.status_code == 200
+        assert maximum.json()["id"] == str(split.pk)
+    split.refresh_from_db()
+    if maximum is not None:
+        assert split.ratio == Decimal("999999999999.999999999999")
+        assert split.source == "boundary"
+    else:
+        assert split.ratio == Decimal("0.000000000001")
+        assert split.source == "boundary"
+    assert split.confirmed_by_id == owner.pk
+    assert StockSplit.objects.filter(workspace=split.workspace).count() == split_count
+
+    cache_key = "native-stock-split-invalid-payload"
+    cache.set(cache_key, "sentinel", timeout=3600)
+    valid_body = {
+        "instrument_id": str(stock.pk),
+        "effective_date": split.effective_date.isoformat(),
+        "ratio": "2",
+    }
+    invalid_payloads = [
+        {"isin": "SYNTH-STOCK-001", "fecha": "2026-01-01", "ratio": 2},
+        {**valid_body, "id": str(split.pk)},
+        {**valid_body, "ratio": 0},
+        {**valid_body, "ratio": -1},
+        {**valid_body, "ratio": "NaN"},
+        {**valid_body, "ratio": "Infinity"},
+        {**valid_body, "ratio": "0.0000000000001"},
+        {**valid_body, "ratio": "1000000000000"},
+        {**valid_body, "ratio": True},
+        {**valid_body, "source": ""},
+        {**valid_body, "source": None},
+        {**valid_body, "source": "x" * 121},
+        {**valid_body, "fuente": "manual"},
+        {**valid_body, "effective_date": "not-a-date"},
+        {**valid_body, "instrument_id": "not-a-uuid"},
+        {**valid_body, "instrument_id": str(fund.pk)},
+        {**valid_body, "instrument_id": str(UUID(int=0))},
+    ]
+    for body in invalid_payloads:
+        response = client.post("/api/stock-splits", body, format="json")
+        assert response.status_code == 400, (body, response.content)
+        assert cache.get(cache_key) == "sentinel"
+
+    split.refresh_from_db()
+    if maximum is not None:
+        assert (split.ratio, split.source) == (
+            Decimal("999999999999.999999999999"),
+            "boundary",
+        )
+    else:
+        assert (split.ratio, split.source) == (Decimal("0.000000000001"), "boundary")
+
+
+def _active_workspace(client: APIClient) -> Workspace:
+    return Workspace.objects.get(pk=client.session["active_workspace_id"])
+
+
+def _foreign_stock_split(label: str) -> StockSplit:
+    foreign_workspace = Workspace.objects.create(
+        name=f"Foreign {label} split workspace",
+        slug=f"foreign-{label}-split-workspace",
+        base_currency="EUR",
+    )
+    foreign_stock = Instrument.objects.create(
+        kind=Instrument.Kind.STOCK,
+        name=f"Foreign {label} split stock",
+        quote_currency="EUR",
+    )
+    WorkspaceInstrument.objects.create(workspace=foreign_workspace, instrument=foreign_stock)
+    return StockSplit.objects.create(
+        workspace=foreign_workspace,
+        instrument=foreign_stock,
+        effective_date=date(2026, 2, 1),
+        ratio=Decimal("3"),
+        source="foreign",
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_stock_split_instrument_isolation_rejects_foreign_post_and_hides_foreign_rows(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    current_workspace = _active_workspace(client)
+    current_stock = Instrument.objects.get(
+        identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
+        identifiers__value="SYNTH-STOCK-001",
+    )
+    current_split = StockSplit.objects.get(workspace=current_workspace, instrument=current_stock)
+    foreign_split = _foreign_stock_split("post")
+    foreign_stock = foreign_split.instrument
+
+    listed_ids = {row["id"] for row in client.get("/api/stock-splits").json()}
+    assert str(current_split.pk) in listed_ids
+    assert str(foreign_split.pk) not in listed_ids
+
+    cache_key = "foreign-stock-split-isolation"
+    cache.set(cache_key, "sentinel", timeout=3600)
+    response = client.post(
+        "/api/stock-splits",
+        {
+            "instrument_id": str(foreign_stock.pk),
+            "effective_date": "2026-02-01",
+            "ratio": 2,
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert cache.get(cache_key) == "sentinel"
+    assert StockSplit.objects.filter(pk=current_split.pk).exists()
+    assert StockSplit.objects.filter(pk=foreign_split.pk).exists()
+
+
+@pytest.mark.parametrize("target", ("foreign", "missing", "wrong-kind", "malformed", "legacy"))
+@pytest.mark.django_db(transaction=True)
+def test_stock_split_delete_is_scoped_and_rejects_non_native_routes(
+    api_context: tuple[APIClient, User], target: str
+) -> None:
+    client, _ = api_context
+    current_workspace = _active_workspace(client)
+    current_split = StockSplit.objects.get(workspace=current_workspace)
+    wrong_kind_split = None
+    if target == "wrong-kind":
+        fund = Instrument.objects.get(
+            identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
+            identifiers__value="SYNTH-FUND-001",
+        )
+        wrong_kind_split = StockSplit.objects.create(
+            workspace=current_workspace,
+            instrument=fund,
+            effective_date=date(2026, 3, 1),
+            ratio=Decimal("2"),
+            source="wrong-kind",
+        )
+    foreign_split = _foreign_stock_split("delete") if target == "foreign" else None
+    targets = {
+        "foreign": f"/api/stock-splits/{foreign_split.pk}" if foreign_split else "",
+        "missing": f"/api/stock-splits/{UUID(int=0)}",
+        "wrong-kind": f"/api/stock-splits/{wrong_kind_split.pk}" if wrong_kind_split else "",
+        "malformed": "/api/stock-splits/not-a-uuid",
+        "legacy": "/api/stock-splits/SYNTH-STOCK-001/2026-01-01",
+    }
+    cache_key = f"stock-split-delete-rejection-{target}"
+    cache.set(cache_key, "sentinel", timeout=3600)
+    response = client.delete(targets[target])
+    assert response.status_code == 404
+    assert cache.get(cache_key) == "sentinel"
+    assert StockSplit.objects.filter(pk=current_split.pk).exists()
+    if wrong_kind_split:
+        assert StockSplit.objects.filter(pk=wrong_kind_split.pk).exists()
+    if foreign_split:
+        assert StockSplit.objects.filter(pk=foreign_split.pk).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_viewer_cannot_mutate_stock_splits(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    current_workspace = _active_workspace(client)
+    split = StockSplit.objects.get(workspace=current_workspace)
+    stock = split.instrument
+    viewer = User.objects.create_user(email="stock-split-viewer@example.com")
+    WorkspaceMembership.objects.create(
+        workspace=current_workspace,
+        user=viewer,
+        role=WorkspaceMembership.Role.VIEWER,
+    )
+    viewer_client = APIClient()
+    viewer_client.force_authenticate(user=viewer)
+    session = viewer_client.session
+    session["active_workspace_id"] = str(current_workspace.pk)
+    session.save()
+
+    cache_key = "stock-split-viewer-rejection"
+    cache.set(cache_key, "sentinel", timeout=3600)
+    body = {
+        "instrument_id": str(stock.pk),
+        "effective_date": split.effective_date.isoformat(),
+        "ratio": 2,
+    }
+    post = viewer_client.post("/api/stock-splits", body, format="json")
+    delete = viewer_client.delete(f"/api/stock-splits/{split.pk}")
+    assert post.status_code == delete.status_code == 403
+    assert cache.get(cache_key) == "sentinel"
+    assert StockSplit.objects.filter(pk=split.pk).exists()
 
 
 @pytest.mark.django_db(transaction=True)
