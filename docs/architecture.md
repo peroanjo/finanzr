@@ -64,9 +64,11 @@ or a deployment secret store, never through fixtures or source control.
    language, with English as the technical fallback.
 
 The workspace export is currently `finanzr-workspace-v3`. This document-level
-version records the native UUID/English account projections for savings,
-manual investments, funds, stocks, and crypto, including legacy-origin rows
-and archived history for complete exports. Traded orders use the same strict
+version records native UUID/English account and instrument projections for
+savings, manual investments, funds, stocks, and crypto, including
+legacy-origin rows and archived history for complete exports. Instrument
+identities are represented by their typed `identifiers` list; legacy IDs and
+raw metadata are not exported. Traded orders use the same strict
 English transaction DTO as the HTTP API; provider `external_id`, import batch
 links, and raw metadata remain private import storage. Pure position and
 performance calculations consume a separate private Spanish-shaped projection

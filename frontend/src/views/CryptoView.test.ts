@@ -1,11 +1,13 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
+import { instrumentIdentity } from "../domain/instruments";
 import { applyLocale, registerMessages } from "../i18n";
 import { cryptoMessages } from "../i18n/cryptoMessages";
 import type {
   CryptoAccount,
   CryptoInstrument,
+  InstrumentIdentifier,
   CryptoOrder,
   CryptoPrice,
 } from "../types/api";
@@ -196,9 +198,40 @@ const candles = [
 
 let mockAccounts: CryptoAccount[] = [...accounts];
 let mockOrders: CryptoOrder[] = [...orders];
+function makeCryptoInstrument(
+  id: string,
+  symbol: string,
+  ticker: string,
+  name: string,
+): CryptoInstrument {
+  return {
+    id,
+    kind: "crypto",
+    name,
+    quote_currency: "EUR",
+    identifiers: [
+      { scheme: "crypto_symbol", value: symbol, venue: "", is_primary: true },
+      { scheme: "yahoo", value: ticker, venue: "", is_primary: true },
+    ],
+    asset_class: null,
+    subtype: null,
+    is_active: true,
+  };
+}
+
 let mockInstruments: CryptoInstrument[] = [
-  { symbol: "BTC", ticker: "BTC-EUR", nombre: "Bitcoin", moneda: "EUR" },
-  { symbol: "ETH", ticker: "ETH-EUR", nombre: "Ethereum", moneda: "EUR" },
+  makeCryptoInstrument(
+    "00000000-0000-0000-0000-000000000501",
+    "BTC",
+    "BTC-EUR",
+    "Bitcoin",
+  ),
+  makeCryptoInstrument(
+    "00000000-0000-0000-0000-000000000502",
+    "ETH",
+    "ETH-EUR",
+    "Ethereum",
+  ),
 ];
 let mockPrices: CryptoPrice[] = [
   {
@@ -219,8 +252,18 @@ function installApiMock() {
   mockAccounts = [...accounts];
   mockOrders = [...orders];
   mockInstruments = [
-    { symbol: "BTC", ticker: "BTC-EUR", nombre: "Bitcoin", moneda: "EUR" },
-    { symbol: "ETH", ticker: "ETH-EUR", nombre: "Ethereum", moneda: "EUR" },
+    makeCryptoInstrument(
+      "00000000-0000-0000-0000-000000000501",
+      "BTC",
+      "BTC-EUR",
+      "Bitcoin",
+    ),
+    makeCryptoInstrument(
+      "00000000-0000-0000-0000-000000000502",
+      "ETH",
+      "ETH-EUR",
+      "Ethereum",
+    ),
   ];
   mockPrices = [
     {
@@ -290,8 +333,9 @@ function installApiMock() {
         cash_flow_type: "none",
         symbol: String(body.symbol ?? ""),
         asset_name:
-          mockInstruments.find((item) => item.symbol === body.symbol)?.nombre ??
-          String(body.symbol ?? ""),
+          mockInstruments.find(
+            (item) => instrumentIdentity(item) === body.symbol,
+          )?.name ?? String(body.symbol ?? ""),
         unit_price: Number(body.unit_price ?? 0),
         currency: String(body.currency ?? "EUR"),
         base_currency: "EUR",
@@ -323,22 +367,38 @@ function installApiMock() {
     if (path === "/cryptos" && method === "GET") return mockInstruments;
     if (path === "/cryptos" && method === "POST") {
       const body = requestBody(init);
+      const identifiers = (body.identifiers ?? []) as InstrumentIdentifier[];
       const created: CryptoInstrument = {
-        symbol: String(body.symbol ?? ""),
-        ticker: String(body.ticker ?? ""),
-        nombre: String(body.nombre ?? ""),
-        moneda: "EUR",
+        id: "00000000-0000-0000-0000-000000000503",
+        kind: "crypto",
+        name: String(body.name ?? ""),
+        quote_currency: String(body.quote_currency ?? "EUR"),
+        identifiers,
+        asset_class: (body.asset_class as string | null | undefined) ?? null,
+        subtype: (body.subtype as string | null | undefined) ?? null,
+        is_active: Boolean(body.is_active ?? true),
       };
       mockInstruments = [...mockInstruments, created];
       return created;
     }
     if (path.startsWith("/cryptos/") && method === "PUT") {
-      const symbol = path.split("/").at(-1);
+      const id = path.split("/").at(-1);
       const body = requestBody(init);
-      mockInstruments = mockInstruments.map((item) =>
-        item.symbol === symbol ? { ...item, ...body } : item,
-      );
-      return mockInstruments.find((item) => item.symbol === symbol);
+      mockInstruments = mockInstruments.map((item) => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          name: String(body.name ?? item.name),
+          quote_currency: String(body.quote_currency ?? item.quote_currency),
+          identifiers: (body.identifiers ??
+            item.identifiers) as InstrumentIdentifier[],
+          asset_class:
+            (body.asset_class as string | null | undefined) ?? item.asset_class,
+          subtype: (body.subtype as string | null | undefined) ?? item.subtype,
+          is_active: Boolean(body.is_active ?? item.is_active),
+        };
+      });
+      return mockInstruments.find((item) => item.id === id);
     }
     if (path === "/crypto-prices" && method === "GET") return mockPrices;
     if (path === "/crypto-prices/fetch" && method === "POST")
@@ -761,12 +821,14 @@ describe("CryptoView canonical migration", () => {
 
     await wrapper.get(".fund-edit-icon-button").trigger("click");
     const editAssetDialog = wrapper.get(".asset-editor-dialog");
-    await editAssetDialog.get("select").setValue("BTC");
+    await editAssetDialog
+      .get("select")
+      .setValue("00000000-0000-0000-0000-000000000501");
     await editAssetDialog.findAll("input").at(-1)!.setValue("BTC-USD");
     await editAssetDialog.get("form").trigger("submit");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/cryptos/BTC",
+      "/cryptos/00000000-0000-0000-0000-000000000501",
       expect.objectContaining({ method: "PUT" }),
     );
 
@@ -894,7 +956,14 @@ describe("CryptoView canonical migration", () => {
       if (path.startsWith("/crypto-analysis")) return positions;
       if (path.startsWith("/crypto-orders")) return orders;
       if (path === "/cryptos")
-        return [{ symbol: "BTC", ticker: "BTC-EUR", nombre: "Bitcoin" }];
+        return [
+          makeCryptoInstrument(
+            "00000000-0000-0000-0000-000000000501",
+            "BTC",
+            "BTC-EUR",
+            "Bitcoin",
+          ),
+        ];
       if (path === "/crypto-prices") return [];
       throw new Error(`Unexpected path: ${path}`);
     });

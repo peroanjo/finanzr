@@ -7,7 +7,7 @@ import pytest
 from apps.accounts.models import Account
 from apps.api import views
 from apps.market_data.fx import FxConversion
-from apps.market_data.models import Instrument, InstrumentIdentifier
+from apps.market_data.models import Instrument, InstrumentIdentifier, WorkspaceInstrument
 from apps.workspaces.models import Workspace
 from django.core.cache import cache
 from rest_framework.test import APIClient
@@ -582,6 +582,7 @@ def test_stock_split_mutation_invalidates_performance_cache() -> None:
         value="STOCK",
         is_primary=True,
     )
+    WorkspaceInstrument.objects.create(workspace=workspace, instrument=instrument)
     cache_key = f"investment-performance:{workspace.pk}:stock:all:1y:EUR:saveback=0"
     cache.set(cache_key, {"data": ["stale"]}, timeout=3600)
 

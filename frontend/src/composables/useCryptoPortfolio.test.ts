@@ -58,9 +58,22 @@ function makeInstrument(
   overrides: Partial<CryptoInstrument> = {},
 ): CryptoInstrument {
   return {
-    symbol: "CRYPTO-1",
-    ticker: "CRYPTO1",
-    nombre: "Crypto 1",
+    id: "00000000-0000-0000-0000-000000000201",
+    kind: "crypto",
+    name: "Crypto 1",
+    quote_currency: "EUR",
+    identifiers: [
+      {
+        scheme: "crypto_symbol",
+        value: "CRYPTO-1",
+        venue: "",
+        is_primary: true,
+      },
+      { scheme: "yahoo", value: "CRYPTO1", venue: "", is_primary: true },
+    ],
+    asset_class: null,
+    subtype: null,
+    is_active: true,
     ...overrides,
   };
 }
@@ -206,10 +219,17 @@ describe("useCryptoPortfolio", () => {
       ],
       instruments: [
         makeInstrument({
-          symbol: "USD-COIN",
-          ticker: "USDCOIN",
-          nombre: "Dollar coin",
-          moneda: "USD",
+          name: "Dollar coin",
+          quote_currency: "USD",
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "USD-COIN",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "USDCOIN", venue: "", is_primary: true },
+          ],
         }),
       ],
       baseCurrency: "EUR",
@@ -240,10 +260,22 @@ describe("useCryptoPortfolio", () => {
     expect(missing?.metadata).toMatchObject({ ticker: null });
 
     portfolio.instruments.value[0] = makeInstrument({
-      symbol: "USD-COIN",
-      ticker: "USDCOIN-UPDATED",
-      nombre: "Dollar coin",
-      moneda: "USD",
+      name: "Dollar coin",
+      quote_currency: "USD",
+      identifiers: [
+        {
+          scheme: "crypto_symbol",
+          value: "USD-COIN",
+          venue: "",
+          is_primary: true,
+        },
+        {
+          scheme: "yahoo",
+          value: "USDCOIN-UPDATED",
+          venue: "",
+          is_primary: true,
+        },
+      ],
     });
     portfolio.positions.value[0] = makePosition({
       symbol: "USD-COIN",
@@ -287,8 +319,28 @@ describe("useCryptoPortfolio", () => {
         makeOrder({ symbol: "btc", id: "lowercase-order" }),
       ],
       instruments: [
-        makeInstrument({ symbol: "BTC", ticker: "000" }),
-        makeInstrument({ symbol: "BTC-EUR", ticker: "100" }),
+        makeInstrument({
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "BTC",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "000", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "BTC-EUR",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "100", venue: "", is_primary: true },
+          ],
+        }),
       ],
       selectedSymbol: "BTC-EUR",
     });
@@ -485,9 +537,39 @@ describe("useCryptoPortfolio", () => {
     const portfolio = createPortfolio({
       positions,
       instruments: [
-        makeInstrument({ symbol: "ZETA", ticker: "ZZ" }),
-        makeInstrument({ symbol: "ALPHA", ticker: "AA" }),
-        makeInstrument({ symbol: "BETA", ticker: "MM" }),
+        makeInstrument({
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "ZETA",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "ZZ", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "ALPHA",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "AA", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "BETA",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "MM", venue: "", is_primary: true },
+          ],
+        }),
       ],
     });
     const expectedOrder: Record<
@@ -628,7 +710,19 @@ describe("useCryptoPortfolio", () => {
         makePosition({ symbol: "ZZ9", nombre: "Missing ticker" }),
         makePosition({ symbol: "KNOWN", nombre: "Known ticker" }),
       ],
-      instruments: [makeInstrument({ symbol: "KNOWN", ticker: "A1" })],
+      instruments: [
+        makeInstrument({
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "KNOWN",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "A1", venue: "", is_primary: true },
+          ],
+        }),
+      ],
     });
 
     portfolio.sortPositions("ticker");
@@ -645,8 +739,28 @@ describe("useCryptoPortfolio", () => {
         makePosition({ symbol: "A10", nombre: "A10" }),
       ],
       instruments: [
-        makeInstrument({ symbol: "A2", ticker: "A2" }),
-        makeInstrument({ symbol: "A10", ticker: "A10" }),
+        makeInstrument({
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "A2",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "A2", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "A10",
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "A10", venue: "", is_primary: true },
+          ],
+        }),
       ],
     });
     numericPortfolio.sortPositions("ticker");

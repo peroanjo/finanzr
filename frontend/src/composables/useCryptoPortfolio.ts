@@ -8,6 +8,7 @@ import type {
   CryptoOrder,
   CryptoPosition,
 } from "../types/api";
+import { instrumentByIdentity, instrumentTicker } from "../domain/instruments";
 
 export type CryptoPositionSortKey =
   | "asset"
@@ -81,9 +82,7 @@ export function useCryptoPortfolio(
     topPositions.value.map((position) =>
       adaptCryptoPosition(
         position,
-        instruments.value.find(
-          (instrument) => instrument.symbol === position.symbol,
-        ),
+        instrumentByIdentity(instruments.value, position.symbol),
         { baseCurrency: baseCurrency.value },
       ),
     ),
@@ -143,8 +142,9 @@ export function useCryptoPortfolio(
       if (positionSortKey.value === "asset") return position.nombre;
       if (positionSortKey.value === "ticker")
         return (
-          instruments.value.find((item) => item.symbol === position.symbol)
-            ?.ticker ?? position.symbol
+          instrumentTicker(
+            instrumentByIdentity(instruments.value, position.symbol),
+          ) || position.symbol
         );
       if (positionSortKey.value === "cost") return position.coste_total;
       if (positionSortKey.value === "quantity") return position.titulos;

@@ -50,6 +50,13 @@ import type {
   ImporterCatalogItem,
   MarketCandle,
 } from "../types/api";
+import {
+  instrumentByIdentity,
+  instrumentCurrency,
+  instrumentIdentity,
+  instrumentName,
+  instrumentTicker,
+} from "../domain/instruments";
 
 type PerformanceRange = "6m" | "1y" | "2y" | "custom";
 type CryptoPerformanceMode = "value" | "return";
@@ -448,7 +455,10 @@ const positionSortColumns = computed(() => [
 ]);
 const movementSymbols = computed(() => {
   const names = new Map(
-    instruments.value.map((item) => [item.symbol, item.nombre]),
+    instruments.value.map((item) => [
+      instrumentIdentity(item),
+      instrumentName(item),
+    ]),
   );
   orders.value.forEach((item) => {
     names.set(
@@ -503,9 +513,9 @@ const movementRangeLabel = computed(() =>
 );
 const movementAssets = computed(() =>
   instruments.value.map((item) => ({
-    id: item.symbol,
-    label: `${item.symbol} · ${item.nombre}`,
-    currency: item.moneda,
+    id: instrumentIdentity(item),
+    label: instrumentIdentity(item) + " · " + instrumentName(item),
+    currency: instrumentCurrency(item),
   })),
 );
 const accountBarLabels = computed<InvestmentAccountBarLabels>(() => ({
@@ -973,9 +983,9 @@ function hasOriginalCurrency(order: CryptoOrder) {
 
 function assetTicker(position: CryptoPosition) {
   return (
-    instruments.value.find(
-      (instrument) => instrument.symbol === position.symbol,
-    )?.ticker ?? position.symbol
+    instrumentTicker(
+      instrumentByIdentity(instruments.value, position.symbol),
+    ) || position.symbol
   );
 }
 
@@ -1087,7 +1097,7 @@ async function refreshPrices() {
 
 async function handleAssetSaved(asset: EditableAsset) {
   const generation = ++assetSaveGeneration;
-  const symbol = "symbol" in asset ? asset.symbol : "";
+  const symbol = instrumentIdentity(asset);
   if (symbol) selectedSymbol.value = symbol;
   await loadDashboard(true, false);
   if (generation !== assetSaveGeneration || !symbol) return;
@@ -1439,9 +1449,7 @@ onMounted(loadDashboard);
                         :aria-label="t('crypto.positions.editAria')"
                         @click.stop="
                           assetEditor?.openEdit(
-                            instruments.find(
-                              (item) => item.symbol === position.symbol,
-                            ),
+                            instrumentByIdentity(instruments, position.symbol),
                           )
                         "
                       >

@@ -27,9 +27,11 @@ import type {
   FundPerformanceResponse,
   FundPosition,
   StockChartResponse,
+  StockInstrument,
   StockOrder,
   StockPerformanceResponse,
   StockPosition,
+  CryptoInstrument,
 } from "../../types/api";
 
 describe("normalized investment adapters", () => {
@@ -121,12 +123,17 @@ describe("normalized investment adapters", () => {
         moneda_base: "usd",
       } as FundPosition,
       {
-        isin: "LU000",
-        ticker: "GLOBAL",
-        nombre: "Instrument name",
-        tipo: "RV",
-        subtipo: "Index",
-        moneda: "EUR",
+        id: "00000000-0000-0000-0000-000000000012",
+        kind: "fund",
+        name: "Instrument name",
+        quote_currency: "EUR",
+        identifiers: [
+          { scheme: "isin", value: "LU000", venue: "", is_primary: true },
+          { scheme: "yahoo", value: "GLOBAL", venue: "", is_primary: true },
+        ],
+        asset_class: "RV",
+        subtype: "Index",
+        is_active: true,
       },
     );
 
@@ -166,7 +173,19 @@ describe("normalized investment adapters", () => {
         pnl_realizada: -3,
         moneda: "USD",
       } as StockPosition,
-      { isin: "US000", ticker: "CMP", nombre: "Company", moneda: "USD" },
+      {
+        id: "00000000-0000-0000-0000-000000000401",
+        kind: "stock",
+        name: "Company",
+        quote_currency: "USD",
+        identifiers: [
+          { scheme: "isin", value: "US000", venue: "", is_primary: true },
+          { scheme: "yahoo", value: "CMP", venue: "", is_primary: true },
+        ],
+        asset_class: null,
+        subtype: null,
+        is_active: true,
+      } as StockInstrument,
     );
     const crypto = adaptCryptoPosition(
       {
@@ -180,7 +199,24 @@ describe("normalized investment adapters", () => {
         pnl_realizada: 40,
         moneda: "EUR",
       } as CryptoPosition,
-      { symbol: "BTC", ticker: "BTC-EUR", nombre: "Bitcoin", moneda: "EUR" },
+      {
+        id: "00000000-0000-0000-0000-000000000402",
+        kind: "crypto",
+        name: "Bitcoin",
+        quote_currency: "EUR",
+        identifiers: [
+          {
+            scheme: "crypto_symbol",
+            value: "BTC",
+            venue: "",
+            is_primary: true,
+          },
+          { scheme: "yahoo", value: "BTC-EUR", venue: "", is_primary: true },
+        ],
+        asset_class: null,
+        subtype: null,
+        is_active: true,
+      } as CryptoInstrument,
     );
 
     expect(stock).toMatchObject({

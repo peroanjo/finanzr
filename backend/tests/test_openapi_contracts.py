@@ -20,13 +20,27 @@ class OpenApiMutationContractTests(SimpleTestCase):
         stock_schema = self._resolve(
             document, stock["requestBody"]["content"]["application/json"]["schema"]
         )
-        assert {"isin", "ticker", "nombre"} <= set(stock_schema["required"])
-        stock_detail = document["paths"]["/api/stocks/{asset_id}"]["put"]
+        assert set(stock_schema["required"]) == {"name", "identifiers"}
+        assert {
+            "name",
+            "quote_currency",
+            "identifiers",
+            "asset_class",
+            "subtype",
+            "is_active",
+        } == set(stock_schema["properties"])
+        assert not {"isin", "ticker", "nombre", "moneda"} & set(stock_schema["properties"])
+        stock_detail = document["paths"]["/api/stocks/{instrument_id}"]["put"]
         stock_detail_schema = self._resolve(
             document, stock_detail["requestBody"]["content"]["application/json"]["schema"]
         )
-        assert "ticker" in stock_detail_schema["properties"]
+        assert "identifiers" in stock_detail_schema["properties"]
+        assert not {"isin", "ticker", "nombre", "moneda"} & set(stock_detail_schema["properties"])
         assert "required" not in stock_detail_schema
+        stock_detail_parameter = stock_detail["parameters"][0]
+        assert stock_detail_parameter["name"] == "instrument_id"
+        assert stock_detail_parameter["schema"] == {"type": "string", "format": "uuid"}
+        assert "post" not in document["paths"]["/api/funds"]
 
         account_schema = self._request_schema(document, "/api/savings/accounts", "post")
         assert account_schema["required"] == ["name"]

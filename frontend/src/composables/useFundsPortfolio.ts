@@ -9,6 +9,7 @@ import {
   adaptFundPosition,
   type NormalizedPosition,
 } from "../domain/investments";
+import { instrumentByIdentity } from "../domain/instruments";
 
 export type FundPositionSortKey =
   | "fund"
@@ -80,7 +81,7 @@ export function useFundsPortfolio(
   const normalizedPosition = (position: FundPosition): NormalizedPosition =>
     adaptFundPosition(
       position,
-      instruments.value.find((item) => item.isin === position.isin),
+      instrumentByIdentity(instruments.value, position.isin),
       { baseCurrency: baseCurrency.value },
     );
   const normalizedTopPositions = computed(() =>

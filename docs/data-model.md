@@ -221,7 +221,9 @@ Constraints:
 | `id` | UUID | PK |
 | `kind` | enum | `fund`, `stock`, `etf`, `crypto` |
 | `name` | varchar(240) | canonical name |
-| `base_currency` | char(3) nullable | known native currency |
+| `quote_currency` | char(3) | native quote/NAV currency |
+| `base_currency` | char(4) nullable | legacy storage field; not public |
+| `metadata` | jsonb | internal migration/provenance data; not public |
 | `is_active` | boolean | default `true` |
 | `created_at` | timestamptz | automatic |
 | `updated_at` | timestamptz | automatic |
@@ -245,6 +247,15 @@ Constraints:
 - Unique `(scheme, value, venue)`.
 - At most one primary identifier per `(instrument_id, scheme)`.
 - Case-insensitive index for symbols and tickers where applicable.
+
+The public instrument projection is a strict English DTO with `id` (UUID),
+`kind`, `name`, `quote_currency`, `identifiers`, nullable `asset_class` and
+`subtype`, and `is_active`. Collection writes require the identifier scheme
+appropriate to the instrument kind, and detail writes address the UUID within
+the active workspace. Legacy Spanish keys, `legacy_id`, and raw metadata are
+not accepted or returned. Price, chart, split, and transaction endpoints keep
+their existing textual instrument identifiers while resolving through the
+preserved ISIN/symbol identifiers.
 
 ### `MarketPrice`
 

@@ -97,7 +97,7 @@ def export_payload(request: Request) -> dict[str, object]:
     savings_accounts, savings_history = _native_savings_sections(request)
     investment_accounts, investment_history = _native_investment_sections(request)
     return {
-        # v3 marks the native transaction HTTP DTO in every traded-order export.
+        # v3 records native transaction HTTP DTOs and native instrument UUID/identifier projections.
         "format": "finanzr-workspace-v3",
         "workspace": user_payload(user, request),
         "summary": views._overview_calculation(request)[0],

@@ -24,7 +24,7 @@ from apps.api.views import find_traded_account, forbidden_if_readonly, workspace
 from apps.imports.models import ImportBatch
 from apps.imports.models import ImportIssue as StoredIssue
 from apps.market_data.fx import CurrencyConversionError
-from apps.market_data.locking import lock_logical_keys
+from apps.market_data.locking import instrument_identifier_lock_keys, lock_logical_keys
 from apps.market_data.models import Instrument, InstrumentIdentifier
 from apps.transactions.currency import conversion_snapshot, transaction_currency
 from apps.transactions.models import Transaction
@@ -72,9 +72,10 @@ def instrument(
     key = "symbol" if is_crypto else "isin"
     value = str(record[key]).strip().upper()
     ticker = f"{value}-EUR" if is_crypto else None
-    lock_logical_keys(
-        tuple(key for key in (f"instrument:{scheme}:{value}", f"ticker:{ticker}") if key)
-    )
+    lock_keys = list(instrument_identifier_lock_keys(scheme, value))
+    if ticker:
+        lock_keys.extend(instrument_identifier_lock_keys("yahoo", ticker))
+    lock_logical_keys(lock_keys)
     identity = (
         InstrumentIdentifier.objects.select_related("instrument")
         .select_for_update()

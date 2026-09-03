@@ -1,10 +1,12 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 import pytest
 from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
 from apps.api import views
+from apps.api.market_data_projection import instrument_calculation_row
 from apps.common.models import InstallationSettings
 from apps.imports.models import ImportBatch, ImportIssue
 from apps.market_data.fx import FxConversion
@@ -14,6 +16,7 @@ from apps.market_data.models import (
     MarketPrice,
     StockSplit,
     WorkspaceInstrument,
+    WorkspaceMarketPriceOverride,
 )
 from apps.planning.models import BudgetLine
 from apps.portfolio.models import ManualAsset
@@ -902,6 +905,22 @@ def test_workspace_export_includes_legacy_and_native_savings_rows(
     assert exported.status_code == 200
     data = exported.json()
     assert data["format"] == "finanzr-workspace-v3"
+    for section in ("funds", "stocks", "cryptos"):
+        assert all(
+            set(item)
+            == {
+                "id",
+                "kind",
+                "name",
+                "quote_currency",
+                "identifiers",
+                "asset_class",
+                "subtype",
+                "is_active",
+            }
+            for item in data[section]
+        )
+        assert all("metadata" not in item and "legacy_id" not in item for item in data[section])
     assert {item["name"] for item in data["savings_accounts"]} == {
         "Native export savings",
         "Archived export savings",
@@ -2709,12 +2728,13 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
     client, _ = api_context
     fund_account = client.get("/api/fund-accounts").json()[0]
     fund = client.get("/api/funds").json()[0]
+    fund_isin = next(item["value"] for item in fund["identifiers"] if item["scheme"] == "isin")
 
     created_fund = client.post(
         "/api/orders",
         {
             "account_id": fund_account["id"],
-            "isin": fund["isin"],
+            "isin": fund_isin,
             "trade_date": "2026-07-25",
             "settlement_date": "2026-07-26",
             "operation_type": "buy",
@@ -2733,7 +2753,7 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
         f"/api/orders/{fund_id}",
         {
             "account_id": fund_account["id"],
-            "isin": fund["isin"],
+            "isin": fund_isin,
             "trade_date": "2026-07-25",
             "settlement_date": "2026-07-27",
             "operation_type": "sell",
@@ -2749,11 +2769,14 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
 
     crypto_account = client.get("/api/crypto-accounts").json()[0]
     crypto = client.get("/api/cryptos").json()[0]
+    crypto_symbol = next(
+        item["value"] for item in crypto["identifiers"] if item["scheme"] == "crypto_symbol"
+    )
     created_crypto = client.post(
         "/api/crypto-orders",
         {
             "account_id": crypto_account["id"],
-            "symbol": crypto["symbol"],
+            "symbol": crypto_symbol,
             "trade_date": "2026-07-25",
             "operation_type": "buy",
             "quantity": 0.001,
@@ -2776,12 +2799,13 @@ def test_stock_cashback_is_only_available_for_trade_republic(
     client, _ = api_context
     trade_republic = client.get("/api/stock-accounts").json()[0]
     stock = client.get("/api/stocks").json()[0]
+    stock_isin = next(item["value"] for item in stock["identifiers"] if item["scheme"] == "isin")
 
     created = client.post(
         "/api/stock-orders",
         {
             "account_id": trade_republic["id"],
-            "isin": stock["isin"],
+            "isin": stock_isin,
             "trade_date": "2026-07-25",
             "operation_type": "buy",
             "quantity": 1,
@@ -2809,7 +2833,7 @@ def test_stock_cashback_is_only_available_for_trade_republic(
         "/api/stock-orders",
         {
             "account_id": other_account["id"],
-            "isin": stock["isin"],
+            "isin": stock_isin,
             "trade_date": "2026-07-25",
             "operation_type": "buy",
             "quantity": 1,
@@ -2835,17 +2859,16 @@ def test_stock_cashback_is_only_available_for_trade_republic(
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
-    ("collection", "detail", "identifier_key", "identifier", "ticker"),
+    ("collection", "identity_scheme", "identifier", "ticker"),
     [
-        ("/api/stocks", "/api/stocks/US0378331005", "isin", "US0378331005", "AAPL"),
-        ("/api/cryptos", "/api/cryptos/SOL", "symbol", "SOL", "SOL-EUR"),
+        ("/api/stocks", "isin", "US0378331005", "AAPL"),
+        ("/api/cryptos", "crypto_symbol", "SOL", "SOL-EUR"),
     ],
 )
 def test_stock_and_crypto_assets_can_be_created_and_edit_their_ticker(
     api_context: tuple[APIClient, User],
     collection: str,
-    detail: str,
-    identifier_key: str,
+    identity_scheme: str,
     identifier: str,
     ticker: str,
 ) -> None:
@@ -2855,32 +2878,749 @@ def test_stock_and_crypto_assets_can_be_created_and_edit_their_ticker(
     created = client.post(
         collection,
         {
-            identifier_key: identifier,
-            "nombre": "Activo manual",
-            "ticker": ticker,
+            "name": "Activo manual",
+            "quote_currency": "EUR",
+            "identifiers": [
+                {"scheme": identity_scheme, "value": identifier, "is_primary": True},
+                {"scheme": "yahoo", "value": ticker, "is_primary": True},
+            ],
         },
         format="json",
     )
 
     assert created.status_code == 201
-    assert created.json()[identifier_key] == identifier
-    assert created.json()["ticker"] == ticker
+    assert created.json()["kind"] == ("crypto" if identity_scheme == "crypto_symbol" else "stock")
+    assert created.json()["name"] == "Activo manual"
+    assert created.json()["id"]
+    assert {(row["scheme"], row["value"]) for row in created.json()["identifiers"]} == {
+        (identity_scheme, identifier),
+        ("yahoo", ticker),
+    }
     assert Transaction.objects.count() == transaction_count
     assert WorkspaceInstrument.objects.filter(
-        instrument__identifiers__scheme=("crypto_symbol" if identifier_key == "symbol" else "isin"),
+        instrument__identifiers__scheme=identity_scheme,
         instrument__identifiers__value=identifier,
     ).exists()
-    assert any(row[identifier_key] == identifier for row in client.get(collection).json())
+    assert any(
+        any(
+            identity["scheme"] == identity_scheme and identity["value"] == identifier
+            for identity in row["identifiers"]
+        )
+        for row in client.get(collection).json()
+    )
 
     updated = client.put(
-        detail,
-        {"nombre": "Activo editado", "ticker": f"{ticker}.EDIT"},
+        f"{collection}/{created.json()['id']}",
+        {
+            "name": "Activo editado",
+            "identifiers": [
+                {"scheme": identity_scheme, "value": identifier, "is_primary": True},
+                {"scheme": "yahoo", "value": f"{ticker}.EDIT", "is_primary": True},
+            ],
+        },
         format="json",
     )
 
     assert updated.status_code == 200
-    assert updated.json()["nombre"] == "Activo editado"
-    assert updated.json()["ticker"] == f"{ticker}.EDIT"
+    assert updated.json()["name"] == "Activo editado"
+    assert {(row["scheme"], row["value"]) for row in updated.json()["identifiers"]} == {
+        (identity_scheme, identifier),
+        ("yahoo", f"{ticker}.EDIT"),
+    }
+
+
+@pytest.mark.django_db(transaction=True)
+def test_native_instrument_contract_is_strict_uuid_scoped_and_preserves_identities(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, owner = api_context
+    workspace = Workspace.objects.get(pk=client.session["active_workspace_id"])
+    body = {
+        "name": "Native contract stock",
+        "quote_currency": "eur",
+        "identifiers": [
+            {"scheme": "isin", "value": "NATIVE-STOCK-001", "is_primary": True},
+            {"scheme": "yahoo", "value": "NATIVE.MC", "is_primary": True},
+        ],
+        "asset_class": "Equity",
+        "subtype": None,
+        "is_active": True,
+    }
+
+    created = client.post("/api/stocks", body, format="json")
+    assert created.status_code == 201
+    row = created.json()
+    assert set(row) == {
+        "id",
+        "kind",
+        "name",
+        "quote_currency",
+        "identifiers",
+        "asset_class",
+        "subtype",
+        "is_active",
+    }
+    UUID(row["id"])
+    assert row["kind"] == "stock"
+    assert row["quote_currency"] == "EUR"
+    assert "metadata" not in row and "legacy_id" not in row
+
+    assert (
+        client.post(
+            "/api/stocks",
+            {"nombre": "Legacy", "isin": "NATIVE-STOCK-002", "ticker": "OLD"},
+            format="json",
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            "/api/stocks",
+            {
+                "name": "Wrong scheme",
+                "identifiers": [{"scheme": "crypto_symbol", "value": "BTC"}],
+            },
+            format="json",
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            "/api/cryptos",
+            {
+                "name": "Missing crypto identity",
+                "identifiers": [{"scheme": "yahoo", "value": "BTC-EUR"}],
+            },
+            format="json",
+        ).status_code
+        == 400
+    )
+    listed_funds = client.get("/api/funds")
+    assert listed_funds.status_code == 200
+    assert listed_funds.json()
+    assert listed_funds.json()[0]["kind"] == "fund"
+    assert set(listed_funds.json()[0]) == {
+        "id",
+        "kind",
+        "name",
+        "quote_currency",
+        "identifiers",
+        "asset_class",
+        "subtype",
+        "is_active",
+    }
+
+    updated = client.put(
+        f"/api/stocks/{row['id']}",
+        {
+            "name": "Native contract stock edited",
+            "identifiers": [
+                {"scheme": "isin", "value": " native-stock-001 ", "is_primary": True},
+                {"scheme": "yahoo", "value": "NATIVE-EDIT.MC", "is_primary": True},
+            ],
+        },
+        format="json",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Native contract stock edited"
+    assert {item["value"] for item in updated.json()["identifiers"]} == {
+        "NATIVE-STOCK-001",
+        "NATIVE-EDIT.MC",
+    }
+    assert InstrumentIdentifier.objects.filter(
+        instrument_id=row["id"], scheme=InstrumentIdentifier.Scheme.ISIN, value="NATIVE-STOCK-001"
+    ).exists()
+    assert (
+        instrument_calculation_row(
+            Instrument.objects.prefetch_related("identifiers").get(pk=row["id"])
+        )["isin"]
+        == "NATIVE-STOCK-001"
+    )
+    net_worth_res = client.get("/api/net-worth-history")
+    assert net_worth_res.status_code == 200
+
+    wrong_kind_res = client.put(f"/api/cryptos/{row['id']}", {"name": "Wrong kind"}, format="json")
+    assert wrong_kind_res.status_code == 404
+
+    isolated_workspace = Workspace.objects.create(
+        name="Isolated native workspace",
+        slug="isolated-native-workspace",
+        base_currency="EUR",
+        timezone="Europe/Madrid",
+    )
+    WorkspaceMembership.objects.create(
+        workspace=isolated_workspace,
+        user=owner,
+        role=WorkspaceMembership.Role.OWNER,
+    )
+    session = client.session
+    session["active_workspace_id"] = str(isolated_workspace.pk)
+    session.save()
+    assert client.get("/api/stocks").json() == []
+    assert (
+        client.put(
+            f"/api/stocks/{row['id']}",
+            {"name": "Should not cross workspaces"},
+            format="json",
+        ).status_code
+        == 404
+    )
+
+    viewer = User.objects.create_user(email="viewer-native@example.com", password="synthetic")
+    WorkspaceMembership.objects.create(
+        workspace=workspace,
+        user=viewer,
+        role=WorkspaceMembership.Role.VIEWER,
+    )
+    viewer_client = APIClient()
+    viewer_client.force_authenticate(user=viewer)
+    viewer_session = viewer_client.session
+    viewer_session["active_workspace_id"] = str(workspace.pk)
+    viewer_session.save()
+    assert (
+        viewer_client.put(
+            f"/api/stocks/{row['id']}", {"name": "Viewer edit"}, format="json"
+        ).status_code
+        == 403
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_instrument_name_only_update_keeps_currency_seen_after_lock(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    instrument = Instrument.objects.get(kind=Instrument.Kind.STOCK)
+
+    def change_currency_during_lock(_keys: object) -> None:
+        Instrument.objects.filter(pk=instrument.pk).update(quote_currency="USD")
+
+    monkeypatch.setattr(views, "lock_logical_keys", change_currency_during_lock)
+    response = client.put(
+        f"/api/stocks/{instrument.pk}",
+        {"name": "Currency-safe edit"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["quote_currency"] == "USD"
+    instrument.refresh_from_db()
+    assert instrument.name == "Currency-safe edit"
+    assert instrument.quote_currency == "USD"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_identifier_selection_matches_public_projection_and_market_consumers(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, owner = api_context
+    workspace = Workspace.objects.get(memberships__user=owner)
+    instrument = Instrument.objects.create(
+        kind=Instrument.Kind.STOCK,
+        name="Identifier selection stock",
+        quote_currency="EUR",
+    )
+    InstrumentIdentifier.objects.create(
+        instrument=instrument,
+        scheme=InstrumentIdentifier.Scheme.ISIN,
+        value="SELECT-001",
+        venue="",
+        is_primary=False,
+    )
+    InstrumentIdentifier.objects.create(
+        instrument=instrument,
+        scheme=InstrumentIdentifier.Scheme.YAHOO,
+        value="SELECT.STALE",
+        venue="NASDAQ",
+        is_primary=False,
+    )
+    InstrumentIdentifier.objects.create(
+        instrument=instrument,
+        scheme=InstrumentIdentifier.Scheme.YAHOO,
+        value="SELECT.LIVE",
+        venue="BME",
+        is_primary=True,
+    )
+    WorkspaceInstrument.objects.create(workspace=workspace, instrument=instrument)
+
+    public = next(
+        row for row in client.get("/api/stocks").json() if row["id"] == str(instrument.pk)
+    )
+    assert {row["value"] for row in public["identifiers"]} == {
+        "SELECT-001",
+        "SELECT.STALE",
+        "SELECT.LIVE",
+    }
+    assert views.yahoo_ticker(instrument) == "SELECT.LIVE"
+    assert instrument_calculation_row(instrument)["ticker"] == "SELECT.LIVE"
+
+    switched = client.put(
+        f"/api/stocks/{instrument.pk}",
+        {
+            "identifiers": [
+                {"scheme": "isin", "value": "SELECT-001", "is_primary": False},
+                {
+                    "scheme": "yahoo",
+                    "value": "SELECT.STALE",
+                    "venue": "NASDAQ",
+                    "is_primary": True,
+                },
+                {
+                    "scheme": "yahoo",
+                    "value": "SELECT.LIVE",
+                    "venue": "BME",
+                    "is_primary": False,
+                },
+            ]
+        },
+        format="json",
+    )
+    assert switched.status_code == 200
+    assert (
+        next(
+            row
+            for row in switched.json()["identifiers"]
+            if row["scheme"] == "yahoo" and row["is_primary"]
+        )["value"]
+        == "SELECT.STALE"
+    )
+
+    instrument.refresh_from_db()
+    assert views.yahoo_ticker(instrument) == "SELECT.STALE"
+    assert instrument_calculation_row(instrument)["ticker"] == "SELECT.STALE"
+
+    chart_tickers: list[str] = []
+
+    def fake_chart(
+        ticker: str, **_kwargs: Any
+    ) -> tuple[dict[str, str], list[dict[str, int | str]]]:
+        chart_tickers.append(ticker)
+        return (
+            {"currency": "EUR"},
+            [
+                {
+                    "fecha": "2026-01-01",
+                    "precio": 10,
+                    "open": 10,
+                    "high": 11,
+                    "low": 9,
+                    "close": 10,
+                }
+            ],
+        )
+
+    monkeypatch.setattr(
+        views,
+        "yahoo_chart",
+        fake_chart,
+    )
+    chart = client.get("/api/stock-chart/SELECT-001")
+    assert chart.status_code == 200
+    assert chart.json()["ticker"] == "SELECT.STALE"
+    assert chart_tickers == ["SELECT.STALE"]
+
+    fetch_tickers: list[str] = []
+
+    def fake_quote(ticker: str) -> tuple[float, str]:
+        fetch_tickers.append(ticker)
+        return 10.0, "EUR"
+
+    monkeypatch.setattr(
+        views,
+        "quote_price",
+        fake_quote,
+    )
+    fetched = client.post("/api/stock-prices/fetch", format="json")
+    assert fetched.status_code == 200
+    selected_result = next(row for row in fetched.json()["results"] if row["isin"] == "SELECT-001")
+    assert selected_result["ticker"] == "SELECT.STALE"
+    assert "SELECT.STALE" in fetch_tickers
+
+
+@pytest.mark.django_db(transaction=True)
+def test_canonical_identity_resolvers_ignore_nondefault_aliases(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    canonical = "SHARED-VALUE-001"
+    first = client.post(
+        "/api/stocks",
+        {
+            "name": "Canonical owner",
+            "quote_currency": "EUR",
+            "identifiers": [
+                {"scheme": "isin", "value": canonical, "venue": "", "is_primary": True},
+                {"scheme": "yahoo", "value": "OWNER.MC", "venue": "", "is_primary": True},
+            ],
+        },
+        format="json",
+    )
+    second = client.post(
+        "/api/stocks",
+        {
+            "name": "Alias owner",
+            "quote_currency": "EUR",
+            "identifiers": [
+                {"scheme": "isin", "value": "OTHER-001", "venue": "", "is_primary": True},
+                {"scheme": "isin", "value": canonical, "venue": "ALT", "is_primary": False},
+                {"scheme": "yahoo", "value": "ALIAS.MC", "venue": "", "is_primary": True},
+            ],
+        },
+        format="json",
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+    first_instrument = Instrument.objects.get(
+        identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
+        identifiers__value=canonical,
+        identifiers__venue="",
+    )
+    second_instrument = Instrument.objects.get(
+        identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
+        identifiers__value="OTHER-001",
+    )
+    assert first_instrument.pk != second_instrument.pk
+
+    monkeypatch.setattr(
+        views,
+        "yahoo_chart",
+        lambda *_args, **_kwargs: (
+            {"currency": "EUR"},
+            [
+                {
+                    "fecha": "2026-01-01",
+                    "open": 10,
+                    "high": 11,
+                    "low": 9,
+                    "close": 10,
+                }
+            ],
+        ),
+    )
+    chart = client.get(f"/api/stock-chart/{canonical}")
+    assert chart.status_code == 200
+    assert chart.json()["ticker"] == "OWNER.MC"
+
+    price = client.put(f"/api/stock-prices/{canonical}", {"precio": 123}, format="json")
+    assert price.status_code == 200
+    override = WorkspaceMarketPriceOverride.objects.get(instrument=first_instrument)
+    assert override.close == Decimal("123")
+    assert not WorkspaceMarketPriceOverride.objects.filter(instrument=second_instrument).exists()
+
+    account = Account.objects.get(kind=Account.Kind.STOCKS)
+    order = client.post(
+        "/api/stock-orders",
+        {
+            "account_id": str(account.pk),
+            "isin": canonical,
+            "trade_date": "2026-07-25",
+            "operation_type": "buy",
+            "quantity": 1,
+            "unit_price": 25,
+            "net_amount": 25,
+            "fee": 0,
+        },
+        format="json",
+    )
+    assert order.status_code == 201
+    assert Transaction.objects.get(pk=order.json()["id"]).instrument_id == (first_instrument.pk)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_stock_split_mutations_target_the_canonical_instrument_only(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, owner = api_context
+    canonical = "SPLIT-SHARED-001"
+    first = client.post(
+        "/api/stocks",
+        {
+            "name": "Split canonical owner",
+            "identifiers": [
+                {"scheme": "isin", "value": canonical, "venue": "", "is_primary": True},
+                {"scheme": "yahoo", "value": "SPLIT.A", "venue": "", "is_primary": True},
+            ],
+        },
+        format="json",
+    )
+    second = client.post(
+        "/api/stocks",
+        {
+            "name": "Split alias owner",
+            "identifiers": [
+                {"scheme": "isin", "value": "SPLIT-B-001", "venue": "", "is_primary": True},
+                {"scheme": "isin", "value": canonical, "venue": "ALT", "is_primary": False},
+                {"scheme": "yahoo", "value": "SPLIT.B", "venue": "", "is_primary": True},
+            ],
+        },
+        format="json",
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+    first_instrument = Instrument.objects.get(
+        identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
+        identifiers__value=canonical,
+        identifiers__venue="",
+    )
+    second_instrument = Instrument.objects.get(
+        identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
+        identifiers__value="SPLIT-B-001",
+    )
+    workspace = Workspace.objects.get(memberships__user=owner)
+    split_date = date(2026, 8, 1)
+    first_split = StockSplit.objects.create(
+        workspace=workspace,
+        instrument=first_instrument,
+        effective_date=split_date,
+        ratio=Decimal("2"),
+        source="first",
+    )
+    second_split = StockSplit.objects.create(
+        workspace=workspace,
+        instrument=second_instrument,
+        effective_date=split_date,
+        ratio=Decimal("3"),
+        source="second",
+    )
+
+    deleted = client.delete(f"/api/stock-splits/{canonical}/{split_date.isoformat()}")
+    assert deleted.status_code == 200
+    assert not StockSplit.objects.filter(pk=first_split.pk).exists()
+    second_split.refresh_from_db()
+    assert (second_split.instrument_id, second_split.ratio, second_split.source) == (
+        second_instrument.pk,
+        Decimal("3"),
+        "second",
+    )
+
+    created = client.post(
+        "/api/stock-splits",
+        {"isin": canonical, "fecha": split_date.isoformat(), "ratio": "4"},
+        format="json",
+    )
+    assert created.status_code == 200
+    first_split = StockSplit.objects.get(instrument=first_instrument, effective_date=split_date)
+    second_split.refresh_from_db()
+    assert (first_split.ratio, first_split.source) == (Decimal("4"), "manual")
+    assert (second_split.ratio, second_split.source) == (Decimal("3"), "second")
+
+
+@pytest.mark.django_db(transaction=True)
+def test_native_identifier_sets_validate_before_writes_and_support_fund_clear(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    body = {
+        "name": "Primary venue stock",
+        "quote_currency": "EUR",
+        "identifiers": [
+            {"scheme": "isin", "value": "PRIMARY-001", "is_primary": True},
+            {
+                "scheme": "yahoo",
+                "value": "PRIMARY.DE",
+                "venue": "XETRA",
+                "is_primary": False,
+            },
+            {
+                "scheme": "yahoo",
+                "value": "PRIMARY.MC",
+                "venue": "BME",
+                "is_primary": True,
+            },
+        ],
+        "asset_class": "Equity",
+        "subtype": "Large cap",
+    }
+    created = client.post("/api/stocks", body, format="json")
+    assert created.status_code == 201
+    item_id = created.json()["id"]
+
+    def state() -> tuple[object, object, object, object, list[tuple[str, str, str, bool]]]:
+        item = Instrument.objects.get(pk=item_id)
+        return (
+            item.name,
+            item.quote_currency,
+            item.is_active,
+            dict(item.metadata),
+            list(
+                item.identifiers.order_by("scheme", "venue", "value").values_list(
+                    "scheme", "value", "venue", "is_primary"
+                )
+            ),
+        )
+
+    before = state()
+    malformed_requests = [
+        {
+            "name": "Duplicate slot",
+            "identifiers": [
+                {"scheme": "isin", "value": "DUP-001", "is_primary": True},
+                {"scheme": "yahoo", "value": "DUP.DE", "venue": "BME"},
+                {"scheme": "yahoo", "value": "DUP.MC", "venue": "BME"},
+            ],
+        },
+        {
+            "name": "Multiple primary",
+            "identifiers": [
+                {"scheme": "isin", "value": "MULTI-001", "is_primary": True},
+                {"scheme": "yahoo", "value": "MULTI.DE", "is_primary": True},
+                {"scheme": "yahoo", "value": "MULTI.MC", "is_primary": True},
+            ],
+        },
+    ]
+    for malformed in malformed_requests:
+        malformed_res = client.post("/api/stocks", malformed, format="json")
+        assert malformed_res.status_code == 400
+    noncanon_res = client.post(
+        "/api/stocks",
+        {
+            "name": "Noncanonical",
+            "identifiers": [{"scheme": "isin", "value": "NONCANON", "venue": "BME"}],
+        },
+        format="json",
+    )
+    assert noncanon_res.status_code == 400
+
+    rejected_identity = client.put(
+        f"/api/stocks/{item_id}",
+        {
+            "name": "Must not persist",
+            "quote_currency": "USD",
+            "asset_class": "Changed",
+            "subtype": "Changed",
+            "identifiers": [{"scheme": "isin", "value": "DIFFERENT", "is_primary": True}],
+        },
+        format="json",
+    )
+    assert rejected_identity.status_code == 400
+    assert state() == before
+
+    primary_conflict = client.put(
+        f"/api/stocks/{item_id}",
+        {
+            "name": "Must not persist primary conflict",
+            "identifiers": [
+                {
+                    "scheme": "yahoo",
+                    "value": "PRIMARY.NEW",
+                    "venue": "NASDAQ",
+                    "is_primary": True,
+                }
+            ],
+        },
+        format="json",
+    )
+    assert primary_conflict.status_code == 400
+    assert state() == before
+
+    conflict = client.post(
+        "/api/stocks",
+        {
+            "name": "Conflicting stock",
+            "identifiers": [
+                {"scheme": "isin", "value": "CONFLICT-001", "is_primary": True},
+                {"scheme": "yahoo", "value": "CONFLICT.MC", "is_primary": True},
+            ],
+        },
+        format="json",
+    )
+    assert conflict.status_code == 201
+    conflicting_update = client.put(
+        f"/api/stocks/{item_id}",
+        {
+            "name": "Must not persist conflict",
+            "identifiers": [
+                {"scheme": "isin", "value": "PRIMARY-001", "is_primary": True},
+                {
+                    "scheme": "yahoo",
+                    "value": "PRIMARY.DE",
+                    "venue": "XETRA",
+                    "is_primary": False,
+                },
+                {
+                    "scheme": "yahoo",
+                    "value": "PRIMARY.MC",
+                    "venue": "BME",
+                    "is_primary": False,
+                },
+                {
+                    "scheme": "yahoo",
+                    "value": "CONFLICT.MC",
+                    "venue": "",
+                    "is_primary": True,
+                },
+            ],
+        },
+        format="json",
+    )
+    assert conflicting_update.status_code == 400
+    assert state() == before
+
+    transitioned = client.put(
+        f"/api/stocks/{item_id}",
+        {
+            "identifiers": [
+                {"scheme": "isin", "value": "PRIMARY-001", "is_primary": True},
+                {
+                    "scheme": "yahoo",
+                    "value": "PRIMARY.DE",
+                    "venue": "XETRA",
+                    "is_primary": False,
+                },
+                {
+                    "scheme": "yahoo",
+                    "value": "PRIMARY.MC",
+                    "venue": "BME",
+                    "is_primary": False,
+                },
+                {
+                    "scheme": "yahoo",
+                    "value": "PRIMARY.NEW",
+                    "venue": "NASDAQ",
+                    "is_primary": True,
+                },
+            ],
+        },
+        format="json",
+    )
+    assert transitioned.status_code == 200
+    assert [
+        (row["scheme"], row["value"], row["venue"], row["is_primary"])
+        for row in transitioned.json()["identifiers"]
+    ] == [
+        ("isin", "PRIMARY-001", "", True),
+        ("yahoo", "PRIMARY.DE", "XETRA", False),
+        ("yahoo", "PRIMARY.MC", "BME", False),
+        ("yahoo", "PRIMARY.NEW", "NASDAQ", True),
+    ]
+
+    fund = client.get("/api/funds").json()[0]
+    fund_id = fund["id"]
+    fund_before_metadata = dict(Instrument.objects.get(pk=fund_id).metadata)
+    cleared = client.put(
+        f"/api/funds/{fund_id}",
+        {"identifiers": [{"scheme": "yahoo", "value": "", "venue": "", "is_primary": True}]},
+        format="json",
+    )
+    assert cleared.status_code == 200
+    assert not any(row["scheme"] == "yahoo" for row in cleared.json()["identifiers"])
+    assert Instrument.objects.get(pk=fund_id).metadata == fund_before_metadata
+    assert InstrumentIdentifier.objects.filter(
+        instrument_id=fund_id, scheme=InstrumentIdentifier.Scheme.ISIN
+    ).exists()
+    assert (
+        client.put(
+            f"/api/stocks/{item_id}",
+            {
+                "identifiers": [
+                    {"scheme": "isin", "value": "PRIMARY-001", "is_primary": True},
+                    {"scheme": "yahoo", "value": "", "is_primary": True},
+                ]
+            },
+            format="json",
+        ).status_code
+        == 400
+    )
 
 
 @pytest.mark.django_db(transaction=True)

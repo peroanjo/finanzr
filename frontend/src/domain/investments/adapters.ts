@@ -18,6 +18,12 @@ import type {
   StockPerformanceResponse,
   StockPosition,
 } from "../../types/api";
+import {
+  instrumentCurrency,
+  instrumentIdentity,
+  instrumentName,
+  instrumentTicker,
+} from "../instruments";
 import type {
   InvestmentCapabilities,
   InvestmentAdapterOptions,
@@ -202,20 +208,20 @@ export function adaptFundPosition(
   options?: InvestmentAdapterOptions,
 ): NormalizedPosition {
   const item = record(position);
-  const assetId = text(item.isin, instrument?.isin ?? "");
+  const assetId = text(item.isin, instrumentIdentity(instrument));
   const currencies = currencyDetails(
     options,
     item.moneda_base,
     item.moneda,
-    instrument?.moneda,
+    instrumentCurrency(instrument),
   );
   return {
     kind: "fund",
     assetId,
     assetKey: assetKey("fund", assetId),
-    name: text(item.nombre, instrument?.nombre ?? assetId),
-    type: text(item.tipo, instrument?.tipo ?? "") || null,
-    subtype: text(item.subtipo, instrument?.subtipo ?? "") || null,
+    name: text(item.nombre, instrumentName(instrument, assetId)),
+    type: text(item.tipo, instrument?.asset_class ?? "") || null,
+    subtype: text(item.subtipo, instrument?.subtype ?? "") || null,
     quantity: number(item.participaciones),
     cost: number(item.total_invertido),
     currentPrice: nullableNumber(item.precio_actual),
@@ -226,7 +232,7 @@ export function adaptFundPosition(
     baseCurrency: currencies.baseCurrency,
     metadata: {
       source: "fund-position",
-      ticker: text(instrument?.ticker) || null,
+      ticker: text(instrumentTicker(instrument)) || null,
       returnPercent: nullableNumber(item.pnl_pct),
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
@@ -241,18 +247,18 @@ export function adaptStockPosition(
   options?: InvestmentAdapterOptions,
 ): NormalizedPosition {
   const item = record(position);
-  const assetId = text(item.isin, instrument?.isin ?? "");
+  const assetId = text(item.isin, instrumentIdentity(instrument));
   const currencies = currencyDetails(
     options,
     item.moneda_base,
     item.moneda,
-    instrument?.moneda,
+    instrumentCurrency(instrument),
   );
   return {
     kind: "stock",
     assetId,
     assetKey: assetKey("stock", assetId),
-    name: text(item.nombre, instrument?.nombre ?? assetId),
+    name: text(item.nombre, instrumentName(instrument, assetId)),
     type: null,
     subtype: null,
     quantity: number(item.titulos),
@@ -265,7 +271,7 @@ export function adaptStockPosition(
     baseCurrency: currencies.baseCurrency,
     metadata: {
       source: "stock-position",
-      ticker: text(instrument?.ticker) || null,
+      ticker: text(instrumentTicker(instrument)) || null,
       isin: assetId,
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
@@ -280,18 +286,18 @@ export function adaptCryptoPosition(
   options?: InvestmentAdapterOptions,
 ): NormalizedPosition {
   const item = record(position);
-  const assetId = text(item.symbol, instrument?.symbol ?? "");
+  const assetId = text(item.symbol, instrumentIdentity(instrument));
   const currencies = currencyDetails(
     options,
     item.moneda_base,
     item.moneda,
-    instrument?.moneda,
+    instrumentCurrency(instrument),
   );
   return {
     kind: "crypto",
     assetId,
     assetKey: assetKey("crypto", assetId),
-    name: text(item.nombre, instrument?.nombre ?? assetId),
+    name: text(item.nombre, instrumentName(instrument, assetId)),
     type: "crypto",
     subtype: null,
     quantity: number(item.titulos),
@@ -304,7 +310,7 @@ export function adaptCryptoPosition(
     baseCurrency: currencies.baseCurrency,
     metadata: {
       source: "crypto-position",
-      ticker: text(instrument?.ticker) || null,
+      ticker: text(instrumentTicker(instrument)) || null,
       symbol: assetId,
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
