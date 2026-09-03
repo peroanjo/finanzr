@@ -20,19 +20,17 @@ const endpoint = computed(() =>
 );
 const assetName = computed(() => {
   if (!movement.value) return "";
-  return "nombre_fondo" in movement.value
-    ? movement.value.nombre_fondo
-    : `${"symbol" in movement.value ? movement.value.symbol : movement.value.isin} · ${movement.value.nombre_activo}`;
+  const assetId =
+    "symbol" in movement.value ? movement.value.symbol : movement.value.isin;
+  return `${assetId} · ${movement.value.asset_name}`;
 });
 const operationLabel = computed(() => {
-  const operation = movement.value?.tipo_operacion;
+  const operation = movement.value?.operation_type;
   const keys: Record<string, string> = {
-    SUSCRIPCION: "shared.movementEditor.contribution",
-    "SUSCR.POR TRASPASO I": "shared.movementEditor.transferIn",
-    "REEMB.POR TRASPASO I": "shared.movementEditor.transferOut",
-    REEMBOLSO: "shared.movementEditor.redemption",
-    Compra: "shared.movementEditor.buy",
-    Venta: "shared.movementEditor.sell",
+    buy: "shared.movementEditor.buy",
+    sell: "shared.movementEditor.sell",
+    transfer_in: "shared.movementEditor.transferIn",
+    transfer_out: "shared.movementEditor.transferOut",
   };
   return operation ? (keys[operation] ? t(keys[operation]) : operation) : "";
 });

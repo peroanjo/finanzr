@@ -290,28 +290,121 @@ class OpenApiMutationContractTests(SimpleTestCase):
             document, order["requestBody"]["content"]["application/json"]["schema"]
         )["properties"]
         assert {
+            "account_id",
+            "trade_date",
+            "operation_type",
+            "quantity",
+            "unit_price",
+            "net_amount",
+            "fee",
+            "currency",
+            "isin",
+        } <= set(order_properties)
+        assert not {
             "fecha_operacion",
             "tipo_operacion",
             "titulos",
             "precio_neto",
             "importe_neto",
-        } <= set(order_properties)
+            "external_id",
+            "raw_metadata",
+            "import_batch",
+        } & set(order_properties)
+        order_response = document["paths"]["/api/orders"]["get"]["responses"]["200"]
+        order_response_schema = self._resolve(
+            document,
+            order_response["content"]["application/json"]["schema"]["items"],
+        )
+        assert {
+            "id",
+            "account_id",
+            "asset_name",
+            "trade_date",
+            "operation_type",
+            "cash_flow_type",
+            "quantity",
+            "unit_price",
+            "net_amount",
+            "fee",
+            "currency",
+            "base_currency",
+            "base_unit_price",
+            "base_net_amount",
+            "base_fee",
+            "fx_rate_to_base",
+            "fx_rate_date",
+            "fx_source",
+            "market",
+            "provider_operation_type",
+            "isin",
+        } <= set(order_response_schema["properties"])
+        assert not {
+            "operacion_id",
+            "external_id",
+            "raw_metadata",
+            "import_batch",
+            "fecha_operacion",
+            "tipo_operacion",
+        } & set(order_response_schema["properties"])
+        transaction_response_common = {
+            "id",
+            "account_id",
+            "account_name",
+            "platform",
+            "asset_name",
+            "trade_date",
+            "settlement_date",
+            "operation_type",
+            "cash_flow_type",
+            "quantity",
+            "unit_price",
+            "net_amount",
+            "fee",
+            "currency",
+            "base_currency",
+            "base_unit_price",
+            "base_net_amount",
+            "base_fee",
+            "fx_rate_to_base",
+            "fx_rate_date",
+            "fx_source",
+            "market",
+            "provider_operation_type",
+        }
+        transaction_response_specs = {
+            "/api/orders": ("FundTransactionResponse", {"isin"}),
+            "/api/stock-orders": ("StockTransactionResponse", {"isin", "is_saveback"}),
+            "/api/crypto-orders": ("CryptoTransactionResponse", {"symbol"}),
+        }
+        for collection_path, (schema_name, asset_fields) in transaction_response_specs.items():
+            expected_fields = transaction_response_common | asset_fields
+            list_response = document["paths"][collection_path]["get"]["responses"]["200"]
+            list_schema_ref = list_response["content"]["application/json"]["schema"]["items"]
+            assert list_schema_ref == {"$ref": f"#/components/schemas/{schema_name}"}
+            list_schema = self._resolve(document, list_schema_ref)
+            assert set(list_schema["properties"]) == expected_fields
+            assert set(list_schema["required"]) == expected_fields
+
+            detail_path = f"{collection_path}/{{transaction_id}}"
+            detail_response = document["paths"][detail_path]["put"]["responses"]["200"]
+            detail_schema_ref = detail_response["content"]["application/json"]["schema"]
+            assert detail_schema_ref == {"$ref": f"#/components/schemas/{schema_name}"}
+
         assert set(self._request_schema(document, "/api/orders", "post")["required"]) == {
             "account_id",
-            "fecha_operacion",
-            "importe_neto",
+            "trade_date",
+            "net_amount",
             "isin",
-            "precio_neto",
-            "tipo_operacion",
-            "titulos",
+            "unit_price",
+            "operation_type",
+            "quantity",
         }
         assert (
-            "precio_compra"
-            in self._request_schema(document, "/api/stock-orders", "post")["required"]
+            "unit_price" in self._request_schema(document, "/api/stock-orders", "post")["required"]
         )
         assert "symbol" in self._request_schema(document, "/api/crypto-orders", "post")["required"]
         assert (
-            "fecha_operacion"
+            "trade_date"
             in self._resolve(
                 document,
                 document["paths"]["/api/orders/{transaction_id}"]["put"]["requestBody"]["content"][

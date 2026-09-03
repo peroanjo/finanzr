@@ -47,22 +47,22 @@ const operations = computed(() =>
   props.kind === "fund"
     ? [
         {
-          value: "SUSCRIPCION",
+          value: "buy",
           label: t("shared.movementEditor.contribution"),
         },
         {
-          value: "SUSCR.POR TRASPASO I",
+          value: "transfer_in",
           label: t("shared.movementEditor.transferIn"),
         },
         {
-          value: "REEMB.POR TRASPASO I",
+          value: "transfer_out",
           label: t("shared.movementEditor.transferOut"),
         },
-        { value: "REEMBOLSO", label: t("shared.movementEditor.redemption") },
+        { value: "sell", label: t("shared.movementEditor.redemption") },
       ]
     : [
-        { value: "Compra", label: t("shared.movementEditor.buy") },
-        { value: "Venta", label: t("shared.movementEditor.sell") },
+        { value: "buy", label: t("shared.movementEditor.buy") },
+        { value: "sell", label: t("shared.movementEditor.sell") },
       ],
 );
 const valid = computed(() =>
@@ -135,22 +135,17 @@ function openCreate() {
 function openEdit(movement: FundOrder | CryptoOrder | StockOrder) {
   mode.value = "edit";
   movementId.value = movement.id;
-  accountId.value = String(movement.cuenta_id);
+  accountId.value = String(movement.account_id);
   assetId.value = "isin" in movement ? movement.isin : movement.symbol;
-  operationType.value = movement.tipo_operacion;
-  tradeDate.value = movement.fecha_operacion.slice(0, 10);
-  settlementDate.value =
-    "fecha_liquidacion" in movement
-      ? movement.fecha_liquidacion.slice(0, 10)
-      : "";
-  quantity.value = String(movement.titulos);
-  unitPrice.value = String(
-    "precio_neto" in movement ? movement.precio_neto : movement.precio_compra,
-  );
-  netAmount.value = String(movement.importe_neto);
-  fee.value = String("comision" in movement ? movement.comision : 0);
-  currency.value = movement.moneda || selectedAccountCurrency.value;
-  saveback.value = "es_saveback" in movement ? movement.es_saveback : false;
+  operationType.value = movement.operation_type;
+  tradeDate.value = movement.trade_date.slice(0, 10);
+  settlementDate.value = movement.settlement_date?.slice(0, 10) ?? "";
+  quantity.value = String(movement.quantity);
+  unitPrice.value = String(movement.unit_price);
+  netAmount.value = String(movement.net_amount);
+  fee.value = String(movement.fee);
+  currency.value = movement.currency || selectedAccountCurrency.value;
+  saveback.value = "is_saveback" in movement ? movement.is_saveback : false;
   error.value = "";
   dialog.value?.showModal();
 }
@@ -165,21 +160,21 @@ async function save() {
   error.value = "";
   const payload: Record<string, string | number> = {
     account_id: accountId.value,
-    fecha_operacion: tradeDate.value,
-    tipo_operacion: operationType.value,
-    titulos: Number(quantity.value),
-    importe_neto: Number(netAmount.value),
-    divisa: currency.value.trim().toUpperCase(),
+    trade_date: tradeDate.value,
+    operation_type: operationType.value,
+    quantity: Number(quantity.value),
+    net_amount: Number(netAmount.value),
+    currency: currency.value.trim().toUpperCase(),
     ...movementAssetIdentifier(props.kind, assetId.value),
   };
   if (props.kind === "fund") {
-    payload.fecha_liquidacion = settlementDate.value;
-    payload.precio_neto = Number(unitPrice.value);
+    payload.settlement_date = settlementDate.value;
+    payload.unit_price = Number(unitPrice.value);
   } else {
-    payload.precio_compra = Number(unitPrice.value);
-    payload.comision = Number(fee.value);
+    payload.unit_price = Number(unitPrice.value);
+    payload.fee = Number(fee.value);
     if (props.kind === "stock")
-      payload.es_saveback = canUseSaveback.value && saveback.value ? 1 : 0;
+      payload.is_saveback = canUseSaveback.value && saveback.value ? 1 : 0;
   }
   try {
     const target =

@@ -118,15 +118,29 @@ afterEach(() => {
 function order(id: string, date: string): FundOrder {
   return {
     id,
-    fecha_operacion: date,
-    fecha_liquidacion: date,
-    tipo_operacion: "SUSCRIPCION",
+    account_id: "00000000-0000-0000-0000-000000000001",
+    account_name: "Investment account",
+    platform: "Investment platform",
+    asset_name: "Fondo de prueba",
+    trade_date: date,
+    settlement_date: date,
+    operation_type: "buy",
+    cash_flow_type: "contribution",
     isin: "TEST",
-    nombre_fondo: "Fondo de prueba",
-    titulos: 1,
-    precio_neto: 100,
-    importe_neto: 100,
-    cuenta_id: "00000000-0000-0000-0000-000000000001",
+    quantity: 1,
+    unit_price: 100,
+    net_amount: 100,
+    fee: 0,
+    currency: "EUR",
+    base_currency: "EUR",
+    base_unit_price: 100,
+    base_net_amount: 100,
+    base_fee: 0,
+    fx_rate_to_base: 1,
+    fx_rate_date: date,
+    fx_source: "identity",
+    market: "",
+    provider_operation_type: "SUSCRIPCION",
   };
 }
 
@@ -159,16 +173,20 @@ describe("visibleFundOperationPoints", () => {
     const first = order("first", "2026-07-11");
     const second = {
       ...order("second", "2026-07-11"),
-      titulos: 3,
-      precio_neto: 120,
-      importe_neto: 360,
+      quantity: 3,
+      unit_price: 120,
+      net_amount: 360,
+      base_unit_price: 120,
+      base_net_amount: 360,
     };
     const redemption = {
       ...order("redemption", "2026-07-11"),
-      tipo_operacion: "REEMBOLSO",
-      titulos: 2,
-      precio_neto: 130,
-      importe_neto: 260,
+      operation_type: "sell" as const,
+      cash_flow_type: "withdrawal" as const,
+      provider_operation_type: "REEMBOLSO",
+      quantity: 2,
+      unit_price: 130,
+      net_amount: 260,
     };
 
     const markers = groupFundOperationPoints(
@@ -180,10 +198,11 @@ describe("visibleFundOperationPoints", () => {
 
     expect(markers).toHaveLength(2);
     expect(markers.find((marker) => marker.buy)?.operationCount).toBe(2);
-    expect(markers.find((marker) => marker.buy)?.order.titulos).toBe(4);
-    expect(markers.find((marker) => marker.buy)?.order.precio_neto).toBe(115);
+    expect(markers.find((marker) => marker.buy)?.order.quantity).toBe(4);
+    expect(markers.find((marker) => marker.buy)?.order.unit_price).toBe(115);
     expect(
-      markers.find((marker) => !marker.buy)?.sourceOrders[0].tipo_operacion,
+      markers.find((marker) => !marker.buy)?.sourceOrders[0]
+        .provider_operation_type,
     ).toBe("REEMBOLSO");
   });
 
@@ -191,7 +210,7 @@ describe("visibleFundOperationPoints", () => {
     const first = order("weekly-first", "2026-07-07");
     const second = {
       ...order("weekly-second", "2026-07-10"),
-      precio_neto: 110,
+      unit_price: 110,
     };
     const points = visibleFundOperationPoints(
       [first, second],
@@ -205,7 +224,7 @@ describe("visibleFundOperationPoints", () => {
       "2026-07-07",
     ]);
     expect(markers).toHaveLength(2);
-    expect(markers.map((marker) => marker.order.fecha_operacion)).toEqual([
+    expect(markers.map((marker) => marker.order.trade_date)).toEqual([
       "2026-07-07",
       "2026-07-10",
     ]);
@@ -244,11 +263,12 @@ describe("FundPriceChart operation bubble", () => {
   it("shows localized fund movement details and hides the generic tooltip on hover", async () => {
     const fundOrder = {
       ...order("fund-buy", "2026-07-11"),
-      titulos: 1.5,
-      precio_neto: 100,
-      importe_neto: 150,
-      cuenta_nombre: "Indexa",
-      plataforma: "MyInvestor",
+      quantity: 1.5,
+      unit_price: 100,
+      net_amount: 150,
+      base_net_amount: 150,
+      account_name: "Indexa",
+      platform: "MyInvestor",
     };
     const wrapper = mount(FundPriceChart, {
       props: { points, orders: [fundOrder], averagePrice: 99 },
@@ -281,8 +301,10 @@ describe("FundPriceChart operation bubble", () => {
         orders: [
           {
             ...order("fund-sell", "2026-07-11"),
-            tipo_operacion: "REEMBOLSO",
-            importe_neto: 100,
+            operation_type: "sell",
+            cash_flow_type: "withdrawal",
+            provider_operation_type: "REEMBOLSO",
+            net_amount: 100,
           },
         ],
         averagePrice: null,
@@ -317,7 +339,9 @@ describe("FundPriceChart operation bubble", () => {
           order("mixed-contribution", "2026-07-11"),
           {
             ...order("mixed-transfer", "2026-07-11"),
-            tipo_operacion: "SUSCR.POR TRASPASO I",
+            operation_type: "transfer_in",
+            cash_flow_type: "internal",
+            provider_operation_type: "SUSCR.POR TRASPASO I",
           },
         ],
         averagePrice: null,

@@ -131,30 +131,35 @@ const operationPinPlugin = {
 };
 
 function priceForOrder(order: FundOrder) {
-  return order.precio_base ?? order.precio_neto;
+  return order.base_unit_price ?? order.unit_price;
 }
 
 function amountForOrder(order: FundOrder) {
-  return order.importe_base ?? order.importe_neto;
+  return order.base_net_amount ?? order.net_amount;
 }
 
 function operationLabel(order: FundOrder) {
+  const operation = order.provider_operation_type || order.operation_type;
   return (
     (
       {
+        buy: t("shared.movementEditor.contribution"),
         SUSCRIPCION: t("shared.movementEditor.contribution"),
+        transfer_in: t("shared.movementEditor.transferIn"),
         "SUSCR.POR TRASPASO I": t("shared.movementEditor.transferIn"),
+        transfer_out: t("shared.movementEditor.transferOut"),
         "REEMB.POR TRASPASO I": t("shared.movementEditor.transferOut"),
+        sell: t("shared.movementEditor.redemption"),
         REEMBOLSO: t("shared.movementEditor.redemption"),
         Compra: t("shared.movementEditor.buy"),
         Venta: t("shared.movementEditor.sell"),
       } as Record<string, string>
-    )[order.tipo_operacion] ?? order.tipo_operacion
+    )[operation] ?? operation
   );
 }
 
 function operationAccount(order: FundOrder) {
-  const labels = [order.cuenta_nombre, order.plataforma]
+  const labels = [order.account_name, order.platform]
     .filter((value): value is string => Boolean(value?.trim()))
     .filter((value, index, values) => values.indexOf(value) === index);
   return labels.join(" · ") || t("shared.candlestick.investmentAccount");
@@ -185,7 +190,7 @@ function operationHeading(marker: FundOperationMarker) {
 }
 
 function dateForOrder(order: FundOrder) {
-  return new Date(`${order.fecha_operacion.slice(0, 10)}T00:00:00`);
+  return new Date(`${order.trade_date.slice(0, 10)}T00:00:00`);
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -318,7 +323,7 @@ const operationTooltip = computed(() => {
     account: operationAccount(order),
     date: dates.value.format(dateForOrder(order)),
     units: t("shared.fundPrice.units", {
-      count: quantities.value.format(order.titulos),
+      count: quantities.value.format(order.quantity),
     }),
     price: money.value.format(priceForOrder(order)),
     amount: totalMoney.value.format(amountForOrder(order)),
@@ -333,7 +338,7 @@ const operationTooltip = computed(() => {
       : `${operationHeading(marker)} · ${operationAccounts(marker)}`,
     date: dates.value.format(dateForOrder(marker.order)),
     units: t("shared.fundPrice.units", {
-      count: quantities.value.format(marker.order.titulos),
+      count: quantities.value.format(marker.order.quantity),
     }),
     price: money.value.format(priceForOrder(marker.order)),
     amount: totalMoney.value.format(amountForOrder(marker.order)),
@@ -352,7 +357,7 @@ const operationTooltip = computed(() => {
 
 function operationAriaLabel(marker: FundOperationMarker) {
   const order = marker.order;
-  return `${operationHeading(marker)} · ${operationAccounts(marker)} · ${dates.value.format(dateForOrder(order))}. ${t("shared.fundPrice.units", { count: quantities.value.format(order.titulos) })}. ${t("shared.fundPrice.priceValue", { value: money.value.format(priceForOrder(order)) })}. ${t("shared.fundPrice.amount", { value: totalMoney.value.format(amountForOrder(order)) })}`;
+  return `${operationHeading(marker)} · ${operationAccounts(marker)} · ${dates.value.format(dateForOrder(order))}. ${t("shared.fundPrice.units", { count: quantities.value.format(order.quantity) })}. ${t("shared.fundPrice.priceValue", { value: money.value.format(priceForOrder(order)) })}. ${t("shared.fundPrice.amount", { value: totalMoney.value.format(amountForOrder(order)) })}`;
 }
 
 function markerButtonStyle(marker: FundOperationMarker) {

@@ -453,9 +453,9 @@ def test_unresolved_foreign_fx_is_not_serialized_or_reported_as_zero_history(
     )
 
     row = transaction_row(transaction)
-    assert row["importe_base"] is None
-    assert row["precio_base"] is None
-    assert row["comision_base"] is None
+    assert row["base_net_amount"] is None
+    assert row["base_unit_price"] is None
+    assert row["base_fee"] is None
 
     def unavailable(*_args: object, **_kwargs: object) -> NoReturn:
         raise CurrencyConversionError("No USD/EUR rate")

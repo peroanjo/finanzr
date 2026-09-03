@@ -102,30 +102,42 @@ const stockPositions = [
     pnl_realizada: 0,
   })),
 ];
-const order = {
+const order: StockOrder = {
   id: "stock-1",
-  fecha_operacion: "2026-05-02",
-  titulos: 1,
-  importe_neto: 100,
-  cuenta_id: accountOneId,
-  cuenta_nombre: "Trade Republic",
-  plataforma: "Trade Republic",
-  tipo_operacion: "Compra",
+  trade_date: "2026-05-02",
+  settlement_date: null,
+  quantity: 1,
+  net_amount: 100,
+  fee: 1,
+  account_id: accountOneId,
+  account_name: "Trade Republic",
+  platform: "Trade Republic",
+  operation_type: "buy",
+  cash_flow_type: "none",
   isin: "US67066G1040",
-  nombre_activo: "NVIDIA",
-  precio_compra: 100,
-  comision: 1,
-  es_saveback: true,
+  asset_name: "NVIDIA",
+  unit_price: 100,
+  is_saveback: true,
+  currency: "EUR",
+  base_currency: "EUR",
+  base_unit_price: 100,
+  base_net_amount: 100,
+  base_fee: 1,
+  fx_rate_to_base: 1,
+  fx_rate_date: "2026-05-02",
+  fx_source: "identity",
+  market: "",
+  provider_operation_type: "Compra",
 };
 const stockOrders = [
   order,
   ...Array.from({ length: 15 }, (_, index) => ({
     ...order,
     id: `stock-${index + 2}`,
-    fecha_operacion: `2026-04-${String(index + 1).padStart(2, "0")}`,
+    trade_date: `2026-04-${String(index + 1).padStart(2, "0")}`,
     isin: `TEST${index}`,
-    nombre_activo: `Test stock ${index}`,
-    es_saveback: false,
+    asset_name: `Test stock ${index}`,
+    is_saveback: false,
   })),
 ];
 const closedPosition = {
@@ -214,10 +226,10 @@ describe("StocksView", () => {
           {
             ...order,
             id: "second-account-1",
-            cuenta_id: secondAccount.id,
-            cuenta_nombre: secondAccount.name,
+            account_id: secondAccount.id,
+            account_name: secondAccount.name,
             isin: secondAccountPosition.isin,
-            nombre_activo: secondAccountPosition.nombre,
+            asset_name: secondAccountPosition.nombre,
           },
         ];
       if (path === "/stocks")
@@ -568,10 +580,10 @@ describe("StocksView", () => {
     ordersOverride = [
       {
         ...order,
-        moneda: "GBP",
-        importe_base: 80,
-        precio_base: 80,
-        comision_base: 0.8,
+        currency: "GBP",
+        base_net_amount: 80,
+        base_unit_price: 80,
+        base_fee: 0.8,
       },
       ...stockOrders.slice(1),
     ];

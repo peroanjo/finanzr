@@ -12,7 +12,6 @@ from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from rest_framework.response import Response
 from rest_framework.test import APIClient
 
 
@@ -121,7 +120,7 @@ def test_fund_history_cache_is_isolated_by_workspace_and_reporting_currency(
             "importe_base": 100,
         }
     ]
-    monkeypatch.setattr(views, "transaction_list", lambda *_args: Response(rows))
+    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
     monkeypatch.setattr(views, "workspace_instrument", lambda *_args: object())
     monkeypatch.setattr(views, "yahoo_ticker", lambda *_args: "TEST")
     monkeypatch.setattr(
