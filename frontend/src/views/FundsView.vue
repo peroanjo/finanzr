@@ -409,7 +409,7 @@ const marketValueAllocationTotal = computed(() =>
 const fundChartRangeLabel = computed(() => {
   const points = fundChart.value?.data ?? [];
   if (points.length) {
-    return `${displayDate(points[0].fecha)} → ${displayDate(points.at(-1)?.fecha ?? points[0].fecha)}`;
+    return `${displayDate(points[0].date)} → ${displayDate(points.at(-1)?.date ?? points[0].date)}`;
   }
   if (fundRange.value === "custom") {
     return `${displayDate(fundCustomStart.value)} → ${displayDate(fundCustomEnd.value)}`;
@@ -672,12 +672,22 @@ async function loadFundChart(generation = dashboardGeneration) {
     fundChartError.value = "";
     return;
   }
+  const instrumentId = instrumentByIdentity(
+    instruments.value,
+    selectedFund.value,
+  )?.id;
+  if (!instrumentId) {
+    fundChart.value = null;
+    fundChartLoading.value = false;
+    fundChartError.value = t("funds.errors.chart");
+    return;
+  }
   fundChart.value = null;
   fundChartLoading.value = true;
   fundChartError.value = "";
   try {
     const nextFundChart = await api<FundChartResponse>(
-      `/fund-chart/${encodeURIComponent(selectedFund.value)}?${fundChartQuery()}`,
+      `/fund-chart/${encodeURIComponent(instrumentId)}?${fundChartQuery()}`,
     );
     if (
       generation !== dashboardGeneration ||

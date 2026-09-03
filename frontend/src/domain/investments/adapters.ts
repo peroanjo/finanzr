@@ -433,7 +433,7 @@ function candlestickPoint(
     return null;
   return {
     seriesKind: "candlestick",
-    date: text(item.fecha),
+    date: text(item.date),
     open,
     high,
     low,
@@ -447,8 +447,12 @@ function adaptMarketChart(
   options?: InvestmentAdapterOptions,
 ): NormalizedCandlestickChartResponse {
   const item = record(response);
-  const assetId = kind === "stock" ? text(item.isin) : text(item.symbol);
-  const currencies = currencyDetails(options, item.moneda_base, item.moneda);
+  const assetId = text(item.instrument_id);
+  const currencies = currencyDetails(
+    options,
+    item.base_currency,
+    item.currency,
+  );
   const chart: NormalizedCandlestickChartResponse = {
     kind,
     assetId,
@@ -496,8 +500,12 @@ export function adaptFundChart(
   options?: InvestmentAdapterOptions,
 ): NormalizedLineChartResponse {
   const item = record(response);
-  const assetId = text(item.isin);
-  const currencies = currencyDetails(options, item.moneda_base, item.moneda);
+  const assetId = text(item.instrument_id);
+  const currencies = currencyDetails(
+    options,
+    item.base_currency,
+    item.currency,
+  );
   const chart: NormalizedLineChartResponse = {
     kind: "fund",
     assetId,
@@ -512,9 +520,8 @@ export function adaptFundChart(
           const value = record(point);
           return {
             seriesKind: "line" as const,
-            date: text(value.fecha),
-            // Prefer an explicitly converted value when the DTO exposes it.
-            price: number(value.precio_base, number(value.precio)),
+            date: text(value.date),
+            price: number(value.close),
           };
         })
       : [],

@@ -629,6 +629,48 @@ class OpenApiMutationContractTests(SimpleTestCase):
         ) == {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
         assert "/api/stock-splits/{asset_id}/{value_date}" not in document["paths"]
 
+        for chart_path in (
+            "/api/fund-chart/{instrument_id}",
+            "/api/stock-chart/{instrument_id}",
+            "/api/crypto-chart/{instrument_id}",
+        ):
+            operation = document["paths"][chart_path]["get"]
+            assert operation["parameters"] == [
+                {
+                    "in": "path",
+                    "name": "instrument_id",
+                    "schema": {"type": "string", "format": "uuid"},
+                    "required": True,
+                }
+            ]
+            chart_response = self._resolve(
+                document,
+                operation["responses"]["200"]["content"]["application/json"]["schema"],
+            )
+            assert set(chart_response["properties"]) == {
+                "instrument_id",
+                "ticker",
+                "currency",
+                "base_currency",
+                "range",
+                "data",
+            }
+            point = self._resolve(document, chart_response["properties"]["data"]["items"])
+            expected_point_fields = (
+                {"date", "close"}
+                if chart_path == "/api/fund-chart/{instrument_id}"
+                else {"date", "open", "high", "low", "close"}
+            )
+            assert set(point["properties"]) == expected_point_fields
+            assert point["properties"]["date"] == {"type": "string", "format": "date"}
+            assert all(
+                point["properties"][field]["type"] == "number"
+                for field in expected_point_fields - {"date"}
+            )
+        assert "/api/fund-chart/{asset_id}" not in document["paths"]
+        assert "/api/stock-chart/{asset_id}" not in document["paths"]
+        assert "/api/crypto-chart/{asset_id}" not in document["paths"]
+
     @staticmethod
     def _temp_schema() -> str:
         import tempfile

@@ -24,6 +24,7 @@ from apps.api.schemas import (
     CsrfSerializer,
     DeleteAccountRequestSerializer,
     FinancialObjectSerializer,
+    FundChartResponseSerializer,
     FundTransactionRequestSerializer,
     FundTransactionResponseSerializer,
     FundTransactionUpdateRequestSerializer,
@@ -44,6 +45,7 @@ from apps.api.schemas import (
     ManualAssetRequestSerializer,
     ManualAssetResponseSerializer,
     ManualAssetUpdateRequestSerializer,
+    MarketChartResponseSerializer,
     NativeInvestmentAccountResponseSerializer,
     NativeInvestmentSnapshotRequestSerializer,
     NativeInvestmentSnapshotResponseSerializer,
@@ -215,6 +217,23 @@ class PublicAutoSchema(AutoSchema):
                     location=OpenApiParameter.QUERY,
                     required=False,
                     description="Account UUID or the literal 'all'.",
+                )
+            )
+        elif (
+            path
+            in {
+                "/api/fund-chart/{instrument_id}",
+                "/api/stock-chart/{instrument_id}",
+                "/api/crypto-chart/{instrument_id}",
+            }
+            and self.method == "GET"
+        ):
+            parameters.append(
+                OpenApiParameter(
+                    name="instrument_id",
+                    type=OpenApiTypes.UUID,
+                    location=OpenApiParameter.PATH,
+                    required=True,
                 )
             )
         elif (
@@ -430,6 +449,13 @@ class PublicAutoSchema(AutoSchema):
             response = InvestmentPerformanceResponseSerializer
         elif path == "/api/portfolio-analysis":
             response = PortfolioAnalysisResponseSerializer
+        elif path == "/api/fund-chart/{instrument_id}":
+            response = FundChartResponseSerializer
+        elif path in {
+            "/api/stock-chart/{instrument_id}",
+            "/api/crypto-chart/{instrument_id}",
+        }:
+            response = MarketChartResponseSerializer
         elif family_path in {
             "/api/fund-accounts",
             "/api/stock-accounts",

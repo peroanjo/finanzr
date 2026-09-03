@@ -242,6 +242,18 @@ const instruments = [
     subtype: "Global",
     is_active: true,
   },
+  {
+    id: "00000000-0000-0000-0000-000000000022",
+    kind: "fund" as const,
+    name: "Test fund 0",
+    quote_currency: "EUR",
+    identifiers: [
+      { scheme: "isin" as const, value: "TEST-0", venue: "", is_primary: true },
+    ],
+    asset_class: "Renta Variable",
+    subtype: "Global",
+    is_active: true,
+  },
 ];
 const prices = [
   {
@@ -259,15 +271,18 @@ const prices = [
   },
 ];
 const chart = {
-  isin: "TEST",
+  instrument_id: instruments[0].id,
   ticker: "TEST.MC",
-  moneda: "EUR",
+  currency: "EUR",
+  base_currency: "EUR",
   range: "1y",
   data: [
-    { fecha: "2026-01-01", precio: 100 },
-    { fecha: "2026-07-01", precio: 120 },
+    { date: "2026-01-01", close: 100 },
+    { date: "2026-07-01", close: 120 },
   ],
 };
+const chartInstrumentId = instruments[0].id;
+const secondaryChartInstrumentId = instruments[1].id;
 let positionsOverride: FundPosition[] | null = null;
 
 describe("FundsView", () => {
@@ -657,7 +672,9 @@ describe("FundsView", () => {
     await flushPromises();
 
     expect(chartCalls()).toHaveLength(1);
-    expect(chartCalls()[0][0]).toBe("/fund-chart/TEST?range=1y&interval=1d");
+    expect(chartCalls()[0][0]).toBe(
+      `/fund-chart/${chartInstrumentId}?range=1y&interval=1d`,
+    );
     expect(disclosure.attributes("aria-expanded")).toBe("true");
     expect(wrapper.findAll(".fund-inline-detail-row")).toHaveLength(1);
     expect(
@@ -682,7 +699,7 @@ describe("FundsView", () => {
     expect(wrapper.findAll(".fund-inline-detail-row")).toHaveLength(1);
     expect(wrapper.findAll(".fund-position-row.active")).toHaveLength(1);
     expect(chartCalls().at(-1)?.[0]).toBe(
-      "/fund-chart/TEST-0?range=1y&interval=1d",
+      `/fund-chart/${secondaryChartInstrumentId}?range=1y&interval=1d`,
     );
 
     await secondRow.trigger("click");
@@ -732,7 +749,7 @@ describe("FundsView", () => {
         .text(),
     ).toBe("6M");
     expect(apiMock.mock.calls.at(-1)?.[0]).toBe(
-      "/fund-chart/TEST-0?range=6m&interval=1d",
+      `/fund-chart/${secondaryChartInstrumentId}?range=6m&interval=1d`,
     );
 
     await secondRow.get(".fund-position-disclosure").trigger("keydown.space");
@@ -760,7 +777,7 @@ describe("FundsView", () => {
     await calendar.get("form").trigger("submit");
     await flushPromises();
     expect(apiMock.mock.calls.at(-1)?.[0]).toBe(
-      "/fund-chart/TEST?start=2026-02-01&end=2026-06-30",
+      `/fund-chart/${chartInstrumentId}?start=2026-02-01&end=2026-06-30`,
     );
 
     const secondRow = wrapper
@@ -769,7 +786,7 @@ describe("FundsView", () => {
     await secondRow.trigger("click");
     await flushPromises();
     expect(apiMock.mock.calls.at(-1)?.[0]).toBe(
-      "/fund-chart/TEST-0?start=2026-02-01&end=2026-06-30",
+      `/fund-chart/${secondaryChartInstrumentId}?start=2026-02-01&end=2026-06-30`,
     );
   });
 
@@ -793,9 +810,18 @@ describe("FundsView", () => {
     const closedRow = wrapper
       .findAll(".fund-position-row")
       .find((row) => row.text().includes("Fondo cerrado"))!;
+    const chartCallCount = apiMock.mock.calls.filter(([path]) =>
+      String(path).startsWith("/fund-chart/"),
+    ).length;
     await closedRow.trigger("click");
     await flushPromises();
     expect(wrapper.find(".fund-inline-price-panel").exists()).toBe(true);
+    expect(
+      apiMock.mock.calls.filter(([path]) =>
+        String(path).startsWith("/fund-chart/"),
+      ),
+    ).toHaveLength(chartCallCount);
+    expect(wrapper.find(".fund-chart-state.error-state").exists()).toBe(true);
 
     await wrapper.get(".fund-action-button").trigger("click");
     await flushPromises();
@@ -987,7 +1013,7 @@ describe("FundsView", () => {
       if (path === "/funds") return instruments;
       if (path === "/fund-prices") return prices;
       if (path.startsWith("/investment-performance/fund?")) return performance;
-      if (path.startsWith("/fund-chart/TEST?")) return oldChart;
+      if (path.startsWith(`/fund-chart/${chartInstrumentId}?`)) return oldChart;
       throw new Error(`Unexpected path: ${path}`);
     });
 
@@ -1048,12 +1074,18 @@ describe("FundsView", () => {
       ) {
         return latestPerformance;
       }
-      if (path.startsWith("/fund-chart/TEST?") && path.includes("range=6m"))
+      if (
+        path.startsWith(`/fund-chart/${chartInstrumentId}?`) &&
+        path.includes("range=6m")
+      )
         return oldChart;
-      if (path.startsWith("/fund-chart/TEST?") && path.includes("range=2y"))
+      if (
+        path.startsWith(`/fund-chart/${chartInstrumentId}?`) &&
+        path.includes("range=2y")
+      )
         return latestChart;
       if (path.startsWith("/investment-performance/fund?")) return performance;
-      if (path.startsWith("/fund-chart/TEST?")) return chart;
+      if (path.startsWith(`/fund-chart/${chartInstrumentId}?`)) return chart;
       throw new Error(`Unexpected path: ${path}`);
     });
 

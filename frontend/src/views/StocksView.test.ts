@@ -293,24 +293,23 @@ describe("StocksView", () => {
             source: "yahoo",
           },
         ];
-      if (path.startsWith(`/stock-chart/${position.isin}?`))
+      if (path.startsWith("/stock-chart/00000000-0000-0000-0000-000000000603?"))
         return {
-          isin: position.isin,
+          instrument_id: "00000000-0000-0000-0000-000000000603",
           ticker: "NVDA",
-          moneda: "EUR",
+          currency: "EUR",
+          base_currency: "EUR",
           range: "1y",
           data: [
             {
-              fecha: "2026-01-01",
-              precio: 100,
+              date: "2026-01-01",
               open: 99,
               high: 102,
               low: 98,
               close: 100,
             },
             {
-              fecha: "2026-07-01",
-              precio: 185,
+              date: "2026-07-01",
               open: 180,
               high: 188,
               low: 179,
@@ -318,16 +317,16 @@ describe("StocksView", () => {
             },
           ],
         };
-      if (path.startsWith(`/stock-chart/${closedPosition.isin}?`))
+      if (path.startsWith("/stock-chart/00000000-0000-0000-0000-000000000601?"))
         return {
-          isin: closedPosition.isin,
+          instrument_id: closedInstrument.id,
           ticker: instrumentTicker(closedInstrument),
-          moneda: "EUR",
+          currency: "EUR",
+          base_currency: "EUR",
           range: "1y",
           data: [
             {
-              fecha: "2026-01-01",
-              precio: 100,
+              date: "2026-01-01",
               open: 99,
               high: 102,
               low: 98,
@@ -335,16 +334,16 @@ describe("StocksView", () => {
             },
           ],
         };
-      if (path.startsWith(`/stock-chart/${secondAccountPosition.isin}?`))
+      if (path.startsWith("/stock-chart/00000000-0000-0000-0000-000000000602?"))
         return {
-          isin: secondAccountPosition.isin,
+          instrument_id: secondAccountInstrument.id,
           ticker: instrumentTicker(secondAccountInstrument),
-          moneda: "EUR",
+          currency: "EUR",
+          base_currency: "EUR",
           range: "1y",
           data: [
             {
-              fecha: "2026-01-01",
-              precio: 250,
+              date: "2026-01-01",
               open: 249,
               high: 252,
               low: 248,
@@ -407,7 +406,9 @@ describe("StocksView", () => {
     await flushPromises();
     expect(
       apiMock.mock.calls.filter(([path]) =>
-        String(path).startsWith("/stock-chart/US67066G1040?"),
+        String(path).startsWith(
+          "/stock-chart/00000000-0000-0000-0000-000000000603?",
+        ),
       ),
     ).toHaveLength(1);
     expect(wrapper.get('[data-testid="stock-chart"]').text()).toBe("2-1");
@@ -481,7 +482,7 @@ describe("StocksView", () => {
       expect.objectContaining({ method: "PUT" }),
     );
     expect(apiMock).toHaveBeenCalledWith(
-      "/stock-chart/CLOSED?range=1y&interval=1d",
+      "/stock-chart/00000000-0000-0000-0000-000000000601?range=1y&interval=1d",
     );
     expect(wrapper.get('[data-testid="stock-chart"]').text()).toBe("1-0");
     expect(wrapper.get(".fund-position-row.active").text()).toContain(
@@ -489,7 +490,9 @@ describe("StocksView", () => {
     );
     expect(
       apiMock.mock.calls.filter(([path]) =>
-        String(path).startsWith("/stock-chart/CLOSED?"),
+        String(path).startsWith(
+          "/stock-chart/00000000-0000-0000-0000-000000000601?",
+        ),
       ),
     ).toHaveLength(1);
   });
@@ -537,7 +540,9 @@ describe("StocksView", () => {
 
     expect(
       apiMock.mock.calls.filter(([path]) =>
-        String(path).startsWith("/stock-chart/US67066G1040?"),
+        String(path).startsWith(
+          "/stock-chart/00000000-0000-0000-0000-000000000603?",
+        ),
       ),
     ).toHaveLength(1);
     expect(wrapper.get('[data-testid="stock-chart"]').text()).toBe("2-1");
@@ -570,7 +575,7 @@ describe("StocksView", () => {
       .trigger("click");
     await flushPromises();
     expect(apiMock).toHaveBeenCalledWith(
-      "/stock-chart/US67066G1040?range=2y&interval=1wk",
+      "/stock-chart/00000000-0000-0000-0000-000000000603?range=2y&interval=1wk",
     );
 
     await wrapper
@@ -683,14 +688,14 @@ describe("StocksView", () => {
       resolveOldChart = resolve;
     });
     const latestChart = {
-      isin: position.isin,
+      instrument_id: "00000000-0000-0000-0000-000000000603",
       ticker: "NVDA",
-      moneda: "EUR",
+      currency: "EUR",
+      base_currency: "EUR",
       range: "2y",
       data: [
         {
-          fecha: "2026-07-01",
-          precio: 185,
+          date: "2026-07-01",
           open: 180,
           high: 188,
           low: 179,
@@ -700,16 +705,17 @@ describe("StocksView", () => {
     };
     apiMock.mockImplementation(async (path) => {
       if (
-        path.startsWith(`/stock-chart/${position.isin}?`) &&
+        path.startsWith("/stock-chart/00000000-0000-0000-0000-000000000603?") &&
         path.includes("range=6m")
       )
         return oldChart;
       if (
-        path.startsWith(`/stock-chart/${position.isin}?`) &&
+        path.startsWith("/stock-chart/00000000-0000-0000-0000-000000000603?") &&
         path.includes("range=2y")
       )
         return latestChart;
-      if (path.startsWith(`/stock-chart/${position.isin}?`)) return latestChart;
+      if (path.startsWith("/stock-chart/00000000-0000-0000-0000-000000000603?"))
+        return latestChart;
       throw new Error(`Unexpected path: ${path}`);
     });
 
