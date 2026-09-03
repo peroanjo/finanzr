@@ -1,10 +1,11 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
+import { instrumentTicker } from "../domain/instruments";
 import ImportStatementDialog from "../components/ImportStatementDialog.vue";
 import { applyLocale, applyReportingCurrency, registerMessages } from "../i18n";
 import { stocksMessages } from "../i18n/stocksMessages";
-import type { StockOrder } from "../types/api";
+import type { StockInstrument, StockOrder } from "../types/api";
 import StocksView from "./StocksView.vue";
 
 registerMessages(stocksMessages);
@@ -150,15 +151,36 @@ const closedPosition = {
   pnl: 0,
   pnl_realizada: 20,
 };
-const closedInstrument = {
-  isin: closedPosition.isin,
-  ticker: "CLOSED",
-  nombre: closedPosition.nombre,
+const closedInstrument: StockInstrument = {
+  id: "00000000-0000-0000-0000-000000000601",
+  kind: "stock",
+  name: closedPosition.nombre,
+  quote_currency: "EUR",
+  identifiers: [
+    { scheme: "isin", value: closedPosition.isin, venue: "", is_primary: true },
+    { scheme: "yahoo", value: "CLOSED", venue: "", is_primary: true },
+  ],
+  asset_class: null,
+  subtype: null,
+  is_active: true,
 };
-const secondAccountInstrument = {
-  isin: secondAccountPosition.isin,
-  ticker: "SECOND",
-  nombre: secondAccountPosition.nombre,
+const secondAccountInstrument: StockInstrument = {
+  id: "00000000-0000-0000-0000-000000000602",
+  kind: "stock",
+  name: secondAccountPosition.nombre,
+  quote_currency: "EUR",
+  identifiers: [
+    {
+      scheme: "isin",
+      value: secondAccountPosition.isin,
+      venue: "",
+      is_primary: true,
+    },
+    { scheme: "yahoo", value: "SECOND", venue: "", is_primary: true },
+  ],
+  asset_class: null,
+  subtype: null,
+  is_active: true,
 };
 const performance = {
   range: "1y",
@@ -235,9 +257,22 @@ describe("StocksView", () => {
       if (path === "/stocks")
         return [
           {
-            isin: position.isin,
-            ticker: "NVDA",
-            nombre: position.nombre,
+            id: "00000000-0000-0000-0000-000000000603",
+            kind: "stock",
+            name: position.nombre,
+            quote_currency: "EUR",
+            identifiers: [
+              {
+                scheme: "isin",
+                value: position.isin,
+                venue: "",
+                is_primary: true,
+              },
+              { scheme: "yahoo", value: "NVDA", venue: "", is_primary: true },
+            ],
+            asset_class: null,
+            subtype: null,
+            is_active: true,
           },
           closedInstrument,
           secondAccountInstrument,
@@ -280,7 +315,7 @@ describe("StocksView", () => {
       if (path.startsWith(`/stock-chart/${closedPosition.isin}?`))
         return {
           isin: closedPosition.isin,
-          ticker: closedInstrument.ticker,
+          ticker: instrumentTicker(closedInstrument),
           moneda: "EUR",
           range: "1y",
           data: [
@@ -297,7 +332,7 @@ describe("StocksView", () => {
       if (path.startsWith(`/stock-chart/${secondAccountPosition.isin}?`))
         return {
           isin: secondAccountPosition.isin,
-          ticker: secondAccountInstrument.ticker,
+          ticker: instrumentTicker(secondAccountInstrument),
           moneda: "EUR",
           range: "1y",
           data: [
@@ -311,13 +346,29 @@ describe("StocksView", () => {
             },
           ],
         };
-      if (path === `/stocks/${position.isin}` && init?.method === "PUT")
+      if (
+        path === `/stocks/00000000-0000-0000-0000-000000000603` &&
+        init?.method === "PUT"
+      )
         return {
-          isin: position.isin,
-          ticker: "NVDA",
-          nombre: position.nombre,
-        };
-      if (path === `/stocks/${closedPosition.isin}` && init?.method === "PUT")
+          id: "00000000-0000-0000-0000-000000000603",
+          kind: "stock",
+          name: position.nombre,
+          quote_currency: "EUR",
+          identifiers: [
+            {
+              scheme: "isin",
+              value: position.isin,
+              venue: "",
+              is_primary: true,
+            },
+            { scheme: "yahoo", value: "NVDA", venue: "", is_primary: true },
+          ],
+          asset_class: null,
+          subtype: null,
+          is_active: true,
+        } satisfies StockInstrument;
+      if (path === `/stocks/${closedInstrument.id}` && init?.method === "PUT")
         return closedInstrument;
       if (path.startsWith("/investment-performance/stock?")) return performance;
       throw new Error(`Unexpected path: ${path}`);
@@ -420,7 +471,7 @@ describe("StocksView", () => {
     await flushPromises();
 
     expect(apiMock).toHaveBeenCalledWith(
-      "/stocks/CLOSED",
+      `/stocks/${closedInstrument.id}`,
       expect.objectContaining({ method: "PUT" }),
     );
     expect(apiMock).toHaveBeenCalledWith(
@@ -714,9 +765,22 @@ describe("StocksView", () => {
       if (path === "/stocks")
         return [
           {
-            isin: position.isin,
-            ticker: "NVDA",
-            nombre: position.nombre,
+            id: "00000000-0000-0000-0000-000000000603",
+            kind: "stock",
+            name: position.nombre,
+            quote_currency: "EUR",
+            identifiers: [
+              {
+                scheme: "isin",
+                value: position.isin,
+                venue: "",
+                is_primary: true,
+              },
+              { scheme: "yahoo", value: "NVDA", venue: "", is_primary: true },
+            ],
+            asset_class: null,
+            subtype: null,
+            is_active: true,
           },
           secondAccountInstrument,
         ];

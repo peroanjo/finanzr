@@ -131,15 +131,28 @@ def test_workspace_cannot_mutate_a_shared_instrument_catalog_entry() -> None:
     client.force_authenticate(first_user)
     created = client.post(
         "/api/stocks",
-        {"isin": "US0000000001", "ticker": "CATONE", "nombre": "First name"},
+        {
+            "name": "First name",
+            "identifiers": [
+                {"scheme": "isin", "value": "US0000000001", "is_primary": True},
+                {"scheme": "yahoo", "value": "CATONE", "is_primary": True},
+            ],
+        },
         format="json",
     )
     assert created.status_code == 201
+    instrument_id = created.json()["id"]
 
     client.force_authenticate(second_user)
     linked = client.post(
         "/api/stocks",
-        {"isin": "US0000000001", "ticker": "CATONE", "nombre": "Second name"},
+        {
+            "name": "Second name",
+            "identifiers": [
+                {"scheme": "isin", "value": "US0000000001", "is_primary": True},
+                {"scheme": "yahoo", "value": "CATONE", "is_primary": True},
+            ],
+        },
         format="json",
     )
     assert linked.status_code == 201
@@ -162,8 +175,14 @@ def test_workspace_cannot_mutate_a_shared_instrument_catalog_entry() -> None:
     ).exists()
 
     rejected_update = client.put(
-        "/api/stocks/US0000000001",
-        {"ticker": "CATTWO", "nombre": "Second name"},
+        f"/api/stocks/{instrument_id}",
+        {
+            "name": "Second name",
+            "identifiers": [
+                {"scheme": "isin", "value": "US0000000001", "is_primary": True},
+                {"scheme": "yahoo", "value": "CATTWO", "is_primary": True},
+            ],
+        },
         format="json",
     )
     assert rejected_update.status_code == 409

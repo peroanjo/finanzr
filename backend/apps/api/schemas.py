@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any, cast
 
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 
@@ -133,26 +134,178 @@ class AccountUploadRequestSerializer(StrictSerializer):
     account_id = serializers.UUIDField(required=True)
 
 
-class InstrumentRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    nombre = serializers.CharField(required=True)
-    ticker = serializers.CharField(required=True)
-    moneda = serializers.CharField(required=False, default="EUR")
+class InstrumentIdentifierRequestSerializer(StrictSerializer):
+    """Native identifier input; the route supplies the instrument kind."""
+
+    scheme = serializers.ChoiceField(choices=("isin", "yahoo", "crypto_symbol", "kraken", "other"))
+    # Blank is only meaningful for a fund update, where it explicitly clears
+    # the selected Yahoo ticker. The contextual validator rejects it for all
+    # other operations and schemes.
+    value = serializers.CharField(required=True, allow_blank=True, max_length=120)
+    venue = serializers.CharField(required=False, allow_blank=True, max_length=40, default="")
+    is_primary = serializers.BooleanField(required=False, default=False)
 
 
-class InstrumentUpdateRequestSerializer(serializers.Serializer[dict[str, Any]]):
-    nombre = serializers.CharField(required=False)
-    ticker = serializers.CharField(required=False)
-    moneda = serializers.CharField(required=False)
-    isin = serializers.CharField(required=False)
-    symbol = serializers.CharField(required=False)
+INSTRUMENT_IDENTIFIER_SCHEMES: dict[str, frozenset[str]] = {
+    "fund": frozenset({"isin", "yahoo", "other"}),
+    "stock": frozenset({"isin", "yahoo", "other"}),
+    "etf": frozenset({"isin", "yahoo", "other"}),
+    "crypto": frozenset({"crypto_symbol", "yahoo", "kraken", "other"}),
+}
+INSTRUMENT_REQUIRED_SCHEME = {
+    "fund": "isin",
+    "stock": "isin",
+    "etf": "isin",
+    "crypto": "crypto_symbol",
+}
 
 
+def normalize_instrument_identifier_value(scheme: str, value: str) -> str:
+    value = value.strip()
+    if scheme in {"isin", "crypto_symbol", "kraken"}:
+        return value.upper()
+    return value
+
+
+def validate_instrument_identifiers(
+    attrs: dict[str, Any],
+    *,
+    kind: str | None,
+    require_identity: bool,
+    allow_fund_blank_yahoo: bool = False,
+) -> dict[str, Any]:
+    identifiers = attrs.get("identifiers")
+    if identifiers is None or kind is None:
+        return attrs
+    normalized = [
+        {
+            **item,
+            "value": normalize_instrument_identifier_value(item["scheme"], item["value"]),
+            "venue": item.get("venue", "").strip(),
+        }
+        for item in identifiers
+    ]
+    allowed = INSTRUMENT_IDENTIFIER_SCHEMES.get(kind, frozenset())
+    invalid = sorted({item["scheme"] for item in normalized} - allowed)
+    if invalid:
+        raise serializers.ValidationError(
+            {
+                "identifiers": [
+                    _("Identifier scheme(s) are not valid for this instrument kind: %(schemes)s")
+                    % {"schemes": ", ".join(invalid)}
+                ]
+            }
+        )
+    for item in normalized:
+        if not item["value"] and not (
+            kind == "fund"
+            and item["scheme"] == "yahoo"
+            and (allow_fund_blank_yahoo or not require_identity)
+        ):
+            raise serializers.ValidationError(
+                {"identifiers": [_("Identifier values cannot be blank")]}
+            )
+    if len({(item["scheme"], item["venue"]) for item in normalized}) != len(normalized):
+        raise serializers.ValidationError(
+            {"identifiers": [_("Only one identifier per scheme and venue is supported")]}
+        )
+    primary_counts: dict[str, int] = {}
+    for item in normalized:
+        if item["is_primary"]:
+            primary_counts[item["scheme"]] = primary_counts.get(item["scheme"], 0) + 1
+    if any(count > 1 for count in primary_counts.values()):
+        raise serializers.ValidationError(
+            {"identifiers": [_("Only one primary identifier per scheme is supported")]}
+        )
+    required = INSTRUMENT_REQUIRED_SCHEME.get(kind)
+    if require_identity and required:
+        canonical = [
+            item
+            for item in normalized
+            if item["scheme"] == required and item["venue"] == "" and item["value"]
+        ]
+        if len(canonical) != 1:
+            raise serializers.ValidationError(
+                {
+                    "identifiers": [
+                        _(
+                            "Exactly one canonical %(scheme)s identifier at the "
+                            "default venue is required"
+                        )
+                        % {"scheme": required}
+                    ]
+                }
+            )
+    attrs["identifiers"] = normalized
+    return attrs
+
+
+class InstrumentRequestSerializer(StrictSerializer):
+    """Strict native instrument create fields.
+
+    Identifiers are deliberately explicit so the API can validate the
+    required identity scheme for the route's kind without exposing storage
+    metadata or the historical Spanish field names.
+    """
+
+    name = serializers.CharField(required=True, allow_blank=False, max_length=240)
+    quote_currency = serializers.CharField(required=False, default="EUR", max_length=3)
+    identifiers = InstrumentIdentifierRequestSerializer(many=True, required=True, allow_empty=False)
+    asset_class = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=80
+    )
+    subtype = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=120
+    )
+    is_active = serializers.BooleanField(required=False, default=True)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        name = attrs.get("name")
+        if name is not None:
+            attrs["name"] = name.strip()
+            if not attrs["name"]:
+                raise serializers.ValidationError({"name": [_("This field may not be blank.")]})
+        return validate_instrument_identifiers(
+            attrs, kind=self.context.get("instrument_kind"), require_identity=True
+        )
+
+
+class InstrumentUpdateRequestSerializer(StrictSerializer):
+    """Strict native instrument update fields addressed by UUID."""
+
+    name = serializers.CharField(required=False, allow_blank=False, max_length=240)
+    quote_currency = serializers.CharField(required=False, max_length=3)
+    identifiers = InstrumentIdentifierRequestSerializer(
+        many=True, required=False, allow_empty=False
+    )
+    asset_class = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=80
+    )
+    subtype = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=120
+    )
+    is_active = serializers.BooleanField(required=False)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        name = attrs.get("name")
+        if name is not None:
+            attrs["name"] = name.strip()
+            if not attrs["name"]:
+                raise serializers.ValidationError({"name": [_("This field may not be blank.")]})
+        return validate_instrument_identifiers(
+            attrs, kind=self.context.get("instrument_kind"), require_identity=False
+        )
+
+
+# Keep kind-specific names for the explicit OpenAPI mapper.  Validation of
+# identifier schemes is performed at the view boundary because the kind comes
+# from the collection route, not from the request body.
 class IsinInstrumentRequestSerializer(InstrumentRequestSerializer):
-    isin = serializers.CharField(required=True)
+    pass
 
 
 class CryptoInstrumentRequestSerializer(InstrumentRequestSerializer):
-    symbol = serializers.CharField(required=True)
+    pass
 
 
 class TradedAccountRequestSerializer(StrictSerializer):
@@ -485,12 +638,22 @@ class FxRateResponseSerializer(serializers.Serializer[dict[str, Any]]):
     ok = serializers.BooleanField(required=False)
 
 
+class InstrumentIdentifierResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    scheme = serializers.ChoiceField(choices=("isin", "yahoo", "crypto_symbol", "kraken", "other"))
+    value = serializers.CharField()
+    venue = serializers.CharField()
+    is_primary = serializers.BooleanField()
+
+
 class InstrumentSerializer(serializers.Serializer[dict[str, Any]]):
-    isin = serializers.CharField(required=False)
-    symbol = serializers.CharField(required=False)
-    ticker = serializers.CharField()
-    nombre = serializers.CharField()
-    moneda = serializers.CharField()
+    id = serializers.UUIDField()
+    kind = serializers.ChoiceField(choices=("fund", "stock", "etf", "crypto"))
+    name = serializers.CharField()
+    quote_currency = serializers.CharField()
+    identifiers = InstrumentIdentifierResponseSerializer(many=True)
+    asset_class = serializers.CharField(allow_null=True)
+    subtype = serializers.CharField(allow_null=True)
+    is_active = serializers.BooleanField()
 
 
 class FinancialObjectSerializer(serializers.Serializer[dict[str, Any]]):

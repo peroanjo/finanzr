@@ -14,6 +14,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext as _
+from rest_framework import serializers
 from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -21,9 +22,13 @@ from rest_framework.response import Response
 from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
 from apps.api.account_projection import account_row
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
-from apps.api.market_data_projection import instrument_row, price_row
+from apps.api.market_data_projection import (
+    instrument_calculation_row,
+    instrument_row,
+    price_row,
+)
 from apps.api.portfolio_projection import manual_asset_row
-from apps.api.projection import number, provider_name
+from apps.api.projection import identifier, number, provider_name, select_identifier
 from apps.api.real_estate_projection import real_estate_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.api.schemas import (
@@ -42,6 +47,8 @@ from apps.api.schemas import (
     StockTransactionRequestSerializer,
     TradedAccountRequestSerializer,
     TradedAccountUpdateRequestSerializer,
+    normalize_instrument_identifier_value,
+    validate_instrument_identifiers,
 )
 from apps.api.transaction_projection import (
     _calculation_operation_label,
@@ -59,7 +66,7 @@ from apps.market_data.fx import (
     rate_to_base,
     rates_to_base,
 )
-from apps.market_data.locking import lock_logical_keys
+from apps.market_data.locking import instrument_identifier_lock_keys, lock_logical_keys
 from apps.market_data.models import (
     Instrument,
     InstrumentIdentifier,
@@ -695,17 +702,7 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
         if kind == "crypto"
         else InstrumentIdentifier.Scheme.ISIN
     )
-    identity_by_instrument = {
-        item.id: next(
-            (
-                identifier.value
-                for identifier in item.identifiers.all()
-                if identifier.scheme == identity_scheme
-            ),
-            "",
-        )
-        for item in instruments
-    }
+    identity_by_instrument = {item.id: identifier(item, identity_scheme) for item in instruments}
     prices: list[MarketPrice] = list(
         MarketPrice.objects.filter(
             instrument_id__in=instrument_ids,
@@ -807,16 +804,17 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
         return []
 
     fund_map = (
-        {instrument_row(item)["isin"]: instrument_row(item) for item in instruments}
+        {
+            instrument_calculation_row(item)["isin"]: instrument_calculation_row(item)
+            for item in instruments
+        }
         if kind == "fund"
         else {}
     )
     split_rows: list[dict[str, Any]] = (
         [
             {
-                "isin": split.instrument.identifiers.get(
-                    scheme=InstrumentIdentifier.Scheme.ISIN
-                ).value,
+                "isin": identifier(split.instrument, InstrumentIdentifier.Scheme.ISIN),
                 "fecha": split.effective_date.isoformat(),
                 "ratio": number(split.ratio),
             }
@@ -1291,110 +1289,174 @@ def funds(request: Request) -> Response:
     return instruments(request, Instrument.Kind.FUND)
 
 
+def _instrument_request_serializer(kind: str, data: dict[str, Any], *, update: bool) -> Any:
+    """Validate a native instrument body and contextualize identifier schemes."""
+    from apps.api.schemas import InstrumentRequestSerializer, InstrumentUpdateRequestSerializer
+
+    return (InstrumentUpdateRequestSerializer if update else InstrumentRequestSerializer)(
+        data=data, context={"instrument_kind": kind}
+    )
+
+
+def _instrument_metadata(item: Instrument, values: dict[str, Any]) -> None:
+    metadata = dict(item.metadata or {})
+    for field, legacy_field in (("asset_class", "tipo"), ("subtype", "subtipo")):
+        if field not in values:
+            continue
+        value = values[field]
+        metadata.pop(legacy_field, None)
+        if value in (None, ""):
+            metadata.pop(field, None)
+        else:
+            metadata[field] = str(value).strip()
+    item.metadata = metadata
+
+
+def _instrument_is_shared(item: Instrument, current_workspace: Workspace) -> bool:
+    return bool(
+        item.workspace_links.exclude(workspace=current_workspace).exists()
+        or item.transactions.exclude(account__workspace=current_workspace).exists()
+    )
+
+
 @transaction.atomic
 def create_instrument(request: Request, kind: str) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    data = payload(request)
-    is_crypto = kind == Instrument.Kind.CRYPTO
-    scheme = (
-        InstrumentIdentifier.Scheme.CRYPTO_SYMBOL if is_crypto else InstrumentIdentifier.Scheme.ISIN
-    )
-    key = "symbol" if is_crypto else "isin"
-    identifier_value = str(data.get(key, "")).strip().upper()
-    name = str(data.get("nombre", "")).strip()
-    ticker = str(data.get("ticker", "")).strip()
+    serializer = _instrument_request_serializer(kind, payload(request), update=False)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+    data = cast(dict[str, Any], serializer.validated_data)
+    identifiers = [
+        {
+            **item,
+            "value": normalize_instrument_identifier_value(item["scheme"], item["value"]),
+        }
+        for item in data["identifiers"]
+    ]
     try:
-        quote_currency = normalize_currency(data.get("moneda") or "EUR")
+        quote_currency = normalize_currency(data.get("quote_currency") or "EUR")
     except CurrencyConversionError as exc:
         return Response({"error": str(exc)}, status=400)
-    if not identifier_value or not name or not ticker:
-        return Response(
-            {"error": _("Name, identifier, and ticker are required")},
-            status=400,
-        )
-    lock_logical_keys((f"instrument:{scheme}:{identifier_value}", f"ticker:{ticker}"))
-    identity = (
-        InstrumentIdentifier.objects.select_related("instrument")
-        .select_for_update()
-        .filter(scheme=scheme, value=identifier_value, venue="")
-        .first()
-    )
-    if identity and identity.instrument.kind != kind:
-        return Response(
-            {"error": _("The identifier already belongs to another asset type")},
-            status=400,
-        )
-    current_workspace = workspace(request)
-    shared_identity = bool(
+    lock_keys = [
+        key
+        for item in identifiers
+        for key in instrument_identifier_lock_keys(item["scheme"], item["value"], item["venue"])
+    ]
+    lock_logical_keys(lock_keys)
+    identities = [
         identity
-        and (
-            identity.instrument.workspace_links.exclude(workspace=current_workspace).exists()
-            or identity.instrument.transactions.exclude(
-                account__workspace=current_workspace
-            ).exists()
-        )
-    )
-    if shared_identity and identity is not None:
-        existing_ticker = (
-            InstrumentIdentifier.objects.filter(
-                instrument=identity.instrument,
-                scheme=InstrumentIdentifier.Scheme.YAHOO,
-                venue="",
-            )
-            .values_list("value", flat=True)
+        for item in identifiers
+        for identity in [
+            InstrumentIdentifier.objects.select_related("instrument")
+            .select_for_update()
+            .filter(scheme=item["scheme"], value=item["value"], venue=item["venue"])
             .first()
+        ]
+        if identity is not None
+    ]
+    current_workspace = workspace(request)
+    instruments_by_id = {identity.instrument_id: identity.instrument for identity in identities}
+    if any(item.kind != kind for item in instruments_by_id.values()):
+        return Response(
+            {"error": _("The identifier already belongs to another asset type")}, status=400
         )
-        if existing_ticker != ticker:
-            return Response({"error": _("The shared catalog ticker cannot be changed")}, status=409)
-    if identity and (
-        identity.instrument.transactions.filter(account__workspace=current_workspace).exists()
-        or identity.instrument.workspace_links.filter(workspace=current_workspace).exists()
+    if len(instruments_by_id) > 1:
+        return Response(
+            {"error": _("Instrument identifiers belong to different assets")}, status=400
+        )
+    item = next(iter(instruments_by_id.values()), None)
+    if item is not None:
+        item = Instrument.objects.select_for_update().get(pk=item.pk)
+        # The identity query above used a row lock; reload the relation after
+        # locking the parent so all subsequent validation sees one snapshot.
+        identities = list(
+            InstrumentIdentifier.objects.select_for_update().filter(instrument=item).order_by("id")
+        )
+        instruments_by_id = {identity.instrument_id: item for identity in identities}
+    if item is not None and (
+        item.workspace_links.filter(workspace=current_workspace).exists()
+        or item.transactions.filter(account__workspace=current_workspace).exists()
     ):
         return Response({"error": _("The asset is already configured")}, status=400)
-    ticker_owner = (
-        InstrumentIdentifier.objects.select_for_update()
-        .filter(
-            scheme=InstrumentIdentifier.Scheme.YAHOO,
-            value=ticker,
-            venue="",
+    shared = item is not None and _instrument_is_shared(item, current_workspace)
+    if shared:
+        assert item is not None
+        known = set(item.identifiers.values_list("scheme", "value", "venue"))
+        submitted = {(row["scheme"], row["value"], row["venue"]) for row in identifiers}
+        if not submitted <= known:
+            return Response({"error": _("The shared catalog asset cannot be changed")}, status=409)
+    # Any new identifier must not already belong to another catalog item.  The
+    # database constraint remains the final race-safe guard.
+    for row in identifiers:
+        owner = (
+            InstrumentIdentifier.objects.select_for_update()
+            .filter(scheme=row["scheme"], value=row["value"], venue=row["venue"])
+            .exclude(instrument=item)
+            .exists()
         )
-        .exclude(instrument=identity.instrument if identity else None)
-        .exists()
-    )
-    if ticker_owner:
-        return Response({"error": _("The ticker already belongs to another asset")}, status=400)
-    with transaction.atomic():
-        item = (
-            identity.instrument
-            if identity
-            else Instrument.objects.create(
+        if owner:
+            return Response(
+                {"error": _("The identifier already belongs to another asset")}, status=400
+            )
+    existing_rows = list(item.identifiers.all()) if item is not None else []
+    existing_keys = {(row.scheme, row.value, row.venue) for row in existing_rows}
+    existing_slots = {(row.scheme, row.venue): row for row in existing_rows}
+    if item is not None:
+        try:
+            validate_instrument_identifiers(
+                {"identifiers": [_identifier_payload(row) for row in existing_rows]},
                 kind=kind,
-                name=name,
-                quote_currency=quote_currency,
+                require_identity=True,
+                allow_fund_blank_yahoo=True,
             )
+        except serializers.ValidationError as exc:
+            return Response(exc.detail, status=400)
+    if item is not None and not shared:
+        for row in identifiers:
+            existing = existing_slots.get((row["scheme"], row["venue"]))
+            if existing is not None and existing.value != row["value"]:
+                return Response(
+                    {"error": _("An existing instrument identifier cannot be changed")},
+                    status=400,
+                )
+            if (
+                row["is_primary"]
+                and existing is None
+                and any(
+                    current.scheme == row["scheme"] and current.is_primary
+                    for current in existing_rows
+                )
+            ):
+                return Response(
+                    {"error": _("Only one primary identifier per scheme is supported")},
+                    status=400,
+                )
+    if item is None:
+        item = Instrument.objects.create(
+            kind=kind,
+            name=data["name"].strip(),
+            quote_currency=quote_currency,
+            is_active=data.get("is_active", True),
         )
-        if not identity:
-            InstrumentIdentifier.objects.create(
-                instrument=item,
-                scheme=scheme,
-                value=identifier_value,
-                venue="",
-                is_primary=True,
-            )
-        if not identity:
-            item.name = name
+        _instrument_metadata(item, data)
+        item.save(update_fields=("metadata", "updated_at"))
+    else:
+        # A catalog entry may be linked by another workspace.  Its canonical
+        # fields and importer identities are intentionally immutable here.
+        if not shared:
+            item.name = data["name"].strip()
             item.quote_currency = quote_currency
-            item.save(update_fields=("name", "quote_currency", "updated_at"))
-            InstrumentIdentifier.objects.update_or_create(
-                instrument=item,
-                scheme=InstrumentIdentifier.Scheme.YAHOO,
-                defaults={"value": ticker, "venue": "", "is_primary": True},
-            )
-        WorkspaceInstrument.objects.create(
-            workspace=current_workspace,
-            instrument=item,
-        )
+            item.is_active = data.get("is_active", item.is_active)
+            _instrument_metadata(item, data)
+            item.save()
+    assert item is not None
+    if not shared:
+        for row in identifiers:
+            key = (row["scheme"], row["value"], row["venue"])
+            if key not in existing_keys:
+                InstrumentIdentifier.objects.create(instrument=item, **row)
+    WorkspaceInstrument.objects.get_or_create(workspace=current_workspace, instrument=item)
     cache.clear()
     return Response(instrument_row(item), status=201)
 
@@ -1413,97 +1475,187 @@ def cryptos(request: Request) -> Response:
     return instruments(request, Instrument.Kind.CRYPTO)
 
 
+def _identifier_payload(item: InstrumentIdentifier) -> dict[str, Any]:
+    return {
+        "scheme": item.scheme,
+        "value": item.value,
+        "venue": item.venue,
+        "is_primary": item.is_primary,
+    }
+
+
+def _effective_instrument_identifiers(
+    kind: str,
+    existing: list[InstrumentIdentifier],
+    submitted: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]] | None, Response | None]:
+    """Merge a native identifier patch and validate the complete resulting set."""
+
+    existing_rows = [_identifier_payload(item) for item in existing]
+    try:
+        existing_rows = validate_instrument_identifiers(
+            {"identifiers": existing_rows},
+            kind=kind,
+            require_identity=True,
+            allow_fund_blank_yahoo=True,
+        )["identifiers"]
+    except serializers.ValidationError as exc:
+        return None, Response(exc.detail, status=400)
+
+    by_slot = {(row["scheme"], row["venue"]): row for row in existing_rows}
+    for row in submitted:
+        slot = (row["scheme"], row["venue"])
+        if not row["value"]:
+            # A blank Yahoo value is an explicit native clear operation for a
+            # fund. It targets only this venue and never removes ISIN or other
+            # importer identities.
+            by_slot.pop(slot, None)
+            continue
+        current = by_slot.get(slot)
+        if current is not None and current["value"] != row["value"]:
+            if row["scheme"] != InstrumentIdentifier.Scheme.YAHOO:
+                return None, Response(
+                    {"error": _("The canonical instrument identifier cannot be changed")},
+                    status=400,
+                )
+        by_slot[slot] = row
+
+    try:
+        effective = validate_instrument_identifiers(
+            {"identifiers": list(by_slot.values())},
+            kind=kind,
+            require_identity=True,
+            allow_fund_blank_yahoo=True,
+        )["identifiers"]
+    except serializers.ValidationError as exc:
+        return None, Response(exc.detail, status=400)
+    return effective, None
+
+
 @transaction.atomic
-def update_instrument(request: Request, scheme: str, value: str, kind: str) -> Response:
+def update_instrument(request: Request, instrument_id: UUID, kind: str) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    data = payload(request)
-    name_value = data.get("nombre")
-    name = str(name_value).strip() if name_value is not None else None
-    ticker = None
-    if "ticker" in data:
-        raw_ticker = data["ticker"]
-        if not isinstance(raw_ticker, str):
-            return Response({"error": _("The ticker is invalid")}, status=400)
-        ticker = raw_ticker.strip()
-        if len(ticker) > 120:
-            return Response({"error": _("The ticker is invalid")}, status=400)
-        if ticker == "" and kind != Instrument.Kind.FUND:
-            return Response({"error": _("The ticker is required")}, status=400)
-    normalized_value = str(value).strip()
-    if scheme != InstrumentIdentifier.Scheme.YAHOO:
-        normalized_value = normalized_value.upper()
-    logical_keys = [f"instrument:{scheme}:{normalized_value}"]
-    if ticker is not None:
-        logical_keys.append(f"ticker:{ticker}")
-    lock_logical_keys(logical_keys)
-    identity = get_object_or_404(
-        InstrumentIdentifier.objects.select_related("instrument").select_for_update(),
-        scheme=scheme,
-        value=normalized_value,
-    )
-    item = Instrument.objects.select_for_update().get(pk=identity.instrument_id)
     current_workspace = workspace(request)
-    if (
-        item.workspace_links.exclude(workspace=current_workspace).exists()
-        or item.transactions.exclude(account__workspace=current_workspace).exists()
-    ):
-        return Response(
-            {"error": _("This catalog asset is configured in another workspace")},
-            status=409,
-        )
-    if not (
-        item.transactions.filter(account__workspace=current_workspace).exists()
-        or item.workspace_links.filter(workspace=current_workspace).exists()
-    ):
-        return Response(status=404)
-    if name is None:
-        name = item.name
-    if not name:
-        return Response({"error": _("The name is required")}, status=400)
-    if ticker and (
-        InstrumentIdentifier.objects.select_for_update()
+    visible_id = (
+        Instrument.objects.filter(pk=instrument_id, kind=kind)
         .filter(
-            scheme=InstrumentIdentifier.Scheme.YAHOO,
-            value=ticker,
-            venue="",
+            Q(workspace_links__workspace=current_workspace)
+            | Q(transactions__account__workspace=current_workspace)
         )
-        .exclude(instrument=item)
-        .exists()
-    ):
-        return Response({"error": _("The ticker already belongs to another asset")}, status=400)
-    item.name = name
-    if "moneda" in data:
+        .values_list("pk", flat=True)
+        .first()
+    )
+    if visible_id is None:
+        raise Http404
+    item = get_object_or_404(Instrument.objects.get_queryset(), pk=visible_id, kind=kind)
+    serializer = _instrument_request_serializer(kind, payload(request), update=True)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+    data = cast(dict[str, Any], serializer.validated_data)
+    if _instrument_is_shared(item, current_workspace):
+        return Response(
+            {"error": _("This catalog asset is configured in another workspace")}, status=409
+        )
+    identifiers = list(data.get("identifiers", []))
+    existing_identifiers = list(item.identifiers.all())
+    effective_identifiers, validation_error = _effective_instrument_identifiers(
+        kind, existing_identifiers, identifiers
+    )
+    if validation_error is not None:
+        return validation_error
+    assert effective_identifiers is not None
+    quote_currency: str | None = None
+    if "quote_currency" in data:
         try:
-            item.quote_currency = normalize_currency(data.get("moneda") or item.quote_currency)
+            quote_currency = normalize_currency(data["quote_currency"])
         except CurrencyConversionError as exc:
             return Response({"error": str(exc)}, status=400)
-    if kind == Instrument.Kind.FUND:
-        item.metadata = {**item.metadata, **{k: data[k] for k in ("tipo", "subtipo") if k in data}}
-    item.save()
-    if ticker is not None:
-        InstrumentIdentifier.objects.update_or_create(
-            instrument=item,
-            scheme=InstrumentIdentifier.Scheme.YAHOO,
-            defaults={"value": ticker, "venue": ""},
+
+    lock_keys = [
+        key
+        for row in [
+            *[_identifier_payload(item) for item in existing_identifiers],
+            *identifiers,
+        ]
+        for key in instrument_identifier_lock_keys(row["scheme"], row["value"], row["venue"])
+    ]
+    lock_logical_keys(lock_keys)
+
+    # Advisory keys are acquired before any row lock. Re-read and validate the
+    # locked snapshot so a concurrent importer or editor cannot invalidate the
+    # no-write validation above.
+    item = Instrument.objects.select_for_update().get(pk=visible_id, kind=kind)
+    locked_identifiers = list(
+        InstrumentIdentifier.objects.select_for_update().filter(instrument=item).order_by("id")
+    )
+    if _instrument_is_shared(item, current_workspace):
+        return Response(
+            {"error": _("This catalog asset is configured in another workspace")}, status=409
         )
+    effective_identifiers, validation_error = _effective_instrument_identifiers(
+        kind, locked_identifiers, identifiers
+    )
+    if validation_error is not None:
+        return validation_error
+    assert effective_identifiers is not None
+    for row in effective_identifiers:
+        if (
+            InstrumentIdentifier.objects.select_for_update()
+            .filter(scheme=row["scheme"], value=row["value"], venue=row["venue"])
+            .exclude(instrument=item)
+            .exists()
+        ):
+            return Response(
+                {"error": _("The identifier already belongs to another asset")}, status=400
+            )
+
+    # All checks have completed. From this point on, writes cannot fail due to
+    # request validation or identity conflicts.
+    existing_by_slot = {(row.scheme, row.venue): row for row in locked_identifiers}
+    desired_by_slot = {(row["scheme"], row["venue"]): row for row in effective_identifiers}
+    cleared_slots = {(row["scheme"], row["venue"]) for row in identifiers if not row["value"]}
+    for slot, existing in existing_by_slot.items():
+        desired = desired_by_slot.get(slot)
+        if slot in cleared_slots:
+            existing.delete()
+        elif desired is not None and existing.is_primary and not desired["is_primary"]:
+            existing.is_primary = False
+            existing.save(update_fields=("is_primary",))
+    for slot, row in desired_by_slot.items():
+        existing_row = existing_by_slot.get(slot)
+        if existing_row is None:
+            InstrumentIdentifier.objects.create(instrument=item, **row)
+        elif existing_row.value != row["value"] or existing_row.is_primary != row["is_primary"]:
+            existing_row.value = row["value"]
+            existing_row.is_primary = row["is_primary"]
+            existing_row.save(update_fields=("value", "is_primary"))
+    if "name" in data:
+        item.name = str(data["name"]).strip()
+    if quote_currency is not None:
+        item.quote_currency = quote_currency
+    if "is_active" in data:
+        item.is_active = data["is_active"]
+    _instrument_metadata(item, data)
+    item.save()
+    item.refresh_from_db()
     cache.clear()
     return Response(instrument_row(item))
 
 
 @api_view(["PUT"])
-def fund_detail(request: Request, asset_id: str) -> Response:
-    return update_instrument(request, "isin", asset_id, "fund")
+def fund_detail(request: Request, instrument_id: UUID) -> Response:
+    return update_instrument(request, instrument_id, Instrument.Kind.FUND)
 
 
 @api_view(["PUT"])
-def stock_detail(request: Request, asset_id: str) -> Response:
-    return update_instrument(request, "isin", asset_id, "stock")
+def stock_detail(request: Request, instrument_id: UUID) -> Response:
+    return update_instrument(request, instrument_id, Instrument.Kind.STOCK)
 
 
 @api_view(["PUT"])
-def crypto_detail(request: Request, asset_id: str) -> Response:
-    return update_instrument(request, "crypto_symbol", asset_id, "crypto")
+def crypto_detail(request: Request, instrument_id: UUID) -> Response:
+    return update_instrument(request, instrument_id, Instrument.Kind.CRYPTO)
 
 
 def _selected_traded_account(request: Request, kind: str) -> Account | None | Response:
@@ -1964,7 +2116,7 @@ def analyzed_positions(
             ]
         splits = [
             {
-                "isin": s.instrument.identifiers.get(scheme="isin").value,
+                "isin": identifier(s.instrument, InstrumentIdentifier.Scheme.ISIN),
                 "fecha": s.effective_date.isoformat(),
                 "ratio": number(s.ratio),
             }
@@ -1975,7 +2127,10 @@ def analyzed_positions(
         return calculate_stock_positions(rows, price_map, splits)
     if kind == "crypto":
         return calculate_crypto_positions(rows, price_map)
-    fund_map = {row["isin"]: row for row in instruments(request, "fund").data}
+    fund_map = {
+        instrument_calculation_row(item)["isin"]: instrument_calculation_row(item)
+        for item in workspace_instruments(request, Instrument.Kind.FUND)
+    }
     return calculate_fund_positions(rows, fund_map, price_map, account_id=account_filter)
 
 
@@ -2123,10 +2278,14 @@ def stock_splits(request: Request) -> Response:
         if denied := forbidden_if_readonly(request):
             return denied
         data = payload(request)
-        identity = get_object_or_404(InstrumentIdentifier, scheme="isin", value=data["isin"])
+        instrument = workspace_instrument(
+            request, InstrumentIdentifier.Scheme.ISIN, str(data["isin"])
+        )
+        if instrument.kind != Instrument.Kind.STOCK:
+            return Response({"error": _("The asset does not belong in this section")}, status=400)
         StockSplit.objects.update_or_create(
             workspace=workspace(request),
-            instrument=identity.instrument,
+            instrument=instrument,
             effective_date=str(data["fecha"])[:10],
             defaults={
                 "ratio": decimal(data["ratio"]),
@@ -2139,7 +2298,7 @@ def stock_splits(request: Request) -> Response:
     return Response(
         [
             {
-                "isin": s.instrument.identifiers.get(scheme="isin").value,
+                "isin": identifier(s.instrument, InstrumentIdentifier.Scheme.ISIN),
                 "fecha": s.effective_date.isoformat(),
                 "ratio": number(s.ratio),
                 "fuente": s.source,
@@ -2153,10 +2312,12 @@ def stock_splits(request: Request) -> Response:
 def stock_split_detail(request: Request, asset_id: str, value_date: str) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
+    instrument = workspace_instrument(request, InstrumentIdentifier.Scheme.ISIN, asset_id)
+    if instrument.kind != Instrument.Kind.STOCK:
+        return Response({"error": _("The asset does not belong in this section")}, status=400)
     StockSplit.objects.filter(
         workspace=workspace(request),
-        instrument__identifiers__scheme="isin",
-        instrument__identifiers__value=asset_id,
+        instrument=instrument,
         effective_date=value_date,
     ).delete()
     cache.clear()
@@ -2165,7 +2326,10 @@ def stock_split_detail(request: Request, asset_id: str, value_date: str) -> Resp
 
 def workspace_instrument(request: Request, scheme: str, value: str) -> Instrument:
     identity = get_object_or_404(
-        InstrumentIdentifier.objects.select_related("instrument"), scheme=scheme, value=value
+        InstrumentIdentifier.objects.select_related("instrument"),
+        scheme=scheme,
+        value=value,
+        venue="",
     )
     current_workspace = workspace(request)
     if not (
@@ -2179,10 +2343,10 @@ def workspace_instrument(request: Request, scheme: str, value: str) -> Instrumen
 
 
 def yahoo_ticker(instrument: Instrument) -> str:
-    identity = instrument.identifiers.filter(scheme=InstrumentIdentifier.Scheme.YAHOO).first()
+    identity = select_identifier(instrument.identifiers.all(), InstrumentIdentifier.Scheme.YAHOO)
     if identity and identity.value:
         return identity.value
-    isin = instrument.identifiers.filter(scheme=InstrumentIdentifier.Scheme.ISIN).first()
+    isin = select_identifier(instrument.identifiers.all(), InstrumentIdentifier.Scheme.ISIN)
     if not isin:
         raise MarketDataError(_("The instrument does not have a ticker configured"))
     found = search(isin.value)
@@ -2191,17 +2355,18 @@ def yahoo_ticker(instrument: Instrument) -> str:
         raise MarketDataError(_("The market-data provider returned an invalid ticker"))
     with transaction.atomic():
         lock_logical_keys(
-            (f"instrument:{InstrumentIdentifier.Scheme.ISIN}:{isin.value}", f"ticker:{ticker}")
+            [
+                *instrument_identifier_lock_keys(InstrumentIdentifier.Scheme.ISIN, isin.value),
+                *instrument_identifier_lock_keys(InstrumentIdentifier.Scheme.YAHOO, ticker),
+            ]
         )
         locked_instrument = Instrument.objects.select_for_update().get(pk=instrument.pk)
-        current = (
-            InstrumentIdentifier.objects.select_for_update()
-            .filter(
+        current = select_identifier(
+            InstrumentIdentifier.objects.select_for_update().filter(
                 instrument=locked_instrument,
                 scheme=InstrumentIdentifier.Scheme.YAHOO,
-                venue="",
-            )
-            .first()
+            ),
+            InstrumentIdentifier.Scheme.YAHOO,
         )
         if current and current.value:
             return current.value
@@ -2224,6 +2389,8 @@ def yahoo_ticker(instrument: Instrument) -> str:
 def market_chart(request: Request, kind: str, asset_id: str) -> Response:
     scheme = "crypto_symbol" if kind == "crypto" else "isin"
     instrument = workspace_instrument(request, scheme, asset_id)
+    if instrument.kind != kind:
+        return Response({"error": _("The asset does not belong in this section")}, status=400)
     try:
         ticker = yahoo_ticker(instrument)
         interval = request.query_params.get("interval", "1d")
@@ -2310,11 +2477,7 @@ def fetch_prices(request: Request, kind: str) -> Response:
     results = []
     for instrument in instruments_qs:
         asset_scheme = "crypto_symbol" if kind == "crypto" else "isin"
-        asset_id = (
-            instrument.identifiers.filter(scheme=asset_scheme)
-            .values_list("value", flat=True)
-            .first()
-        )
+        asset_id = identifier(instrument, asset_scheme)
         result: dict[str, Any] = {
             "symbol" if kind == "crypto" else "isin": asset_id,
             "precio": None,
@@ -2433,9 +2596,9 @@ def _stock_split_rows(request: Request) -> list[dict[str, Any]]:
         .prefetch_related("instrument__identifiers")
     )
     for split in splits:
-        identity = split.instrument.identifiers.filter(
-            scheme=InstrumentIdentifier.Scheme.ISIN
-        ).first()
+        identity = select_identifier(
+            split.instrument.identifiers.all(), InstrumentIdentifier.Scheme.ISIN
+        )
         if identity:
             rows.append(
                 {

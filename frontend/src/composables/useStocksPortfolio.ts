@@ -8,6 +8,7 @@ import {
   type NormalizedPosition,
 } from "../domain/investments";
 import type { StockInstrument, StockOrder, StockPosition } from "../types/api";
+import { instrumentByIdentity, instrumentTicker } from "../domain/instruments";
 
 export type StockPositionSortKey =
   | "asset"
@@ -102,9 +103,7 @@ export function useStocksPortfolio(
     topPositions.value.map((position) =>
       adaptStockPosition(
         position,
-        instruments.value.find(
-          (instrument) => instrument.isin === position.isin,
-        ),
+        instrumentByIdentity(instruments.value, position.isin),
         { baseCurrency: baseCurrency.value },
       ),
     ),
@@ -137,10 +136,9 @@ export function useStocksPortfolio(
   const sortedPositions = computed(() => {
     const collator = new Intl.Collator(locale.value, { sensitivity: "base" });
     const valueFor = (position: StockPosition): number | string | null => {
-      const ticker =
-        instruments.value.find(
-          (instrument) => instrument.isin === position.isin,
-        )?.ticker ?? "";
+      const ticker = instrumentTicker(
+        instrumentByIdentity(instruments.value, position.isin),
+      );
       if (positionSortKey.value === "asset") return position.nombre;
       if (positionSortKey.value === "ticker") return ticker;
       if (positionSortKey.value === "cost") return position.coste_total;

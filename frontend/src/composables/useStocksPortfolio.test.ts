@@ -53,9 +53,17 @@ function makeInstrument(
   overrides: Partial<StockInstrument> = {},
 ): StockInstrument {
   return {
-    isin: "STOCK-1",
-    ticker: "STK1",
-    nombre: "Stock 1",
+    id: "00000000-0000-0000-0000-000000000101",
+    kind: "stock",
+    name: "Stock 1",
+    quote_currency: "EUR",
+    identifiers: [
+      { scheme: "isin", value: "STOCK-1", venue: "", is_primary: true },
+      { scheme: "yahoo", value: "STK1", venue: "", is_primary: true },
+    ],
+    asset_class: null,
+    subtype: null,
+    is_active: true,
     ...overrides,
   };
 }
@@ -198,10 +206,12 @@ describe("useStocksPortfolio", () => {
       ],
       instruments: [
         makeInstrument({
-          isin: "USD-STOCK",
-          ticker: "USDSTK",
-          nombre: "Dollar stock",
-          moneda: "USD",
+          name: "Dollar stock",
+          quote_currency: "USD",
+          identifiers: [
+            { scheme: "isin", value: "USD-STOCK", venue: "", is_primary: true },
+            { scheme: "yahoo", value: "USDSTK", venue: "", is_primary: true },
+          ],
         }),
       ],
       baseCurrency: "EUR",
@@ -231,10 +241,17 @@ describe("useStocksPortfolio", () => {
     expect(missing?.metadata).toMatchObject({ ticker: null });
 
     portfolio.instruments.value[0] = makeInstrument({
-      isin: "USD-STOCK",
-      ticker: "USDSTK-UPDATED",
-      nombre: "Dollar stock",
-      moneda: "USD",
+      name: "Dollar stock",
+      quote_currency: "USD",
+      identifiers: [
+        { scheme: "isin", value: "USD-STOCK", venue: "", is_primary: true },
+        {
+          scheme: "yahoo",
+          value: "USDSTK-UPDATED",
+          venue: "",
+          is_primary: true,
+        },
+      ],
     });
     portfolio.positions.value[0] = makePosition({
       isin: "USD-STOCK",
@@ -409,9 +426,24 @@ describe("useStocksPortfolio", () => {
     const portfolio = createPortfolio({
       positions,
       instruments: [
-        makeInstrument({ isin: "ZETA", ticker: "ZZ" }),
-        makeInstrument({ isin: "ALPHA", ticker: "AA" }),
-        makeInstrument({ isin: "BETA", ticker: "MM" }),
+        makeInstrument({
+          identifiers: [
+            { scheme: "isin", value: "ZETA", venue: "", is_primary: true },
+            { scheme: "yahoo", value: "ZZ", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          identifiers: [
+            { scheme: "isin", value: "ALPHA", venue: "", is_primary: true },
+            { scheme: "yahoo", value: "AA", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          identifiers: [
+            { scheme: "isin", value: "BETA", venue: "", is_primary: true },
+            { scheme: "yahoo", value: "MM", venue: "", is_primary: true },
+          ],
+        }),
       ],
     });
     const expectedAscending: Record<StockPositionSortKey, string[]> = {
@@ -471,8 +503,18 @@ describe("useStocksPortfolio", () => {
         makePosition({ isin: "A10", nombre: "A10" }),
       ],
       instruments: [
-        makeInstrument({ isin: "A2", ticker: "A2" }),
-        makeInstrument({ isin: "A10", ticker: "A10" }),
+        makeInstrument({
+          identifiers: [
+            { scheme: "isin", value: "A2", venue: "", is_primary: true },
+            { scheme: "yahoo", value: "A2", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          identifiers: [
+            { scheme: "isin", value: "A10", venue: "", is_primary: true },
+            { scheme: "yahoo", value: "A10", venue: "", is_primary: true },
+          ],
+        }),
       ],
     });
     numericPortfolio.sortPositions("ticker");

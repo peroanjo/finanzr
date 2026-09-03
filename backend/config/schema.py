@@ -116,7 +116,6 @@ CREATED_POST_PATHS = frozenset(
         "/api/crypto-orders",
         "/api/cryptos",
         "/api/fund-accounts",
-        "/api/funds",
         "/api/fx-rates",
         "/api/investments/accounts",
         "/api/investments/history",

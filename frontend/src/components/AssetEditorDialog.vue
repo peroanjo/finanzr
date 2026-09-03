@@ -2,7 +2,16 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
-import type { CryptoInstrument, StockInstrument } from "../types/api";
+import type {
+  CryptoInstrument,
+  InstrumentIdentifier,
+  StockInstrument,
+} from "../types/api";
+import {
+  instrumentIdentity,
+  instrumentTicker,
+  primaryIdentifier,
+} from "../domain/instruments";
 import type { EditableAsset } from "./assetEditor";
 
 const props = defineProps<{
@@ -15,13 +24,13 @@ const { t } = useI18n();
 const dialog = ref<HTMLDialogElement>();
 const mode = ref<"create" | "edit">("create");
 const assetId = ref("");
+const identifierValue = ref("");
 const name = ref("");
 const ticker = ref("");
 const busy = ref(false);
 const error = ref("");
 
 const isCrypto = computed(() => props.kind === "crypto");
-const identifierKey = computed(() => (isCrypto.value ? "symbol" : "isin"));
 const identifierLabel = computed(() =>
   isCrypto.value ? t("shared.assetEditor.symbol") : "ISIN",
 );
@@ -44,11 +53,17 @@ const title = computed(() =>
       ),
 );
 const valid = computed(() =>
-  Boolean(assetId.value.trim() && name.value.trim() && ticker.value.trim()),
+  Boolean(
+    identifierValue.value.trim() && name.value.trim() && ticker.value.trim(),
+  ),
 );
 
 function idOf(asset: EditableAsset) {
-  return "symbol" in asset ? asset.symbol : asset.isin;
+  return asset.id;
+}
+
+function identityOf(asset: EditableAsset) {
+  return instrumentIdentity(asset);
 }
 
 function selectedAsset() {
@@ -57,12 +72,14 @@ function selectedAsset() {
 
 function populate(asset: EditableAsset) {
   assetId.value = idOf(asset);
-  name.value = asset.nombre;
-  ticker.value = asset.ticker;
+  identifierValue.value = identityOf(asset);
+  name.value = asset.name;
+  ticker.value = instrumentTicker(asset);
 }
 
 function reset() {
   assetId.value = "";
+  identifierValue.value = "";
   name.value = "";
   ticker.value = "";
   error.value = "";
@@ -96,16 +113,54 @@ async function save() {
   if (!valid.value) return;
   busy.value = true;
   error.value = "";
-  const identifier = assetId.value.trim().toUpperCase();
+  const identity = identifierValue.value.trim().toUpperCase();
   const endpoint =
     mode.value === "create"
       ? `/${props.kind === "stock" ? "stocks" : "cryptos"}`
-      : `/${props.kind === "stock" ? "stocks" : "cryptos"}/${encodeURIComponent(identifier)}`;
-  const body: Record<string, string> = {
-    nombre: name.value.trim(),
-    ticker: ticker.value.trim(),
+      : `/${props.kind === "stock" ? "stocks" : "cryptos"}/${encodeURIComponent(assetId.value)}`;
+  const selected = selectedAsset();
+  const scheme = props.kind === "crypto" ? "crypto_symbol" : "isin";
+  const identifiers: InstrumentIdentifier[] = selected
+    ? (selected.identifiers ?? []).map((item) => ({ ...item }))
+    : [];
+  // The canonical identifier is immutable during edits. Only creation builds
+  // the importer-compatible default-venue primary row.
+  if (!selected) {
+    identifiers.unshift({
+      scheme: scheme as "isin" | "crypto_symbol",
+      value: identity,
+      venue: "",
+      is_primary: true,
+    });
+  }
+  const yahooIdentifier = primaryIdentifier(selected ?? undefined, "yahoo");
+  const tickerIndex = yahooIdentifier
+    ? identifiers.findIndex(
+        (item) =>
+          item.scheme === "yahoo" &&
+          item.value === yahooIdentifier.value &&
+          item.venue === yahooIdentifier.venue &&
+          item.is_primary === yahooIdentifier.is_primary,
+      )
+    : -1;
+  const tickerRow = yahooIdentifier
+    ? { ...yahooIdentifier, value: ticker.value.trim() }
+    : {
+        scheme: "yahoo" as const,
+        value: ticker.value.trim(),
+        venue: "",
+        is_primary: true,
+      };
+  if (tickerIndex >= 0) identifiers[tickerIndex] = tickerRow;
+  else identifiers.push(tickerRow);
+  const body = {
+    name: name.value.trim(),
+    quote_currency: selected?.quote_currency ?? "EUR",
+    identifiers,
+    asset_class: selected?.asset_class ?? null,
+    subtype: selected?.subtype ?? null,
+    is_active: selected?.is_active ?? true,
   };
-  if (mode.value === "create") body[identifierKey.value] = identifier;
   try {
     const saved = await api<EditableAsset>(
       endpoint,
@@ -159,12 +214,12 @@ defineExpose({ openCreate, openEdit });
               :key="idOf(asset)"
               :value="idOf(asset)"
             >
-              {{ asset.nombre }} · {{ idOf(asset) }}
+              {{ asset.name }} · {{ identityOf(asset) }}
             </option>
           </select>
           <input
             v-else
-            v-model="assetId"
+            v-model="identifierValue"
             type="text"
             :placeholder="
               t(

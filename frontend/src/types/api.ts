@@ -260,11 +260,27 @@ interface TransactionDtoBase {
 export interface CryptoOrder extends TransactionDtoBase {
   symbol: string;
 }
-export interface CryptoInstrument {
-  symbol: string;
-  ticker: string;
-  nombre: string;
-  moneda?: string;
+export type InstrumentKind = "fund" | "stock" | "etf" | "crypto";
+export type InstrumentIdentifierScheme =
+  "isin" | "yahoo" | "crypto_symbol" | "kraken" | "other";
+export interface InstrumentIdentifier {
+  scheme: InstrumentIdentifierScheme;
+  value: string;
+  venue: string;
+  is_primary: boolean;
+}
+export interface Instrument {
+  id: string;
+  kind: InstrumentKind;
+  name: string;
+  quote_currency: string;
+  identifiers: InstrumentIdentifier[];
+  asset_class: string | null;
+  subtype: string | null;
+  is_active: boolean;
+}
+export interface CryptoInstrument extends Instrument {
+  kind: "crypto";
 }
 export interface CryptoPrice {
   symbol: string;
@@ -330,11 +346,8 @@ export interface StockOrder extends TransactionDtoBase {
   isin: string;
   is_saveback: boolean;
 }
-export interface StockInstrument {
-  isin: string;
-  ticker: string;
-  nombre: string;
-  moneda?: string;
+export interface StockInstrument extends Instrument {
+  kind: "stock" | "etf";
 }
 export interface StockPrice {
   isin: string;
@@ -407,13 +420,8 @@ export interface FundPerformanceResponse {
   moneda_base: string;
   data: FundPerformancePoint[];
 }
-export interface FundInstrument {
-  isin: string;
-  ticker: string;
-  nombre: string;
-  tipo: string;
-  subtipo: string;
-  moneda?: string;
+export interface FundInstrument extends Instrument {
+  kind: "fund";
 }
 export interface FundPrice {
   isin: string;

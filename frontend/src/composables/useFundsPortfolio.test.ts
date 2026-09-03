@@ -59,12 +59,17 @@ function makeInstrument(
   overrides: Partial<FundInstrument> = {},
 ): FundInstrument {
   return {
-    isin: "FUND-1",
-    ticker: "FUND1.MC",
-    nombre: "Fund 1",
-    tipo: "Renta Variable",
-    subtipo: "Global",
-    moneda: "EUR",
+    id: "00000000-0000-0000-0000-000000000301",
+    kind: "fund",
+    name: "Fund 1",
+    quote_currency: "EUR",
+    identifiers: [
+      { scheme: "isin", value: "FUND-1", venue: "", is_primary: true },
+      { scheme: "yahoo", value: "FUND1.MC", venue: "", is_primary: true },
+    ],
+    asset_class: "Renta Variable",
+    subtype: "Global",
+    is_active: true,
     ...overrides,
   };
 }
@@ -279,9 +284,12 @@ describe("useFundsPortfolio", () => {
       ],
       instruments: [
         makeInstrument({
-          isin: "USD-FUND",
-          nombre: "Dollar fund",
-          moneda: "USD",
+          name: "Dollar fund",
+          quote_currency: "USD",
+          identifiers: [
+            { scheme: "isin", value: "USD-FUND", venue: "", is_primary: true },
+            { scheme: "yahoo", value: "USD-FUND", venue: "", is_primary: true },
+          ],
         }),
       ],
       baseCurrency: "EUR",

@@ -145,8 +145,24 @@ class PostgresAdvisoryLockTests(TransactionTestCase):
                 client = APIClient()
                 client.force_authenticate(user)
                 response = client.put(
-                    "/api/stocks/RACE-STOCK",
-                    {"ticker": "BTC-EUR", "nombre": "Race stock"},
+                    f"/api/stocks/{stock.pk}",
+                    {
+                        "name": "Race stock",
+                        "identifiers": [
+                            {
+                                "scheme": "isin",
+                                "value": "RACE-STOCK",
+                                "venue": "",
+                                "is_primary": True,
+                            },
+                            {
+                                "scheme": "yahoo",
+                                "value": "BTC-EUR",
+                                "venue": "",
+                                "is_primary": True,
+                            },
+                        ],
+                    },
                     format="json",
                 )
                 results["update"] = response.status_code
@@ -166,7 +182,9 @@ class PostgresAdvisoryLockTests(TransactionTestCase):
                 response = client.post(
                     "/api/crypto-orders/upload-kraken-pro",
                     {
-                        "cuenta_id": "1",
+                        "account_id": str(
+                            Account.objects.get(workspace=workspace, kind=Account.Kind.CRYPTO).pk
+                        ),
                         "file": SimpleUploadedFile("race.csv", content, content_type="text/csv"),
                     },
                 )

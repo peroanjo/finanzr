@@ -219,12 +219,28 @@ const performance = {
 };
 const instruments = [
   {
-    isin: "TEST",
-    ticker: "TEST.MC",
-    nombre: "Fondo global",
-    tipo: "Renta Variable",
-    subtipo: "Global",
-    moneda: "USD",
+    id: "00000000-0000-0000-0000-000000000020",
+    kind: "fund" as const,
+    name: "Fondo global",
+    quote_currency: "USD",
+    identifiers: [
+      { scheme: "isin" as const, value: "TEST", venue: "", is_primary: true },
+      {
+        scheme: "yahoo" as const,
+        value: "TEST.DE",
+        venue: "XETRA",
+        is_primary: false,
+      },
+      {
+        scheme: "yahoo" as const,
+        value: "TEST.MC",
+        venue: "BME",
+        is_primary: true,
+      },
+    ],
+    asset_class: "Renta Variable",
+    subtype: "Global",
+    is_active: true,
   },
 ];
 const prices = [
@@ -330,7 +346,7 @@ describe("FundsView", () => {
       if (path === "/fund-prices/fetch" && init?.method === "POST") {
         return { results: [{ isin: "TEST", precio: 121, error: null }] };
       }
-      if (path === "/funds/TEST" && init?.method === "PUT")
+      if (path === `/funds/${instruments[0].id}` && init?.method === "PUT")
         return { ...instruments[0] };
       if (path === "/fund-prices/TEST" && init?.method === "PUT")
         return { ok: true };
@@ -1233,13 +1249,113 @@ describe("FundsView", () => {
     await flushPromises();
 
     expect(apiMock).toHaveBeenCalledWith(
-      "/funds/TEST",
-      expect.objectContaining({ method: "PUT" }),
+      `/funds/${instruments[0].id}`,
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          name: "Fondo global editado",
+          quote_currency: "USD",
+          identifiers: [
+            { scheme: "isin", value: "TEST", venue: "", is_primary: true },
+            {
+              scheme: "yahoo",
+              value: "TEST.DE",
+              venue: "XETRA",
+              is_primary: false,
+            },
+            {
+              scheme: "yahoo",
+              value: "TEST.MC",
+              venue: "BME",
+              is_primary: true,
+            },
+          ],
+          asset_class: "Renta Variable",
+          subtype: "Global",
+        }),
+      }),
     );
     expect(apiMock).toHaveBeenCalledWith("/fund-prices/TEST", {
       method: "PUT",
       body: JSON.stringify({ precio: 125, moneda: "USD" }),
     });
+  });
+
+  it("clears the primary fund Yahoo ticker while preserving other venues", async () => {
+    const wrapper = mount(FundsView);
+    await flushPromises();
+
+    await wrapper.get('button[aria-label="Editar fondo"]').trigger("click");
+    const dialog = wrapper.get('dialog[aria-labelledby="fund-editor-title"]');
+    const inputs = dialog.findAll("input");
+    await inputs[1].setValue("");
+    await inputs[4].setValue("");
+    await dialog.get("form").trigger("submit");
+    await flushPromises();
+
+    expect(apiMock).toHaveBeenCalledWith(
+      `/funds/${instruments[0].id}`,
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          name: "Fondo global",
+          quote_currency: "USD",
+          identifiers: [
+            { scheme: "isin", value: "TEST", venue: "", is_primary: true },
+            {
+              scheme: "yahoo",
+              value: "TEST.DE",
+              venue: "XETRA",
+              is_primary: false,
+            },
+            { scheme: "yahoo", value: "", venue: "BME", is_primary: true },
+          ],
+          asset_class: "Renta Variable",
+          subtype: "Global",
+        }),
+      }),
+    );
+  });
+
+  it("keeps a nonprimary selected Yahoo feed and its venue on a name-only edit", async () => {
+    const original = instruments[0];
+    instruments[0] = {
+      ...original,
+      identifiers: [
+        { scheme: "isin", value: "TEST", venue: "", is_primary: true },
+        { scheme: "yahoo", value: "Z.MC", venue: "BME", is_primary: false },
+        { scheme: "yahoo", value: "a.MC", venue: "BME", is_primary: false },
+      ],
+    };
+    try {
+      const wrapper = mount(FundsView);
+      await flushPromises();
+
+      await wrapper.get('button[aria-label="Editar fondo"]').trigger("click");
+      const dialog = wrapper.get('dialog[aria-labelledby="fund-editor-title"]');
+      const inputs = dialog.findAll("input");
+      expect((inputs[1].element as HTMLInputElement).value).toBe("Z.MC");
+      await inputs[0].setValue("Fondo ordinal editado");
+      await inputs[4].setValue("");
+      await dialog.get("form").trigger("submit");
+      await flushPromises();
+
+      expect(apiMock).toHaveBeenCalledWith(
+        `/funds/${original.id}`,
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({
+            name: "Fondo ordinal editado",
+            quote_currency: "USD",
+            identifiers: instruments[0].identifiers,
+            asset_class: "Renta Variable",
+            subtype: "Global",
+          }),
+        }),
+      );
+    } finally {
+      instruments[0] = original;
+    }
   });
 
   it("edits a selected account and protects account deletion with two steps", async () => {

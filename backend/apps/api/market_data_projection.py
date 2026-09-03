@@ -14,28 +14,50 @@ from apps.market_data.models import (
 
 
 def instrument_row(instrument: Instrument) -> dict[str, Any]:
+    # Instrument metadata remains an internal migration/provenance store.  It
+    # is deliberately projected only into the two public classification fields
+    # and never returned as an opaque JSON blob.
+    asset_class = instrument.metadata.get("asset_class", instrument.metadata.get("tipo"))
+    subtype = instrument.metadata.get("subtype", instrument.metadata.get("subtipo"))
+    return {
+        "id": str(instrument.id),
+        "kind": instrument.kind,
+        "name": instrument.name,
+        "quote_currency": instrument.quote_currency or instrument.base_currency or "EUR",
+        "identifiers": [
+            {
+                "scheme": item.scheme,
+                "value": item.value,
+                "venue": item.venue,
+                "is_primary": item.is_primary,
+            }
+            for item in instrument.identifiers.all()
+        ],
+        "asset_class": asset_class if isinstance(asset_class, str) and asset_class else None,
+        "subtype": subtype if isinstance(subtype, str) and subtype else None,
+        "is_active": instrument.is_active,
+    }
+
+
+def instrument_calculation_row(instrument: Instrument) -> dict[str, Any]:
+    """Return the private legacy-shaped row consumed by domain calculators."""
     scheme = (
         InstrumentIdentifier.Scheme.CRYPTO_SYMBOL
         if instrument.kind == Instrument.Kind.CRYPTO
         else InstrumentIdentifier.Scheme.ISIN
     )
-    key = "symbol" if scheme == InstrumentIdentifier.Scheme.CRYPTO_SYMBOL else "isin"
-    row = {
-        key: identifier(instrument, scheme),
+    row: dict[str, Any] = {
+        "isin" if scheme == InstrumentIdentifier.Scheme.ISIN else "symbol": identifier(
+            instrument, scheme
+        ),
         "ticker": identifier(instrument, InstrumentIdentifier.Scheme.YAHOO),
         "nombre": instrument.name,
         "moneda": instrument.quote_currency or instrument.base_currency or "EUR",
     }
     if instrument.kind == Instrument.Kind.FUND:
         row.update(
-            tipo=instrument.metadata.get(
-                "asset_class",
-                instrument.metadata.get("tipo", ""),
-            ),
-            subtipo=instrument.metadata.get(
-                "subtype",
-                instrument.metadata.get("subtipo", ""),
-            ),
+            tipo=instrument.metadata.get("asset_class", instrument.metadata.get("tipo", "")),
+            subtipo=instrument.metadata.get("subtype", instrument.metadata.get("subtipo", "")),
         )
     return row
 

@@ -50,6 +50,13 @@ import type {
   StockPosition,
   StockPrice,
 } from "../types/api";
+import {
+  instrumentByIdentity,
+  instrumentCurrency,
+  instrumentIdentity,
+  instrumentName,
+  instrumentTicker,
+} from "../domain/instruments";
 
 type Range = "6m" | "1y" | "2y" | "custom";
 const { t, n, d, locale } = useI18n();
@@ -264,9 +271,9 @@ const chartPoints = computed<MarketCandle[]>(
 );
 const operationAssets = computed(() =>
   instruments.value.map((instrument) => ({
-    id: instrument.isin,
-    label: `${instrument.nombre} · ${instrument.isin}`,
-    currency: instrument.moneda,
+    id: instrumentIdentity(instrument),
+    label: instrumentName(instrument) + " · " + instrumentIdentity(instrument),
+    currency: instrumentCurrency(instrument),
   })),
 );
 const filteredOrders = computed(() =>
@@ -477,8 +484,8 @@ function positionReturn(position: StockPosition) {
 }
 function assetTicker(position: StockPosition) {
   return (
-    instruments.value.find((instrument) => instrument.isin === position.isin)
-      ?.ticker ?? "—"
+    instrumentTicker(instrumentByIdentity(instruments.value, position.isin)) ||
+    "—"
   );
 }
 function segmentAria(item: InvestmentAllocationItem) {
@@ -881,7 +888,7 @@ function askDeleteOrder(order: StockOrder) {
 }
 async function handleAssetSaved(asset: EditableAsset) {
   const generation = ++assetSaveGeneration;
-  const targetIsin = "isin" in asset ? asset.isin : "";
+  const targetIsin = instrumentIdentity(asset);
   if (targetIsin) selectedIsin.value = targetIsin;
   await loadDashboard(true, false);
   if (generation !== assetSaveGeneration || !targetIsin) return;
@@ -1242,9 +1249,7 @@ onMounted(loadDashboard);
                         :aria-label="t('stocks.positions.editAria')"
                         @click.stop="
                           assetEditor?.openEdit(
-                            instruments.find(
-                              (item) => item.isin === position.isin,
-                            ),
+                            instrumentByIdentity(instruments, position.isin),
                           )
                         "
                       >

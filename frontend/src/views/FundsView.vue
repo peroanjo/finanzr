@@ -47,6 +47,14 @@ import {
   useFundsPortfolio,
   type FundPositionSortKey,
 } from "../composables/useFundsPortfolio";
+import {
+  instrumentByIdentity,
+  instrumentCurrency,
+  instrumentIdentity,
+  instrumentName,
+  instrumentTicker,
+  primaryIdentifier,
+} from "../domain/instruments";
 
 const { t, n, d, locale } = useI18n();
 
@@ -465,9 +473,9 @@ const movementRangeLabel = computed(() =>
 );
 const movementAssets = computed(() =>
   instruments.value.map((item) => ({
-    id: item.isin,
-    label: `${item.nombre} · ${item.isin}`,
-    currency: item.moneda,
+    id: instrumentIdentity(item),
+    label: instrumentName(item) + " · " + instrumentIdentity(item),
+    currency: instrumentCurrency(item),
   })),
 );
 
@@ -908,19 +916,13 @@ async function refreshFundPrices() {
 }
 
 function openFundEditor(position: FundPosition) {
-  editingFund.value = instruments.value.find(
-    (item) => item.isin === position.isin,
-  ) ?? {
-    isin: position.isin,
-    ticker: "",
-    nombre: position.nombre,
-    tipo: position.tipo,
-    subtipo: position.subtipo,
-  };
-  editFundName.value = editingFund.value.nombre;
-  editFundType.value = editingFund.value.tipo;
-  editFundSubtype.value = editingFund.value.subtipo;
-  editFundTicker.value = editingFund.value.ticker;
+  editingFund.value =
+    instrumentByIdentity(instruments.value, position.isin) ?? null;
+  if (!editingFund.value) return;
+  editFundName.value = editingFund.value.name;
+  editFundType.value = editingFund.value.asset_class ?? "";
+  editFundSubtype.value = editingFund.value.subtype ?? "";
+  editFundTicker.value = instrumentTicker(editingFund.value);
   const nativePrice = latestPriceByIsin.value.get(position.isin)?.precio_orig;
   editFundPrice.value = nativePrice == null ? "" : String(nativePrice);
   fundEditError.value = "";
@@ -932,21 +934,48 @@ async function saveFundEditor() {
   fundEditBusy.value = true;
   fundEditError.value = "";
   try {
+    const identifiers = (editingFund.value.identifiers ?? []).map((item) => ({
+      ...item,
+    }));
+    const yahooIdentifier = primaryIdentifier(editingFund.value, "yahoo");
+    const tickerIndex = yahooIdentifier
+      ? identifiers.findIndex(
+          (item) =>
+            item.scheme === "yahoo" &&
+            item.value === yahooIdentifier.value &&
+            item.venue === yahooIdentifier.venue &&
+            item.is_primary === yahooIdentifier.is_primary,
+        )
+      : -1;
+    const tickerRow = yahooIdentifier
+      ? {
+          ...yahooIdentifier,
+          value: editFundTicker.value.trim(),
+        }
+      : {
+          scheme: "yahoo" as const,
+          value: editFundTicker.value.trim(),
+          venue: "",
+          is_primary: true,
+        };
+    if (tickerIndex >= 0) identifiers[tickerIndex] = tickerRow;
+    else identifiers.push(tickerRow);
     await api(
-      `/funds/${editingFund.value.isin}`,
+      "/funds/" + editingFund.value.id,
       json("PUT", {
-        nombre: editFundName.value.trim(),
-        tipo: editFundType.value.trim(),
-        subtipo: editFundSubtype.value.trim(),
-        ticker: editFundTicker.value.trim(),
+        name: editFundName.value.trim(),
+        quote_currency: editingFund.value.quote_currency,
+        identifiers,
+        asset_class: editFundType.value.trim() || null,
+        subtype: editFundSubtype.value.trim() || null,
       }),
     );
     if (editFundPrice.value !== "") {
       await api(
-        `/fund-prices/${editingFund.value.isin}`,
+        "/fund-prices/" + instrumentIdentity(editingFund.value),
         json("PUT", {
           precio: Number(editFundPrice.value),
-          moneda: editingFund.value.moneda ?? "EUR",
+          moneda: editingFund.value.quote_currency,
         }),
       );
     }
@@ -1736,7 +1765,7 @@ onMounted(loadDashboard);
             <label
               ><span>{{
                 t("funds.editor.manualPrice", {
-                  currency: editingFund?.moneda ?? "EUR",
+                  currency: editingFund?.quote_currency ?? "EUR",
                 })
               }}</span
               ><input v-model="editFundPrice" type="number" min="0" step="any"
