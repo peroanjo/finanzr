@@ -10,17 +10,21 @@ import type {
 
 function makePosition(overrides: Partial<FundPosition> = {}): FundPosition {
   return {
-    isin: "FUND-1",
-    nombre: "Fund 1",
-    tipo: "Renta Variable",
-    subtipo: "Global",
-    total_invertido: 1000,
-    participaciones: 10,
-    precio_medio: 100,
-    precio_actual: 120,
-    valor_actual: 1200,
-    pnl: 200,
-    pnl_pct: 0.2,
+    instrument_id: "FUND-1",
+    kind: "fund",
+    name: "Fund 1",
+    asset_class: "Renta Variable",
+    subtype: "Global",
+    quantity: 10,
+    cost: 1000,
+    average_price: 100,
+    current_price: 120,
+    current_value: 1200,
+    unrealized_pnl: 200,
+    realized_pnl: null,
+    currency: "EUR",
+    base_currency: "EUR",
+    return_percent: 0.2,
     ...overrides,
   };
 }
@@ -58,8 +62,11 @@ function makeOrder(overrides: Partial<FundOrder> = {}): FundOrder {
 function makeInstrument(
   overrides: Partial<FundInstrument> = {},
 ): FundInstrument {
+  const identity = overrides.identifiers?.find(
+    (item) => item.scheme === "isin",
+  )?.value;
   return {
-    id: "00000000-0000-0000-0000-000000000301",
+    id: identity ?? "FUND-1",
     kind: "fund",
     name: "Fund 1",
     quote_currency: "EUR",
@@ -77,7 +84,7 @@ function makeInstrument(
 function makePrice(overrides: Partial<FundPrice> = {}): FundPrice {
   return {
     id: "00000000-0000-0000-0000-000000000401",
-    instrument_id: "00000000-0000-0000-0000-000000000301",
+    instrument_id: "FUND-1",
     quoted_at: "2026-07-01T00:00:00+00:00",
     close: 120,
     currency: "EUR",
@@ -139,54 +146,49 @@ function createPortfolio({
 describe("useFundsPortfolio", () => {
   it("filters open positions, orders them by value, and limits the top five", () => {
     const positions = [
-      makePosition({ isin: "FUND-1", valor_actual: 100 }),
-      makePosition({ isin: "FUND-2", valor_actual: 600 }),
-      makePosition({ isin: "FUND-3", valor_actual: 500 }),
-      makePosition({ isin: "FUND-4", valor_actual: 400 }),
-      makePosition({ isin: "FUND-5", valor_actual: 300 }),
-      makePosition({ isin: "FUND-6", valor_actual: 200 }),
-      makePosition({ isin: "CLOSED", participaciones: 0, valor_actual: 900 }),
+      makePosition({ instrument_id: "FUND-1", current_value: 100 }),
+      makePosition({ instrument_id: "FUND-2", current_value: 600 }),
+      makePosition({ instrument_id: "FUND-3", current_value: 500 }),
+      makePosition({ instrument_id: "FUND-4", current_value: 400 }),
+      makePosition({ instrument_id: "FUND-5", current_value: 300 }),
+      makePosition({ instrument_id: "FUND-6", current_value: 200 }),
+      makePosition({
+        instrument_id: "CLOSED",
+        quantity: 0,
+        current_value: 900,
+      }),
     ];
     const portfolio = createPortfolio({ positions });
 
-    expect(portfolio.openPositions.value.map((item) => item.isin)).toEqual([
-      "FUND-2",
-      "FUND-3",
-      "FUND-4",
-      "FUND-5",
-      "FUND-6",
-      "FUND-1",
-    ]);
-    expect(portfolio.topPositions.value.map((item) => item.isin)).toEqual([
-      "FUND-2",
-      "FUND-3",
-      "FUND-4",
-      "FUND-5",
-      "FUND-6",
-    ]);
+    expect(
+      portfolio.openPositions.value.map((item) => item.instrument_id),
+    ).toEqual(["FUND-2", "FUND-3", "FUND-4", "FUND-5", "FUND-6", "FUND-1"]);
+    expect(
+      portfolio.topPositions.value.map((item) => item.instrument_id),
+    ).toEqual(["FUND-2", "FUND-3", "FUND-4", "FUND-5", "FUND-6"]);
   });
 
   it("calculates open totals, return, and total P&L from open positions", () => {
     const portfolio = createPortfolio({
       positions: [
         makePosition({
-          isin: "OPEN-1",
-          total_invertido: 1000,
-          valor_actual: 1200,
-          pnl: 200,
+          instrument_id: "OPEN-1",
+          cost: 1000,
+          current_value: 1200,
+          unrealized_pnl: 200,
         }),
         makePosition({
-          isin: "OPEN-2",
-          total_invertido: 500,
-          valor_actual: null,
-          pnl: null,
+          instrument_id: "OPEN-2",
+          cost: 500,
+          current_value: null,
+          unrealized_pnl: null,
         }),
         makePosition({
-          isin: "CLOSED",
-          participaciones: 0,
-          total_invertido: 900,
-          valor_actual: 900,
-          pnl: 100,
+          instrument_id: "CLOSED",
+          quantity: 0,
+          cost: 900,
+          current_value: 900,
+          unrealized_pnl: 100,
         }),
       ],
     });
@@ -280,14 +282,14 @@ describe("useFundsPortfolio", () => {
     const portfolio = createPortfolio({
       positions: [
         makePosition({
-          isin: "USD-FUND",
-          nombre: "Dollar fund",
-          precio_actual: null,
-          valor_actual: null,
-          pnl: null,
-          pnl_pct: null,
-          moneda: "USD",
-          moneda_base: "EUR",
+          instrument_id: "USD-FUND",
+          name: "Dollar fund",
+          current_price: null,
+          current_value: null,
+          unrealized_pnl: null,
+          return_percent: null,
+          currency: "USD",
+          base_currency: "EUR",
         }),
       ],
       instruments: [
@@ -321,58 +323,58 @@ describe("useFundsPortfolio", () => {
   it("reacts to selected fund and price changes", () => {
     const portfolio = createPortfolio({
       positions: [
-        makePosition({ isin: "FUND-A", nombre: "Fund A" }),
-        makePosition({ isin: "FUND-B", nombre: "Fund B" }),
+        makePosition({ instrument_id: "FUND-A", name: "Fund A" }),
+        makePosition({ instrument_id: "FUND-B", name: "Fund B" }),
       ],
       orders: [makeOrder({ isin: "FUND-A" })],
       instruments: [
         makeInstrument({
+          id: "FUND-A",
           identifiers: [
             { scheme: "isin", value: "FUND-A", venue: "", is_primary: true },
           ],
         }),
         makeInstrument({
-          id: "00000000-0000-0000-0000-000000000302",
+          id: "FUND-B",
           identifiers: [
             { scheme: "isin", value: "FUND-B", venue: "", is_primary: true },
           ],
         }),
       ],
-      prices: [makePrice()],
+      prices: [makePrice({ instrument_id: "FUND-A" })],
       selectedFund: "FUND-A",
     });
 
-    expect(portfolio.selectedFundPosition.value?.isin).toBe("FUND-A");
+    expect(portfolio.selectedFundPosition.value?.instrument_id).toBe("FUND-A");
     expect(portfolio.selectedFundOrders.value).toHaveLength(1);
     expect(portfolio.pricedPositions.value).toBe(1);
-    expect(
-      portfolio.latestPriceByInstrumentId.value.get(
-        "00000000-0000-0000-0000-000000000301",
-      )?.close,
-    ).toBe(120);
+    expect(portfolio.latestPriceByInstrumentId.value.get("FUND-A")?.close).toBe(
+      120,
+    );
 
     portfolio.selectedFund.value = "FUND-B";
-    expect(portfolio.selectedFundPosition.value?.isin).toBe("FUND-B");
+    expect(portfolio.selectedFundPosition.value?.instrument_id).toBe("FUND-B");
     expect(portfolio.selectedFundOrders.value).toHaveLength(0);
 
     portfolio.prices.value = [
       makePrice({
-        instrument_id: "00000000-0000-0000-0000-000000000301",
+        instrument_id: "FUND-A",
       }),
       makePrice({
         id: "00000000-0000-0000-0000-000000000402",
-        instrument_id: "00000000-0000-0000-0000-000000000302",
+        instrument_id: "FUND-B",
         close: 80,
       }),
     ];
     portfolio.instruments.value = [
       makeInstrument({
+        id: "FUND-A",
         identifiers: [
           { scheme: "isin", value: "FUND-A", venue: "", is_primary: true },
         ],
       }),
       makeInstrument({
-        id: "00000000-0000-0000-0000-000000000302",
+        id: "FUND-B",
         identifiers: [
           { scheme: "isin", value: "FUND-B", venue: "", is_primary: true },
           { scheme: "yahoo", value: "FUND2.MC", venue: "", is_primary: true },
@@ -380,30 +382,40 @@ describe("useFundsPortfolio", () => {
       }),
     ];
     expect(portfolio.pricedPositions.value).toBe(2);
-    expect(
-      portfolio.latestPriceByInstrumentId.value.get(
-        "00000000-0000-0000-0000-000000000302",
-      )?.close,
-    ).toBe(80);
+    expect(portfolio.latestPriceByInstrumentId.value.get("FUND-B")?.close).toBe(
+      80,
+    );
   });
 
   it("preserves initial sort state, null ordering, locale collation, and handlers", () => {
     const portfolio = createPortfolio({
       positions: [
-        makePosition({ isin: "FUND-2", nombre: "Fund 2", valor_actual: 100 }),
         makePosition({
-          isin: "FUND-10",
-          nombre: "Fund 10",
-          valor_actual: 100,
+          instrument_id: "FUND-2",
+          name: "Fund 2",
+          current_value: 100,
         }),
-        makePosition({ isin: "FUND-A", nombre: "Alpha", valor_actual: null }),
-        makePosition({ isin: "FUND-B", nombre: "Beta", valor_actual: 200 }),
+        makePosition({
+          instrument_id: "FUND-10",
+          name: "Fund 10",
+          current_value: 100,
+        }),
+        makePosition({
+          instrument_id: "FUND-A",
+          name: "Alpha",
+          current_value: null,
+        }),
+        makePosition({
+          instrument_id: "FUND-B",
+          name: "Beta",
+          current_value: 200,
+        }),
       ],
     });
 
     expect(portfolio.positionSortKey.value).toBe("value");
     expect(portfolio.positionSortDirection.value).toBe("desc");
-    expect(portfolio.sortedPositions.value.map((item) => item.nombre)).toEqual([
+    expect(portfolio.sortedPositions.value.map((item) => item.name)).toEqual([
       "Beta",
       "Fund 2",
       "Fund 10",
@@ -412,7 +424,7 @@ describe("useFundsPortfolio", () => {
 
     portfolio.sortPositions("fund");
     expect(portfolio.positionSortDirection.value).toBe("asc");
-    expect(portfolio.sortedPositions.value.map((item) => item.nombre)).toEqual([
+    expect(portfolio.sortedPositions.value.map((item) => item.name)).toEqual([
       "Alpha",
       "Beta",
       "Fund 2",

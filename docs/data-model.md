@@ -366,6 +366,17 @@ Constraints and indexes:
 - The account type must be compatible with the instrument; service validation.
 - No aggregated position is stored: it is derived from transactions and prices.
 
+The analysis endpoints expose this calculated result as a native position
+projection rather than persisting another model. Every fund, stock, and crypto
+row carries its visible instrument UUID, kind, name, quantity, cost, nullable
+current price/value and unrealized P&L, nullable realized P&L, quote currency,
+and workspace base currency. Fund rows also carry asset class, subtype,
+average price, and nullable return percentage. The HTTP projection resolves the
+private calculation's canonical ISIN or crypto symbol against the current
+workspace instrument set and fails loudly if a calculated row has no visible
+instrument; the calculation itself and its currency/split/saveback semantics
+are unchanged.
+
 ## Real Estate and Manual Assets
 
 ### `RealEstateInvestment`

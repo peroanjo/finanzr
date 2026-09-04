@@ -8,7 +8,11 @@ import {
   type NormalizedPosition,
 } from "../domain/investments";
 import type { StockInstrument, StockOrder, StockPosition } from "../types/api";
-import { instrumentByIdentity, instrumentTicker } from "../domain/instruments";
+import {
+  instrumentById,
+  instrumentIdentity,
+  instrumentTicker,
+} from "../domain/instruments";
 
 export type StockPositionSortKey =
   | "asset"
@@ -28,7 +32,7 @@ export interface UseStocksPortfolioOptions {
   positions: StockPortfolioSource<StockPosition[]>;
   orders: StockPortfolioSource<StockOrder[]>;
   instruments: StockPortfolioSource<StockInstrument[]>;
-  selectedIsin: StockPortfolioSource<string>;
+  selectedInstrumentId: StockPortfolioSource<string>;
   baseCurrency: StockPortfolioSource<string>;
   locale: StockPortfolioSource<string>;
 }
@@ -61,34 +65,43 @@ export interface UseStocksPortfolio {
 export function useStocksPortfolio(
   options: UseStocksPortfolioOptions,
 ): UseStocksPortfolio {
-  const { positions, orders, instruments, selectedIsin, baseCurrency, locale } =
-    options;
+  const {
+    positions,
+    orders,
+    instruments,
+    selectedInstrumentId,
+    baseCurrency,
+    locale,
+  } = options;
   const positionSortKey = ref<StockPositionSortKey>("value");
   const positionSortDirection = ref<StockSortDirection>("desc");
 
   const openPositions = computed(() =>
     [...positions.value]
-      .filter((position) => position.titulos > 0)
-      .sort((a, b) => (b.valor_actual ?? 0) - (a.valor_actual ?? 0)),
+      .filter((position) => position.quantity > 0)
+      .sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0)),
   );
   const topPositions = computed(() => openPositions.value.slice(0, 5));
   const totalValue = computed(() =>
     openPositions.value.reduce(
-      (sum, position) => sum + (position.valor_actual ?? 0),
+      (sum, position) => sum + (position.current_value ?? 0),
       0,
     ),
   );
   const totalCost = computed(() =>
+    openPositions.value.reduce((sum, position) => sum + position.cost, 0),
+  );
+  const unrealizedPnl = computed(() =>
     openPositions.value.reduce(
-      (sum, position) => sum + position.coste_total,
+      (sum, position) => sum + (position.unrealized_pnl ?? 0),
       0,
     ),
   );
-  const unrealizedPnl = computed(() =>
-    openPositions.value.reduce((sum, position) => sum + (position.pnl ?? 0), 0),
-  );
   const realizedPnl = computed(() =>
-    positions.value.reduce((sum, position) => sum + position.pnl_realizada, 0),
+    positions.value.reduce(
+      (sum, position) => sum + (position.realized_pnl ?? 0),
+      0,
+    ),
   );
   const totalPnl = computed(() => unrealizedPnl.value + realizedPnl.value);
   const openReturn = computed(() =>
@@ -96,14 +109,14 @@ export function useStocksPortfolio(
   );
   const pricedPositions = computed(
     () =>
-      positions.value.filter((position) => position.precio_actual != null)
+      positions.value.filter((position) => position.current_price != null)
         .length,
   );
   const normalizedTopPositions = computed(() =>
     topPositions.value.map((position) =>
       adaptStockPosition(
         position,
-        instrumentByIdentity(instruments.value, position.isin),
+        instrumentById(instruments.value, position.instrument_id),
         { baseCurrency: baseCurrency.value },
       ),
     ),
@@ -111,11 +124,16 @@ export function useStocksPortfolio(
   const selectedPosition = computed(
     () =>
       positions.value.find(
-        (position) => position.isin === selectedIsin.value,
+        (position) => position.instrument_id === selectedInstrumentId.value,
       ) ?? null,
   );
+  const selectedIdentity = computed(() =>
+    instrumentIdentity(
+      instrumentById(instruments.value, selectedInstrumentId.value),
+    ),
+  );
   const selectedOrders = computed(() =>
-    orders.value.filter((order) => order.isin === selectedIsin.value),
+    orders.value.filter((order) => order.isin === selectedIdentity.value),
   );
   const selectedChartOrders = computed(() =>
     applyAdHocChartOperationFixes(
@@ -129,35 +147,36 @@ export function useStocksPortfolio(
     ),
   );
   const averagePrice = computed(() =>
-    selectedPosition.value?.titulos
-      ? selectedPosition.value.coste_total / selectedPosition.value.titulos
+    selectedPosition.value?.quantity
+      ? selectedPosition.value.cost / selectedPosition.value.quantity
       : null,
   );
   const sortedPositions = computed(() => {
     const collator = new Intl.Collator(locale.value, { sensitivity: "base" });
     const valueFor = (position: StockPosition): number | string | null => {
-      const ticker = instrumentTicker(
-        instrumentByIdentity(instruments.value, position.isin),
+      const instrument = instrumentById(
+        instruments.value,
+        position.instrument_id,
       );
-      if (positionSortKey.value === "asset") return position.nombre;
+      const ticker =
+        instrumentTicker(instrument) || instrumentIdentity(instrument);
+      if (positionSortKey.value === "asset") return position.name;
       if (positionSortKey.value === "ticker") return ticker;
-      if (positionSortKey.value === "cost") return position.coste_total;
-      if (positionSortKey.value === "quantity") return position.titulos;
+      if (positionSortKey.value === "cost") return position.cost;
+      if (positionSortKey.value === "quantity") return position.quantity;
       if (positionSortKey.value === "averagePrice")
-        return position.titulos ? position.coste_total / position.titulos : 0;
+        return position.quantity ? position.cost / position.quantity : 0;
       if (positionSortKey.value === "currentPrice")
-        return position.precio_actual;
-      if (positionSortKey.value === "value") return position.valor_actual;
-      if (positionSortKey.value === "pnl") return position.pnl;
-      return position.coste_total
-        ? (position.pnl ?? 0) / position.coste_total
-        : 0;
+        return position.current_price;
+      if (positionSortKey.value === "value") return position.current_value;
+      if (positionSortKey.value === "pnl") return position.unrealized_pnl;
+      return position.cost ? (position.unrealized_pnl ?? 0) / position.cost : 0;
     };
     return [...positions.value].sort((a, b) => {
       const left = valueFor(a);
       const right = valueFor(b);
       if (left == null && right == null)
-        return collator.compare(a.nombre, b.nombre);
+        return collator.compare(a.name, b.name);
       if (left == null) return 1;
       if (right == null) return -1;
       const comparison =
@@ -165,7 +184,7 @@ export function useStocksPortfolio(
           ? collator.compare(left, right)
           : Number(left) - Number(right);
       return comparison === 0
-        ? collator.compare(a.nombre, b.nombre)
+        ? collator.compare(a.name, b.name)
         : positionSortDirection.value === "asc"
           ? comparison
           : -comparison;

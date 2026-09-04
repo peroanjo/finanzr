@@ -107,7 +107,7 @@ function positionReturn(position: NormalizedPosition) {
             <i>{{ item.name.slice(0, 1) }}</i>
             <span
               ><strong>{{ item.name }}</strong
-              ><small>{{ item.assetId }}</small></span
+              ><small>{{ item.displayIdentifier }}</small></span
             >
           </span>
           <span class="fund-asset-cell">

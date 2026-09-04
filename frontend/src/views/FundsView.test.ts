@@ -86,66 +86,74 @@ let accountRows = [
 ];
 const positions: FundPosition[] = [
   {
-    isin: "TEST",
-    nombre: "Fondo global",
-    tipo: "Renta Variable",
-    subtipo: "Global",
-    total_invertido: 1000,
-    participaciones: 10,
-    precio_medio: 100,
-    precio_actual: 120,
-    valor_actual: 1200,
-    pnl: 200,
-    pnl_pct: 0.2,
+    instrument_id: "00000000-0000-0000-0000-000000000020",
+    kind: "fund",
+    name: "Fondo global",
+    asset_class: "Renta Variable",
+    subtype: "Global",
+    quantity: 10,
+    cost: 1000,
+    average_price: 100,
+    current_price: 120,
+    current_value: 1200,
+    unrealized_pnl: 200,
+    realized_pnl: null,
+    currency: "EUR",
+    base_currency: "EUR",
+    return_percent: 0.2,
   },
   ...[1100, 1000, 900, 800, 700].map((value, index) => ({
-    isin: `TEST-${index}`,
-    nombre: `Test fund ${index}`,
-    tipo: "Renta Variable",
-    subtipo: "Global",
-    total_invertido: value - 100,
-    participaciones: 10,
-    precio_medio: value - 100,
-    precio_actual: value,
-    valor_actual: value,
-    pnl: 100,
-    pnl_pct: 0.1,
+    instrument_id: `00000000-0000-0000-0000-0000000000${String(22 + index).padStart(2, "0")}`,
+    kind: "fund" as const,
+    name: `Test fund ${index}`,
+    asset_class: "Renta Variable",
+    subtype: "Global",
+    quantity: 10,
+    cost: value - 100,
+    average_price: value - 100,
+    current_price: value,
+    current_value: value,
+    unrealized_pnl: 100,
+    realized_pnl: null,
+    currency: "EUR",
+    base_currency: "EUR",
+    return_percent: 0.1,
   })),
 ];
 const accountTwoPositions: FundPosition[] = [
   {
     ...positions[0],
-    nombre: "Fondo cuenta dos",
-    valor_actual: 300,
-    total_invertido: 250,
-    precio_actual: 30,
-    precio_medio: 25,
-    pnl: 50,
-    pnl_pct: 0.2,
+    name: "Fondo cuenta dos",
+    current_value: 300,
+    cost: 250,
+    current_price: 30,
+    average_price: 25,
+    unrealized_pnl: 50,
+    return_percent: 0.2,
   },
   {
     ...positions[1],
-    isin: "SECOND",
-    nombre: "Fondo solo cuenta dos",
-    valor_actual: 100,
-    total_invertido: 90,
-    precio_actual: 10,
-    precio_medio: 9,
-    pnl: 10,
-    pnl_pct: 0.1111,
+    instrument_id: "00000000-0000-0000-0000-000000000030",
+    name: "Fondo solo cuenta dos",
+    current_value: 100,
+    cost: 90,
+    current_price: 10,
+    average_price: 9,
+    unrealized_pnl: 10,
+    return_percent: 0.1111,
   },
   {
     ...positions[2],
-    isin: "CLOSED",
-    nombre: "Fondo cerrado",
-    participaciones: 0,
-    valor_actual: 900,
+    instrument_id: "00000000-0000-0000-0000-000000000031",
+    name: "Fondo cerrado",
+    quantity: 0,
+    current_value: 900,
   },
   {
     ...positions[3],
-    isin: "NO-PRICE",
-    nombre: "Fondo sin valoración",
-    valor_actual: null,
+    instrument_id: "00000000-0000-0000-0000-000000000032",
+    name: "Fondo sin valoración",
+    current_value: null,
   },
 ];
 const orders = [
@@ -284,6 +292,7 @@ const chart = {
 const chartInstrumentId = instruments[0].id;
 const secondaryChartInstrumentId = instruments[1].id;
 let positionsOverride: FundPosition[] | null = null;
+let instrumentsOverride: typeof instruments | null = null;
 
 describe("FundsView", () => {
   beforeEach(() => {
@@ -309,6 +318,7 @@ describe("FundsView", () => {
       },
     ];
     positionsOverride = null;
+    instrumentsOverride = null;
     localStorage.clear();
     window.history.replaceState({}, "", "/app/fondos");
     HTMLDialogElement.prototype.showModal = vi.fn(function (
@@ -361,7 +371,7 @@ describe("FundsView", () => {
         path === `/orders?account_id=${accountThreeId}`
       )
         return [];
-      if (path === "/funds") return instruments;
+      if (path === "/funds") return instrumentsOverride ?? instruments;
       if (path === "/fund-prices") return prices;
       if (path.startsWith("/fund-chart/")) return chart;
       if (path === "/fund-prices/fetch" && init?.method === "POST") {
@@ -556,7 +566,7 @@ describe("FundsView", () => {
     expect(firstDisclosure.attributes("type")).toBe("button");
     expect(firstDisclosure.attributes("aria-expanded")).toBe("false");
     expect(firstDisclosure.attributes("aria-controls")).toBe(
-      "fund-price-detail-test",
+      `fund-price-detail-${chartInstrumentId}`,
     );
     expect(wrapper.findAll(".fund-sort-button")).toHaveLength(9);
     expect(
@@ -641,7 +651,7 @@ describe("FundsView", () => {
     expect(wrapper.find(".fund-inline-detail-row").exists()).toBe(false);
     expect(
       wrapper.get(".fund-position-disclosure").attributes("aria-controls"),
-    ).toBe("fund-price-detail-test");
+    ).toBe(`fund-price-detail-${chartInstrumentId}`);
   });
 
   it("opens one inline price detail from the full table and keeps the top list informational", async () => {
@@ -666,7 +676,7 @@ describe("FundsView", () => {
     const disclosure = firstRow.get(".fund-position-disclosure");
     expect(disclosure.attributes("aria-expanded")).toBe("false");
     expect(disclosure.attributes("aria-controls")).toBe(
-      "fund-price-detail-test",
+      `fund-price-detail-${chartInstrumentId}`,
     );
     await firstRow.trigger("click");
     await flushPromises();
@@ -795,13 +805,13 @@ describe("FundsView", () => {
       ...positions,
       {
         ...positions[0],
-        isin: "CLOSED",
-        nombre: "Fondo cerrado",
-        participaciones: 0,
-        valor_actual: 0,
-        precio_actual: 120,
-        pnl: 0,
-        pnl_pct: 0,
+        instrument_id: "00000000-0000-0000-0000-000000000031",
+        name: "Fondo cerrado",
+        quantity: 0,
+        current_value: 0,
+        current_price: 120,
+        unrealized_pnl: 0,
+        return_percent: 0,
       },
     ];
     const wrapper = mount(FundsView);
@@ -820,8 +830,10 @@ describe("FundsView", () => {
       apiMock.mock.calls.filter(([path]) =>
         String(path).startsWith("/fund-chart/"),
       ),
-    ).toHaveLength(chartCallCount);
-    expect(wrapper.find(".fund-chart-state.error-state").exists()).toBe(true);
+    ).toHaveLength(chartCallCount + 1);
+    expect(wrapper.find('[data-testid="fund-price-chart"]').exists()).toBe(
+      true,
+    );
 
     await wrapper.get(".fund-action-button").trigger("click");
     await flushPromises();
@@ -891,13 +903,54 @@ describe("FundsView", () => {
     );
   });
 
+  it("uses canonical fund identity to break equal allocation values", async () => {
+    const zuluInstrument = {
+      ...instruments[0],
+      identifiers: [
+        {
+          scheme: "isin" as const,
+          value: "ZZ000",
+          venue: "",
+          is_primary: true,
+        },
+      ],
+    };
+    const alphaInstrument = {
+      ...instruments[1],
+      identifiers: [
+        {
+          scheme: "isin" as const,
+          value: "AA000",
+          venue: "",
+          is_primary: true,
+        },
+      ],
+    };
+    instrumentsOverride = [zuluInstrument, alphaInstrument];
+    positionsOverride = [
+      { ...positions[0], name: "Zulu fund", current_value: 100 },
+      { ...positions[1], name: "Alpha fund", current_value: 100 },
+    ];
+
+    const wrapper = mount(FundsView);
+    await flushPromises();
+
+    const segments = wrapper
+      .get('[data-testid="fund-position-allocation"]')
+      .findAll(".fund-position-allocation-segment");
+    expect(segments.map((segment) => segment.text())).toEqual([
+      expect.stringContaining("Alpha fund"),
+      expect.stringContaining("Zulu fund"),
+    ]);
+  });
+
   it("shows a quiet state when open positions have no positive market values", async () => {
     positionsOverride = positions.map((position) => ({
       ...position,
-      valor_actual: null,
-      precio_actual: null,
-      pnl: null,
-      pnl_pct: null,
+      current_value: null,
+      current_price: null,
+      unrealized_pnl: null,
+      return_percent: null,
     }));
     const wrapper = mount(FundsView);
     await flushPromises();
@@ -930,13 +983,13 @@ describe("FundsView", () => {
     });
     const oldPosition = {
       ...positions[0],
-      nombre: "Cuenta uno antigua",
-      valor_actual: 50,
+      name: "Cuenta uno antigua",
+      current_value: 50,
     };
     const latestPosition = {
       ...positions[0],
-      nombre: "Cuenta dos actual",
-      valor_actual: 900,
+      name: "Cuenta dos actual",
+      current_value: 900,
     };
     apiMock.mockImplementation(async (path) => {
       if (path === "/fund-accounts") return accountRows;

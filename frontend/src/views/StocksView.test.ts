@@ -72,35 +72,43 @@ const secondAccount = {
   importer_slug: "trade_republic",
   importer_name: "Trade Republic Transactions",
 };
+const primaryIsin = "US67066G1040";
+const secondAccountIsin = "SECOND";
 const position = {
-  isin: "US67066G1040",
-  nombre: "NVIDIA",
-  titulos: 1,
-  coste_total: 100,
-  precio_actual: 185,
-  valor_actual: 185,
-  pnl: 85,
-  pnl_realizada: 10,
+  instrument_id: "00000000-0000-0000-0000-000000000603",
+  kind: "stock" as const,
+  name: "NVIDIA",
+  quantity: 1,
+  cost: 100,
+  current_price: 185,
+  current_value: 185,
+  unrealized_pnl: 85,
+  realized_pnl: 10,
+  currency: "EUR",
+  base_currency: "EUR",
 };
 const secondAccountPosition = {
   ...position,
-  isin: "SECOND",
-  nombre: "Second account stock",
-  valor_actual: 275,
-  precio_actual: 275,
-  pnl: 25,
+  instrument_id: "00000000-0000-0000-0000-000000000602",
+  name: "Second account stock",
+  current_value: 275,
+  current_price: 275,
+  unrealized_pnl: 25,
 };
 const stockPositions = [
   position,
   ...[170, 160, 150, 140, 130].map((value, index) => ({
-    isin: `TEST${index}`,
-    nombre: `Test stock ${index}`,
-    titulos: 1,
-    coste_total: value - 10,
-    precio_actual: value,
-    valor_actual: value,
-    pnl: 10,
-    pnl_realizada: 0,
+    instrument_id: `00000000-0000-0000-0000-0000000006${String(10 + index).padStart(2, "0")}`,
+    kind: "stock" as const,
+    name: `Test stock ${index}`,
+    quantity: 1,
+    cost: value - 10,
+    current_price: value,
+    current_value: value,
+    unrealized_pnl: 10,
+    realized_pnl: 0,
+    currency: "EUR",
+    base_currency: "EUR",
   })),
 ];
 const order: StockOrder = {
@@ -115,7 +123,7 @@ const order: StockOrder = {
   platform: "Trade Republic",
   operation_type: "buy",
   cash_flow_type: "none",
-  isin: "US67066G1040",
+  isin: primaryIsin,
   asset_name: "NVIDIA",
   unit_price: 100,
   is_saveback: true,
@@ -142,22 +150,25 @@ const stockOrders = [
   })),
 ];
 const closedPosition = {
-  isin: "CLOSED",
-  nombre: "Closed stock",
-  titulos: 0,
-  coste_total: 100,
-  precio_actual: 120,
-  valor_actual: 0,
-  pnl: 0,
-  pnl_realizada: 20,
+  instrument_id: "00000000-0000-0000-0000-000000000601",
+  kind: "stock" as const,
+  name: "Closed stock",
+  quantity: 0,
+  cost: 100,
+  current_price: 120,
+  current_value: 0,
+  unrealized_pnl: 0,
+  realized_pnl: 20,
+  currency: "EUR",
+  base_currency: "EUR",
 };
 const closedInstrument: StockInstrument = {
   id: "00000000-0000-0000-0000-000000000601",
   kind: "stock",
-  name: closedPosition.nombre,
+  name: closedPosition.name,
   quote_currency: "EUR",
   identifiers: [
-    { scheme: "isin", value: closedPosition.isin, venue: "", is_primary: true },
+    { scheme: "isin", value: "CLOSED", venue: "", is_primary: true },
     { scheme: "yahoo", value: "CLOSED", venue: "", is_primary: true },
   ],
   asset_class: null,
@@ -167,16 +178,29 @@ const closedInstrument: StockInstrument = {
 const secondAccountInstrument: StockInstrument = {
   id: "00000000-0000-0000-0000-000000000602",
   kind: "stock",
-  name: secondAccountPosition.nombre,
+  name: secondAccountPosition.name,
   quote_currency: "EUR",
   identifiers: [
     {
       scheme: "isin",
-      value: secondAccountPosition.isin,
+      value: secondAccountIsin,
       venue: "",
       is_primary: true,
     },
     { scheme: "yahoo", value: "SECOND", venue: "", is_primary: true },
+  ],
+  asset_class: null,
+  subtype: null,
+  is_active: true,
+};
+const primaryInstrument: StockInstrument = {
+  id: position.instrument_id,
+  kind: "stock",
+  name: position.name,
+  quote_currency: "EUR",
+  identifiers: [
+    { scheme: "isin", value: primaryIsin, venue: "", is_primary: true },
+    { scheme: "yahoo", value: "NVDA", venue: "", is_primary: true },
   ],
   asset_class: null,
   subtype: null,
@@ -199,6 +223,7 @@ const performance = {
 };
 let positionsOverride: typeof stockPositions | null = null;
 let ordersOverride: StockOrder[] | null = null;
+let instrumentsOverride: StockInstrument[] | null = null;
 
 describe("StocksView", () => {
   beforeEach(() => {
@@ -222,6 +247,7 @@ describe("StocksView", () => {
     applyLocale("es-ES");
     positionsOverride = null;
     ordersOverride = null;
+    instrumentsOverride = null;
     apiMock.mockClear();
     window.history.replaceState({}, "", "/app/acciones");
     apiMock.mockImplementation(async (path, init) => {
@@ -250,33 +276,18 @@ describe("StocksView", () => {
             id: "second-account-1",
             account_id: secondAccount.id,
             account_name: secondAccount.name,
-            isin: secondAccountPosition.isin,
-            asset_name: secondAccountPosition.nombre,
+            isin: secondAccountIsin,
+            asset_name: secondAccountPosition.name,
           },
         ];
       if (path === "/stocks")
-        return [
-          {
-            id: "00000000-0000-0000-0000-000000000603",
-            kind: "stock",
-            name: position.nombre,
-            quote_currency: "EUR",
-            identifiers: [
-              {
-                scheme: "isin",
-                value: position.isin,
-                venue: "",
-                is_primary: true,
-              },
-              { scheme: "yahoo", value: "NVDA", venue: "", is_primary: true },
-            ],
-            asset_class: null,
-            subtype: null,
-            is_active: true,
-          },
-          closedInstrument,
-          secondAccountInstrument,
-        ];
+        return (
+          instrumentsOverride ?? [
+            primaryInstrument,
+            closedInstrument,
+            secondAccountInstrument,
+          ]
+        );
       if (path === "/stock-prices")
         return [
           {
@@ -358,12 +369,12 @@ describe("StocksView", () => {
         return {
           id: "00000000-0000-0000-0000-000000000603",
           kind: "stock",
-          name: position.nombre,
+          name: position.name,
           quote_currency: "EUR",
           identifiers: [
             {
               scheme: "isin",
-              value: position.isin,
+              value: primaryIsin,
               venue: "",
               is_primary: true,
             },
@@ -461,6 +472,33 @@ describe("StocksView", () => {
         ?.hasAttribute("open"),
     ).toBe(true);
     expect(wrapper.find(".movement-pagination").exists()).toBe(true);
+  });
+
+  it("shows the canonical ISIN when a stock has no Yahoo ticker", async () => {
+    instrumentsOverride = [
+      {
+        ...primaryInstrument,
+        identifiers: [
+          {
+            scheme: "isin",
+            value: primaryIsin,
+            venue: "",
+            is_primary: true,
+          },
+        ],
+      },
+      closedInstrument,
+      secondAccountInstrument,
+    ];
+
+    const wrapper = mount(StocksView);
+    await flushPromises();
+
+    const row = wrapper
+      .get('[aria-label="Mostrar histórico de NVIDIA"]')
+      .element.closest("tr");
+    expect(row?.querySelectorAll("td")[1]?.textContent).toBe(primaryIsin);
+    expect(wrapper.text()).not.toContain(position.instrument_id);
   });
 
   it("keeps a closed position expanded after editing its asset metadata", async () => {
@@ -756,7 +794,7 @@ describe("StocksView", () => {
     });
     const latestPosition = {
       ...secondAccountPosition,
-      nombre: "Second account current",
+      name: "Second account current",
     };
     apiMock.mockImplementation(async (path) => {
       if (path === "/stock-accounts") return [account, secondAccount];
@@ -779,12 +817,12 @@ describe("StocksView", () => {
           {
             id: "00000000-0000-0000-0000-000000000603",
             kind: "stock",
-            name: position.nombre,
+            name: position.name,
             quote_currency: "EUR",
             identifiers: [
               {
                 scheme: "isin",
-                value: position.isin,
+                value: primaryIsin,
                 venue: "",
                 is_primary: true,
               },
@@ -821,7 +859,7 @@ describe("StocksView", () => {
     expect(wrapper.text()).toContain("Second account current");
     expect(wrapper.text()).not.toContain("Stale account one");
 
-    resolveOldPositions([{ ...position, nombre: "Stale account one" }]);
+    resolveOldPositions([{ ...position, name: "Stale account one" }]);
     await flushPromises();
     expect(wrapper.text()).toContain("Second account current");
     expect(wrapper.text()).not.toContain("Stale account one");

@@ -76,3 +76,10 @@ export function instrumentByIdentity<T extends NativeInstrument>(
 ): T | undefined {
   return instruments.find((item) => instrumentIdentity(item) === identity);
 }
+
+export function instrumentById<T extends NativeInstrument>(
+  instruments: T[],
+  id: string,
+): T | undefined {
+  return instruments.find((item) => item.id === id);
+}

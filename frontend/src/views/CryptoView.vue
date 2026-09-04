@@ -52,7 +52,7 @@ import type {
   MarketCandle,
 } from "../types/api";
 import {
-  instrumentByIdentity,
+  instrumentById,
   instrumentCurrency,
   instrumentIdentity,
   instrumentName,
@@ -180,7 +180,7 @@ const chart = ref<CryptoChartResponse | null>(null);
 const selectedAccount = ref(
   new URLSearchParams(window.location.search).get("account") ?? "all",
 );
-const selectedSymbol = ref("");
+const selectedInstrumentId = ref("");
 const range = ref<PerformanceRange>(cryptoPreferences.range);
 const chartRange = ref<PerformanceRange>("1y");
 const mode = ref<CryptoPerformanceMode>(cryptoPreferences.mode);
@@ -259,7 +259,7 @@ const {
   positions,
   orders,
   instruments,
-  selectedSymbol,
+  selectedInstrumentId,
   baseCurrency: reportingCurrency,
   locale,
 });
@@ -406,16 +406,16 @@ const chartPoints = computed<MarketCandle[]>(
 );
 const allocationItems = computed<InvestmentAllocationItem[]>(() => {
   const valued = openPositions.value.flatMap((position) =>
-    typeof position.valor_actual === "number" && position.valor_actual > 0
-      ? [{ position, value: position.valor_actual }]
+    typeof position.current_value === "number" && position.current_value > 0
+      ? [{ position, value: position.current_value }]
       : [],
   );
   const total = valued.reduce((sum, item) => sum + item.value, 0);
   if (!(total > 0)) return [];
   const colors = ["#7967f2", "#55cbef", "#f7931a", "#b18cff", "#56d6a0"];
   const items = valued.slice(0, 5).map(({ position, value }, index) => ({
-    key: position.symbol,
-    label: position.nombre,
+    key: position.instrument_id,
+    label: position.name,
     value,
     share: value / total,
     color: colors[index],
@@ -601,7 +601,7 @@ function percentage(value: number) {
 }
 
 function positionReturn(position: CryptoPosition) {
-  return position.coste_total ? (position.pnl ?? 0) / position.coste_total : 0;
+  return position.cost ? (position.unrealized_pnl ?? 0) / position.cost : 0;
 }
 
 function signedMoney(value: number) {
@@ -681,8 +681,11 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
     instruments.value = nextInstruments;
     prices.value = nextPrices;
     initializeMovementRange();
-    const available = openPositions.value.map((position) => position.symbol);
-    if (!available.includes(selectedSymbol.value)) selectedSymbol.value = "";
+    const available = openPositions.value.map(
+      (position) => position.instrument_id,
+    );
+    if (!available.includes(selectedInstrumentId.value))
+      selectedInstrumentId.value = "";
   } catch (reason) {
     if (generation !== dashboardGeneration) return;
     error.value =
@@ -693,7 +696,8 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
   }
   if (generation === dashboardGeneration && !error.value) {
     await loadPerformance(generation);
-    if (loadSelectedChart && selectedSymbol.value) await loadChart(generation);
+    if (loadSelectedChart && selectedInstrumentId.value)
+      await loadChart(generation);
   }
 }
 
@@ -849,12 +853,9 @@ function chartQuery() {
 }
 
 async function loadChart(generation = dashboardGeneration) {
-  if (generation !== dashboardGeneration || !selectedSymbol.value) return;
+  if (generation !== dashboardGeneration || !selectedInstrumentId.value) return;
   const request = ++chartRequestGeneration;
-  const instrumentId = instrumentByIdentity(
-    instruments.value,
-    selectedSymbol.value,
-  )?.id;
+  const instrumentId = selectedInstrumentId.value;
   if (!instrumentId) {
     chart.value = null;
     chartLoading.value = false;
@@ -892,19 +893,19 @@ async function loadChart(generation = dashboardGeneration) {
 }
 
 function closePosition() {
-  selectedSymbol.value = "";
+  selectedInstrumentId.value = "";
   chartRequestGeneration += 1;
   chart.value = null;
   chartLoading.value = false;
   chartError.value = "";
 }
 
-async function togglePosition(symbol: string) {
-  if (selectedSymbol.value === symbol) {
+async function togglePosition(instrumentId: string) {
+  if (selectedInstrumentId.value === instrumentId) {
     closePosition();
     return;
   }
-  selectedSymbol.value = symbol;
+  selectedInstrumentId.value = instrumentId;
   await loadChart();
 }
 
@@ -993,10 +994,13 @@ function hasOriginalCurrency(order: CryptoOrder) {
 }
 
 function assetTicker(position: CryptoPosition) {
-  return (
-    instrumentTicker(
-      instrumentByIdentity(instruments.value, position.symbol),
-    ) || position.symbol
+  const instrument = instrumentById(instruments.value, position.instrument_id);
+  return instrumentTicker(instrument) || instrumentIdentity(instrument);
+}
+
+function positionIdentity(position: CryptoPosition) {
+  return instrumentIdentity(
+    instrumentById(instruments.value, position.instrument_id),
   );
 }
 
@@ -1105,11 +1109,11 @@ async function refreshPrices() {
 
 async function handleAssetSaved(asset: EditableAsset) {
   const generation = ++assetSaveGeneration;
-  const symbol = instrumentIdentity(asset);
-  if (symbol) selectedSymbol.value = symbol;
+  const targetInstrumentId = asset.id;
+  if (targetInstrumentId) selectedInstrumentId.value = targetInstrumentId;
   await loadDashboard(true, false);
-  if (generation !== assetSaveGeneration || !symbol) return;
-  selectedSymbol.value = symbol;
+  if (generation !== assetSaveGeneration || !targetInstrumentId) return;
+  selectedInstrumentId.value = targetInstrumentId;
   await loadChart();
 }
 
@@ -1376,68 +1380,74 @@ onMounted(loadDashboard);
               <tbody>
                 <template
                   v-for="position in sortedPositions"
-                  :key="position.symbol"
+                  :key="position.instrument_id"
                   ><tr
                     class="fund-position-row"
-                    :class="{ active: selectedSymbol === position.symbol }"
-                    @click="togglePosition(position.symbol)"
+                    :class="{
+                      active: selectedInstrumentId === position.instrument_id,
+                    }"
+                    @click="togglePosition(position.instrument_id)"
                   >
                     <td>
                       <button
                         type="button"
                         class="fund-position-disclosure"
-                        :aria-expanded="selectedSymbol === position.symbol"
-                        :aria-controls="detailId(position.symbol)"
+                        :aria-expanded="
+                          selectedInstrumentId === position.instrument_id
+                        "
+                        :aria-controls="detailId(position.instrument_id)"
                         :aria-label="
                           t(
-                            selectedSymbol === position.symbol
+                            selectedInstrumentId === position.instrument_id
                               ? 'crypto.positions.collapseChartAria'
                               : 'crypto.positions.expandChartAria',
-                            { asset: position.nombre },
+                            { asset: position.name },
                           )
                         "
-                        @click.stop="togglePosition(position.symbol)"
+                        @click.stop="togglePosition(position.instrument_id)"
                       >
                         <span class="fund-position-disclosure-copy"
-                          ><strong>{{ position.nombre }}</strong
-                          ><small>{{ position.symbol }}</small></span
+                          ><strong>{{ position.name }}</strong
+                          ><small>{{ positionIdentity(position) }}</small></span
                         ><span aria-hidden="true">⌄</span>
                       </button>
                     </td>
                     <td>{{ assetTicker(position) }}</td>
-                    <td>{{ money(position.coste_total) }}</td>
-                    <td>{{ n(position.titulos, "quantity") }}</td>
+                    <td>{{ money(position.cost) }}</td>
+                    <td>{{ n(position.quantity, "quantity") }}</td>
                     <td>
                       {{
                         money(
-                          position.titulos
-                            ? position.coste_total / position.titulos
+                          position.quantity
+                            ? position.cost / position.quantity
                             : 0,
                         )
                       }}
                     </td>
                     <td>
                       {{
-                        position.precio_actual == null
+                        position.current_price == null
                           ? t("crypto.positions.pending")
-                          : money(position.precio_actual)
+                          : money(position.current_price)
                       }}
                     </td>
                     <td>
                       {{
-                        position.valor_actual == null
+                        position.current_value == null
                           ? "—"
-                          : money(position.valor_actual)
+                          : money(position.current_value)
                       }}
                     </td>
                     <td
                       :class="{
-                        positive: (position.pnl ?? 0) >= 0,
-                        negative: (position.pnl ?? 0) < 0,
+                        positive: (position.unrealized_pnl ?? 0) >= 0,
+                        negative: (position.unrealized_pnl ?? 0) < 0,
                       }"
                     >
                       <strong>{{
-                        position.pnl == null ? "—" : signedMoney(position.pnl)
+                        position.unrealized_pnl == null
+                          ? "—"
+                          : signedMoney(position.unrealized_pnl)
                       }}</strong>
                     </td>
                     <td
@@ -1457,7 +1467,7 @@ onMounted(loadDashboard);
                         :aria-label="t('crypto.positions.editAria')"
                         @click.stop="
                           assetEditor?.openEdit(
-                            instrumentByIdentity(instruments, position.symbol),
+                            instrumentById(instruments, position.instrument_id),
                           )
                         "
                       >
@@ -1466,17 +1476,17 @@ onMounted(loadDashboard);
                     </td>
                   </tr>
                   <tr
-                    v-if="selectedSymbol === position.symbol"
+                    v-if="selectedInstrumentId === position.instrument_id"
                     class="fund-inline-detail-row"
                   >
                     <td :colspan="positionSortColumns.length + 1">
                       <div
-                        :id="detailId(position.symbol)"
+                        :id="detailId(position.instrument_id)"
                         class="fund-inline-price-panel"
                         role="region"
                         :aria-label="
                           t('crypto.positions.priceDetailAria', {
-                            asset: position.nombre,
+                            asset: position.name,
                           })
                         "
                       >

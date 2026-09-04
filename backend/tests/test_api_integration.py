@@ -7,6 +7,7 @@ import pytest
 from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
 from apps.api import views
 from apps.api.market_data_projection import instrument_calculation_row
+from apps.api.position_projection import PositionProjectionError, native_position_rows
 from apps.common.models import InstallationSettings
 from apps.imports.models import ImportBatch, ImportIssue
 from apps.market_data.fx import CurrencyConversionError, FxConversion
@@ -349,6 +350,93 @@ def test_read_endpoints_are_served_from_django_models(api_context: tuple[APIClie
         response = client.get(endpoint)
         assert response.status_code == 200, (endpoint, response.content)
         assert isinstance(response.json(), response_type)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_analysis_endpoints_expose_only_the_native_position_contract(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    common = {
+        "instrument_id",
+        "kind",
+        "name",
+        "quantity",
+        "cost",
+        "current_price",
+        "current_value",
+        "unrealized_pnl",
+        "realized_pnl",
+        "currency",
+        "base_currency",
+    }
+    expected = {
+        "/api/fund-analysis": common
+        | {"asset_class", "subtype", "average_price", "return_percent"},
+        "/api/stock-analysis": common,
+        "/api/crypto-analysis": common,
+    }
+    for endpoint, keys in expected.items():
+        response = client.get(endpoint)
+        assert response.status_code == 200, (endpoint, response.content)
+        for row in response.json():
+            assert set(row) == keys
+            UUID(row["instrument_id"])
+            assert row["kind"] in {"fund", "stock", "crypto"}
+            assert not {
+                "isin",
+                "symbol",
+                "nombre",
+                "titulos",
+                "participaciones",
+                "precio_actual",
+                "valor_actual",
+                "pnl",
+                "pnl_realizada",
+                "moneda",
+            } & set(row)
+
+
+def test_native_position_projection_fails_loudly_for_an_orphan() -> None:
+    with pytest.raises(PositionProjectionError, match="ORPHAN"):
+        native_position_rows(
+            [{"isin": "ORPHAN", "nombre": "Orphan", "titulos": 1}],
+            [],
+            kind="stock",
+            base_currency="EUR",
+        )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_native_position_projection_uses_visible_instrument_name(
+    api_context: tuple[APIClient, User],
+) -> None:
+    instrument = Instrument.objects.get(name="Synthetic Stock")
+    isin = instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+
+    rows = native_position_rows(
+        [
+            {
+                "isin": isin,
+                "nombre": "Legacy calculation label",
+                "titulos": Decimal("1"),
+                "coste_total": Decimal("10"),
+                "precio_actual": None,
+                "valor_actual": None,
+                "pnl": None,
+                "pnl_realizada": Decimal("0"),
+                "moneda": "USD",
+            }
+        ],
+        [instrument],
+        kind=Instrument.Kind.STOCK,
+        base_currency="EUR",
+    )
+
+    assert rows[0]["name"] == instrument.name
+    assert rows[0]["name"] != "Legacy calculation label"
+    assert rows[0]["currency"] == "USD"
+    assert rows[0]["base_currency"] == "EUR"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -2104,7 +2192,7 @@ def test_manual_fund_canonical_operations_drive_positions_and_source_history(
     transaction_id = created_row["id"]
     position_after_buy = client.get(f"/api/fund-analysis?account_id={account.id}")
     assert position_after_buy.status_code == 200
-    assert position_after_buy.json()[0]["participaciones"] == pytest.approx(12)
+    assert position_after_buy.json()[0]["quantity"] == pytest.approx(12)
 
     edited = client.put(
         f"/api/orders/{transaction_id}",
@@ -2118,7 +2206,7 @@ def test_manual_fund_canonical_operations_drive_positions_and_source_history(
     assert edited_row["provider_operation_type"] == "REEMBOLSO"
     position_after_sell = client.get(f"/api/fund-analysis?account_id={account.id}")
     assert position_after_sell.status_code == 200
-    assert position_after_sell.json()[0]["participaciones"] == pytest.approx(8)
+    assert position_after_sell.json()[0]["quantity"] == pytest.approx(8)
 
     portfolio = client.get("/api/portfolio-analysis")
     assert portfolio.status_code == 200
@@ -2194,7 +2282,7 @@ def test_imported_transaction_edit_preserves_provider_provenance_and_batch_polic
     assert source.import_batch_id == source_batch.id
     stock_analysis = client.get(f"/api/stock-analysis?account_id={source_account.id}")
     assert stock_analysis.status_code == 200
-    assert stock_analysis.json()[0]["titulos"] == pytest.approx(3)
+    assert stock_analysis.json()[0]["quantity"] == pytest.approx(3)
 
     target_account = Account.objects.create(
         workspace=source_account.workspace,
@@ -2911,7 +2999,7 @@ def test_crypto_accounts_can_be_created_and_filter_orders(
     assert orders.json()[0]["account_name"] == "Cuenta secundaria"
     assert orders.json()[0]["platform"] == "Otro exchange"
     assert analysis.status_code == 200
-    assert analysis.json()[0]["symbol"] == orders.json()[0]["symbol"]
+    assert analysis.json()[0]["instrument_id"] == str(source.instrument_id)
 
 
 @pytest.mark.django_db(transaction=True)
@@ -3045,8 +3133,8 @@ def test_stock_cashback_is_only_available_for_trade_republic(
     cashback_as_benefit = client.get(
         f"/api/stock-analysis?account_id={trade_republic['id']}&ignore_savebacks=true"
     ).json()
-    regular_cost = sum(row["coste_total"] for row in regular)
-    benefit_cost = sum(row["coste_total"] for row in cashback_as_benefit)
+    regular_cost = sum(row["cost"] for row in regular)
+    benefit_cost = sum(row["cost"] for row in cashback_as_benefit)
     assert benefit_cost < regular_cost
 
 
@@ -4211,7 +4299,6 @@ def test_stock_prices_and_analysis_use_only_the_latest_spot_quote(
     )
     assert transaction is not None
     instrument = transaction.instrument
-    isin = instrument.identifiers.get(scheme="isin", venue="").value
     MarketPrice.objects.create(
         instrument=instrument,
         quoted_at="2030-01-01T12:00:00Z",
@@ -4242,5 +4329,5 @@ def test_stock_prices_and_analysis_use_only_the_latest_spot_quote(
         }
     ]
     assert analysis.status_code == 200
-    position = next(row for row in analysis.json() if row["isin"] == isin)
-    assert position["precio_actual"] == 123.45
+    position = next(row for row in analysis.json() if row["instrument_id"] == str(instrument.id))
+    assert position["current_price"] == 123.45

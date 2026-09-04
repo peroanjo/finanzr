@@ -29,6 +29,7 @@ from apps.api.market_data_projection import (
     price_row,
 )
 from apps.api.portfolio_projection import manual_asset_row
+from apps.api.position_projection import native_position_rows
 from apps.api.projection import identifier, number, provider_name, select_identifier
 from apps.api.real_estate_projection import real_estate_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
@@ -2188,7 +2189,17 @@ def analysis(request: Request, kind: str) -> Response:
         return selected_account
     account_filter = selected_account.id if selected_account is not None else None
     rows = _transaction_calculation_list(request, kind, selected_account)
-    return Response(analyzed_positions(request, kind, rows, account_filter=account_filter))
+    positions = analyzed_positions(request, kind, rows, account_filter=account_filter)
+    base_currency = normalize_currency(workspace(request).base_currency)
+    instruments = workspace_instruments(request, kind)
+    return Response(
+        native_position_rows(
+            positions,
+            instruments,
+            kind=kind,
+            base_currency=base_currency,
+        )
+    )
 
 
 @api_view(["GET"])

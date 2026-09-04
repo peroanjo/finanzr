@@ -471,6 +471,52 @@ class OpenApiMutationContractTests(SimpleTestCase):
         assert set(portfolio_analysis_schema["properties"]) == {"total", "items"}
         assert portfolio_analysis_schema["properties"]["items"]["type"] == "array"
 
+        native_common = {
+            "instrument_id",
+            "kind",
+            "name",
+            "quantity",
+            "cost",
+            "current_price",
+            "current_value",
+            "unrealized_pnl",
+            "realized_pnl",
+            "currency",
+            "base_currency",
+        }
+        native_paths = {
+            "/api/fund-analysis": (
+                native_common | {"asset_class", "subtype", "average_price", "return_percent"},
+                "fund",
+            ),
+            "/api/stock-analysis": (native_common, "stock"),
+            "/api/crypto-analysis": (native_common, "crypto"),
+        }
+        for path, (fields, expected_kind) in native_paths.items():
+            operation = document["paths"][path]["get"]
+            response_schema = self._resolve(
+                document,
+                operation["responses"]["200"]["content"]["application/json"]["schema"]["items"],
+            )
+            assert set(response_schema["properties"]) == fields
+            assert response_schema["properties"]["instrument_id"] == {
+                "type": "string",
+                "format": "uuid",
+            }
+            kind_schema = self._resolve(document, response_schema["properties"]["kind"])
+            assert kind_schema["type"] == "string"
+            assert kind_schema["enum"] == [expected_kind]
+            for nullable in ("current_price", "current_value", "unrealized_pnl", "realized_pnl"):
+                nullable_schema = response_schema["properties"][nullable]
+                assert nullable_schema["type"] == "number"
+                assert nullable_schema.get("nullable") is True
+            account_parameter = next(
+                parameter
+                for parameter in operation["parameters"]
+                if parameter["name"] == "account_id"
+            )
+            assert account_parameter["schema"] == {"type": "string", "format": "uuid"}
+
         performance_parameters = document["paths"]["/api/investment-performance/{kind}"]["get"][
             "parameters"
         ]

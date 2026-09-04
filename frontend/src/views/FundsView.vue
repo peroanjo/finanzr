@@ -49,7 +49,7 @@ import {
   type FundPositionSortKey,
 } from "../composables/useFundsPortfolio";
 import {
-  instrumentByIdentity,
+  instrumentById,
   instrumentCurrency,
   instrumentIdentity,
   instrumentName,
@@ -369,21 +369,21 @@ function isPositiveFinite(value: number | null | undefined): value is number {
 const marketValueAllocationItems = computed(() => {
   const valuedPositions = openPositions.value
     .flatMap((item) => {
-      const value = item.valor_actual;
+      const value = item.current_value;
       return isPositiveFinite(value) ? [{ item, value }] : [];
     })
     .sort(
       (left, right) =>
         right.value - left.value ||
-        left.item.isin.localeCompare(right.item.isin),
+        positionIdentity(left.item).localeCompare(positionIdentity(right.item)),
     );
   const total = valuedPositions.reduce((sum, item) => sum + item.value, 0);
   if (!isPositiveFinite(total)) return [];
   const largestPositions = valuedPositions
     .slice(0, 5)
     .map(({ item, value }, index) => ({
-      key: item.isin,
-      label: item.nombre,
+      key: item.instrument_id,
+      label: item.name,
       value,
       share: value / total,
       color: marketValuePalette[index],
@@ -598,7 +598,7 @@ async function loadDashboard(showLoading = true) {
     orders.value = nextOrders;
     instruments.value = nextInstruments;
     prices.value = nextPrices;
-    const available = positions.value.map((item) => item.isin);
+    const available = positions.value.map((item) => item.instrument_id);
     if (selectedFund.value && !available.includes(selectedFund.value))
       closeFundDetail();
     if (!movementStart.value && orders.value.length) {
@@ -672,10 +672,7 @@ async function loadFundChart(generation = dashboardGeneration) {
     fundChartError.value = "";
     return;
   }
-  const instrumentId = instrumentByIdentity(
-    instruments.value,
-    selectedFund.value,
-  )?.id;
+  const instrumentId = selectedFund.value;
   if (!instrumentId) {
     fundChart.value = null;
     fundChartLoading.value = false;
@@ -714,8 +711,8 @@ async function loadFundChart(generation = dashboardGeneration) {
   }
 }
 
-async function selectFund(isin: string) {
-  selectedFund.value = isin;
+async function selectFund(instrumentId: string) {
+  selectedFund.value = instrumentId;
   await loadFundChart();
 }
 
@@ -727,17 +724,17 @@ function closeFundDetail() {
   fundChartError.value = "";
 }
 
-async function toggleFund(isin: string) {
-  if (selectedFund.value === isin) {
+async function toggleFund(instrumentId: string) {
+  if (selectedFund.value === instrumentId) {
     closeFundDetail();
     return;
   }
-  await selectFund(isin);
+  await selectFund(instrumentId);
 }
 
-function fundDetailId(isin: string) {
+function fundDetailId(instrumentId: string) {
   const safeIsin =
-    Array.from(isin)
+    Array.from(instrumentId)
       .map((character) =>
         /[a-z0-9_-]/i.test(character)
           ? character.toLowerCase()
@@ -928,7 +925,7 @@ async function refreshFundPrices() {
 
 function openFundEditor(position: FundPosition) {
   editingFund.value =
-    instrumentByIdentity(instruments.value, position.isin) ?? null;
+    instrumentById(instruments.value, position.instrument_id) ?? null;
   if (!editingFund.value) return;
   editFundName.value = editingFund.value.name;
   editFundType.value = editingFund.value.asset_class ?? "";
@@ -940,6 +937,12 @@ function openFundEditor(position: FundPosition) {
     nativePrice?.currency ?? editingFund.value.quote_currency;
   fundEditError.value = "";
   fundEditDialog.value?.showModal();
+}
+
+function positionIdentity(position: FundPosition) {
+  return instrumentIdentity(
+    instrumentById(instruments.value, position.instrument_id),
+  );
 }
 
 async function saveFundEditor() {
@@ -1220,91 +1223,100 @@ onMounted(loadDashboard);
               <tbody>
                 <template
                   v-for="position in sortedPositions"
-                  :key="position.isin"
+                  :key="position.instrument_id"
                 >
                   <tr
                     class="fund-position-row"
-                    :class="{ active: selectedFund === position.isin }"
-                    @click="toggleFund(position.isin)"
+                    :class="{ active: selectedFund === position.instrument_id }"
+                    @click="toggleFund(position.instrument_id)"
                   >
                     <td>
                       <button
                         type="button"
                         class="fund-position-disclosure"
-                        :aria-expanded="selectedFund === position.isin"
-                        :aria-controls="fundDetailId(position.isin)"
+                        :aria-expanded="selectedFund === position.instrument_id"
+                        :aria-controls="fundDetailId(position.instrument_id)"
                         :aria-label="
                           t(
-                            selectedFund === position.isin
+                            selectedFund === position.instrument_id
                               ? 'funds.positions.collapseChartAria'
                               : 'funds.positions.expandChartAria',
-                            { asset: position.nombre },
+                            { asset: position.name },
                           )
                         "
-                        @click.stop="toggleFund(position.isin)"
-                        @keydown.enter.prevent.stop="toggleFund(position.isin)"
-                        @keydown.space.prevent.stop="toggleFund(position.isin)"
+                        @click.stop="toggleFund(position.instrument_id)"
+                        @keydown.enter.prevent.stop="
+                          toggleFund(position.instrument_id)
+                        "
+                        @keydown.space.prevent.stop="
+                          toggleFund(position.instrument_id)
+                        "
                       >
                         <span class="fund-position-disclosure-copy">
-                          <strong>{{ position.nombre }}</strong
-                          ><small>{{ position.isin }}</small>
+                          <strong>{{ position.name }}</strong
+                          ><small>{{ positionIdentity(position) }}</small>
                         </span>
                         <span
                           class="fund-position-disclosure-icon"
-                          :class="{ active: selectedFund === position.isin }"
+                          :class="{
+                            active: selectedFund === position.instrument_id,
+                          }"
                           aria-hidden="true"
                           >⌄</span
                         >
                       </button>
                     </td>
                     <td :data-label="t('funds.positions.type')">
-                      {{ position.tipo }}<small>{{ position.subtipo }}</small>
+                      {{ position.asset_class
+                      }}<small>{{ position.subtype }}</small>
                     </td>
                     <td :data-label="t('funds.positions.contributed')">
-                      {{ money(position.total_invertido) }}
+                      {{ money(position.cost) }}
                     </td>
                     <td :data-label="t('funds.positions.shares')">
-                      {{ quantity(position.participaciones, 5) }}
+                      {{ quantity(position.quantity, 5) }}
                     </td>
                     <td :data-label="t('funds.positions.averagePrice')">
-                      {{ money(position.precio_medio) }}
+                      {{ money(position.average_price) }}
                     </td>
                     <td :data-label="t('funds.positions.currentPrice')">
                       {{
-                        position.precio_actual == null
+                        position.current_price == null
                           ? t("funds.positions.pending")
-                          : money(position.precio_actual)
+                          : money(position.current_price)
                       }}
                     </td>
                     <td :data-label="t('funds.positions.value')">
                       {{
-                        position.valor_actual == null
+                        position.current_value == null
                           ? "—"
-                          : money(position.valor_actual)
+                          : money(position.current_value)
                       }}
                     </td>
                     <td
                       :data-label="'P&L'"
                       :class="{
-                        positive: (position.pnl ?? 0) >= 0,
-                        negative: (position.pnl ?? 0) < 0,
+                        positive: (position.unrealized_pnl ?? 0) >= 0,
+                        negative: (position.unrealized_pnl ?? 0) < 0,
                       }"
                     >
                       <strong>{{
-                        position.pnl == null ? "—" : signedMoney(position.pnl)
+                        position.unrealized_pnl == null
+                          ? "—"
+                          : signedMoney(position.unrealized_pnl)
                       }}</strong>
                     </td>
                     <td
                       :data-label="t('funds.positions.return')"
                       :class="{
-                        positive: (position.pnl_pct ?? 0) >= 0,
-                        negative: (position.pnl_pct ?? 0) < 0,
+                        positive: (position.return_percent ?? 0) >= 0,
+                        negative: (position.return_percent ?? 0) < 0,
                       }"
                     >
                       <strong>{{
-                        position.pnl_pct == null
+                        position.return_percent == null
                           ? "—"
-                          : percentage(position.pnl_pct)
+                          : percentage(position.return_percent)
                       }}</strong>
                     </td>
                     <td>
@@ -1323,17 +1335,17 @@ onMounted(loadDashboard);
                     </td>
                   </tr>
                   <tr
-                    v-if="selectedFund === position.isin"
+                    v-if="selectedFund === position.instrument_id"
                     class="fund-inline-detail-row"
                   >
                     <td :colspan="positionSortColumns.length + 1">
                       <div
-                        :id="fundDetailId(position.isin)"
+                        :id="fundDetailId(position.instrument_id)"
                         class="fund-inline-price-panel"
                         role="region"
                         :aria-label="
                           t('funds.positions.priceDetailAria', {
-                            fund: position.nombre,
+                            fund: position.name,
                           })
                         "
                       >
@@ -1401,7 +1413,7 @@ onMounted(loadDashboard);
                           :points="fundChartPoints"
                           :orders="selectedFundOrders"
                           :average-price="
-                            selectedFundPosition?.precio_medio ?? null
+                            selectedFundPosition?.average_price ?? null
                           "
                         />
                         <div v-else class="fund-chart-state">
@@ -1453,10 +1465,10 @@ onMounted(loadDashboard);
                 <option value="all">{{ t("funds.movements.allFunds") }}</option>
                 <option
                   v-for="position in positions"
-                  :key="position.isin"
-                  :value="position.isin"
+                  :key="position.instrument_id"
+                  :value="positionIdentity(position)"
                 >
-                  {{ position.nombre }}
+                  {{ position.name }}
                 </option>
               </select>
               <select
