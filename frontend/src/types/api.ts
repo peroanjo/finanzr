@@ -300,16 +300,6 @@ export interface MarketPrice {
   source: string;
 }
 export type CryptoPrice = MarketPrice;
-/** Internal chart point shape consumed by the existing chart components. */
-export interface MarketCandle {
-  fecha: string;
-  precio: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  moneda_base?: string;
-}
 export interface MarketChartCandle {
   date: string;
   open: number;
