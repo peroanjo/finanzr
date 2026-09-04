@@ -329,12 +329,9 @@ const performancePanelModel = computed<FundPerformancePanelModel>(() => ({
   error: performanceError.value,
   formatters: { money, percentage, signedMoney },
 }));
-const normalizedFundChart = computed(() =>
-  fundChart.value
-    ? adaptFundChart(fundChart.value, { baseCurrency: fundBaseCurrency.value })
-    : null,
+const fundChartPoints = computed(() =>
+  fundChart.value ? adaptFundChart(fundChart.value) : [],
 );
-const fundChartPoints = computed(() => normalizedFundChart.value?.data ?? []);
 const marketValuePalette = [
   "#3ddc97",
   "#5b8def",

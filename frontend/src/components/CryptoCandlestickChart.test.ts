@@ -8,7 +8,6 @@ import CryptoCandlestickChart from "./CryptoCandlestickChart.vue";
 const points: NormalizedCandlestickChartPoint[] = [
   {
     date: "2026-07-09",
-    seriesKind: "candlestick",
     open: 68000,
     high: 70000,
     low: 67000,
@@ -16,7 +15,6 @@ const points: NormalizedCandlestickChartPoint[] = [
   },
   {
     date: "2026-07-10",
-    seriesKind: "candlestick",
     open: 69000,
     high: 72000,
     low: 68500,
@@ -370,7 +368,6 @@ describe("CryptoCandlestickChart", () => {
     const bydPoints: NormalizedCandlestickChartPoint[] = [
       {
         date: "2025-02-03",
-        seriesKind: "candlestick",
         open: 11,
         high: 11.5,
         low: 10.9,
@@ -378,7 +375,6 @@ describe("CryptoCandlestickChart", () => {
       },
       {
         date: "2025-02-04",
-        seriesKind: "candlestick",
         open: 11.2,
         high: 11.6,
         low: 11.1,

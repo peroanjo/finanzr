@@ -23,8 +23,7 @@ import type {
   InvestmentAdapterOptions,
   InvestmentKind,
   NormalizedCandlestickChartPoint,
-  NormalizedCandlestickChartResponse,
-  NormalizedLineChartResponse,
+  NormalizedLineChartPoint,
   NormalizedPerformanceResponse,
   NormalizedPosition,
 } from "./normalized";
@@ -245,7 +244,6 @@ function candlestickPoint(
   if (open === null || high === null || low === null || close === null)
     return null;
   return {
-    seriesKind: "candlestick",
     date: text(item.date),
     open,
     high,
@@ -255,97 +253,43 @@ function candlestickPoint(
 }
 
 function adaptMarketChart(
-  kind: InvestmentKind,
   response: StockChartResponse | CryptoChartResponse,
-  options?: InvestmentAdapterOptions,
-): NormalizedCandlestickChartResponse {
-  const item = record(response);
-  const assetId = text(item.instrument_id);
-  const currencies = currencyDetails(
-    options,
-    item.base_currency,
-    item.currency,
-  );
-  const chart: NormalizedCandlestickChartResponse = {
-    kind,
-    assetId,
-    assetKey: assetKey(kind, assetId),
-    ticker: text(item.ticker) || null,
-    currency: currencies.currency,
-    baseCurrency: currencies.baseCurrency,
-    range: text(item.range),
-    seriesKind: "candlestick",
-    data: Array.isArray(item.data)
-      ? item.data
-          .map((point) => candlestickPoint(point))
-          .filter(
-            (point): point is NormalizedCandlestickChartPoint => point !== null,
-          )
-      : [],
-    metadata: {
-      source: `${kind}-chart`,
-      originalCurrency: currencies.originalCurrency,
-      currencySource: currencies.source,
-    },
-    capabilities: capabilities(
-      kind === "stock" ? STOCK_CAPABILITIES : CRYPTO_CAPABILITIES,
-    ),
-  };
-  return chart;
+): NormalizedCandlestickChartPoint[] {
+  const data = record(response).data;
+  return Array.isArray(data)
+    ? data
+        .map((point) => candlestickPoint(point))
+        .filter(
+          (point): point is NormalizedCandlestickChartPoint => point !== null,
+        )
+    : [];
 }
 
 export function adaptStockChart(
   response: StockChartResponse,
-  options?: InvestmentAdapterOptions,
-): NormalizedCandlestickChartResponse {
-  return adaptMarketChart("stock", response, options);
+): NormalizedCandlestickChartPoint[] {
+  return adaptMarketChart(response);
 }
 
 export function adaptCryptoChart(
   response: CryptoChartResponse,
-  options?: InvestmentAdapterOptions,
-): NormalizedCandlestickChartResponse {
-  return adaptMarketChart("crypto", response, options);
+): NormalizedCandlestickChartPoint[] {
+  return adaptMarketChart(response);
 }
 
 export function adaptFundChart(
   response: FundChartResponse,
-  options?: InvestmentAdapterOptions,
-): NormalizedLineChartResponse {
-  const item = record(response);
-  const assetId = text(item.instrument_id);
-  const currencies = currencyDetails(
-    options,
-    item.base_currency,
-    item.currency,
-  );
-  const chart: NormalizedLineChartResponse = {
-    kind: "fund",
-    assetId,
-    assetKey: assetKey("fund", assetId),
-    ticker: text(item.ticker) || null,
-    currency: currencies.currency,
-    baseCurrency: currencies.baseCurrency,
-    range: text(item.range),
-    seriesKind: "line",
-    data: Array.isArray(item.data)
-      ? item.data.map((point) => {
-          const value = record(point);
-          return {
-            seriesKind: "line" as const,
-            date: text(value.date),
-            price: number(value.close),
-          };
-        })
-      : [],
-    metadata: {
-      source: "fund-chart",
-      originalCurrency: currencies.originalCurrency,
-      currencySource: currencies.source,
-    },
-    capabilities: capabilities(FUND_CAPABILITIES),
-  };
-  return chart;
+): NormalizedLineChartPoint[] {
+  const data = record(response).data;
+  return Array.isArray(data)
+    ? data.map((point) => {
+        const value = record(point);
+        return {
+          date: text(value.date),
+          price: number(value.close),
+        };
+      })
+    : [];
 }
 
 export function adaptFundPerformance(
