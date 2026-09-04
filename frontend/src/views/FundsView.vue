@@ -38,11 +38,7 @@ import type {
   ImporterCatalogItem,
   PriceFetchResponse,
 } from "../types/api";
-import {
-  adaptFundAccount,
-  adaptFundChart,
-  adaptFundPerformance,
-} from "../domain/investments";
+import { adaptFundChart, adaptFundPerformance } from "../domain/investments";
 import type { NormalizedPerformancePoint } from "../domain/investments";
 import {
   useFundsPortfolio,
@@ -207,7 +203,6 @@ const selectedAccountLabel = computed(() =>
     ? t("funds.accounts.all")
     : (selectedAccountRow.value?.name ?? t("funds.accounts.fallback")),
 );
-const normalizedAccounts = computed(() => accounts.value.map(adaptFundAccount));
 const accountBarLabels = computed<InvestmentAccountBarLabels>(() => ({
   portfolioView: t("funds.accounts.portfolioView"),
   accountAria: t("funds.accounts.aria"),
@@ -1072,7 +1067,7 @@ onMounted(loadDashboard);
 
     <template v-else>
       <InvestmentAccountBar
-        :accounts="normalizedAccounts"
+        :accounts="accounts"
         :selected-account="selectedAccount"
         :selected-account-label="selectedAccountLabel"
         :labels="accountBarLabels"

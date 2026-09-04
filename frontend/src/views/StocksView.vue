@@ -28,11 +28,7 @@ import type {
   AssetEditorHandle,
   EditableAsset,
 } from "../components/assetEditor";
-import {
-  adaptStockAccount,
-  adaptStockChart,
-  adaptStockPerformance,
-} from "../domain/investments";
+import { adaptStockChart, adaptStockPerformance } from "../domain/investments";
 import type { NormalizedPerformancePoint } from "../domain/investments";
 import {
   useStocksPortfolio,
@@ -193,9 +189,6 @@ const isTradeRepublic = computed(
     selectedAccountRow.value?.platform
       .toLowerCase()
       .includes("trade republic") ?? false,
-);
-const normalizedAccounts = computed(() =>
-  accounts.value.map(adaptStockAccount),
 );
 const normalizedPerformance = computed(() =>
   performance.value
@@ -916,7 +909,7 @@ onMounted(loadDashboard);
     </div>
     <template v-else>
       <InvestmentAccountBar
-        :accounts="normalizedAccounts"
+        :accounts="accounts"
         :selected-account="selectedAccount"
         :selected-account-label="selectedAccountLabel"
         :labels="accountBarLabels"

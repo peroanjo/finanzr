@@ -33,7 +33,6 @@ import type {
   EditableAsset,
 } from "../components/assetEditor";
 import {
-  adaptCryptoAccount,
   adaptCryptoChart,
   adaptCryptoPerformance,
 } from "../domain/investments";
@@ -291,9 +290,6 @@ const movementRangeValid = computed(() =>
   ),
 );
 
-const normalizedAccounts = computed(() =>
-  accounts.value.map(adaptCryptoAccount),
-);
 const normalizedPerformance = computed(() =>
   performance.value
     ? adaptCryptoPerformance(performance.value, {
@@ -1130,7 +1126,7 @@ onMounted(loadDashboard);
 
     <template v-else>
       <InvestmentAccountBar
-        :accounts="normalizedAccounts"
+        :accounts="accounts"
         :selected-account="selectedAccount"
         :selected-account-label="selectedAccountLabel"
         :labels="accountBarLabels"

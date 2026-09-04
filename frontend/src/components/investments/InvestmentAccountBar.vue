@@ -2,7 +2,6 @@
 import { ref } from "vue";
 import ImportStatementDialog from "../ImportStatementDialog.vue";
 import type { ImportStatementDialogHandle } from "../ImportStatementDialog.vue";
-import type { NormalizedAccount } from "../../domain/investments";
 
 export interface InvestmentAccountBarLabels {
   portfolioView: string;
@@ -25,7 +24,7 @@ export interface InvestmentImportConfig {
 }
 
 defineProps<{
-  accounts: NormalizedAccount[];
+  accounts: Array<{ id: string; name: string }>;
   selectedAccount: string;
   selectedAccountLabel: string;
   labels: InvestmentAccountBarLabels;
