@@ -13,8 +13,9 @@ import {
 import type { ChartConfiguration, ChartDataset } from "chart.js";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import type { NormalizedLineChartPoint } from "../domain/investments";
 import { reportingCurrency } from "../i18n";
-import type { FundOrder, FundPricePoint } from "../types/api";
+import type { FundOrder } from "../types/api";
 import {
   groupFundOperationPoints,
   visibleFundOperationPoints,
@@ -33,7 +34,7 @@ Chart.register(
 );
 
 const props = defineProps<{
-  points: FundPricePoint[];
+  points: NormalizedLineChartPoint[];
   orders: FundOrder[];
   averagePrice: number | null;
 }>();
@@ -60,7 +61,7 @@ const operationMarkers = computed(() =>
   groupFundOperationPoints(
     visibleFundOperationPoints(
       props.orders,
-      props.points.map((point) => point.fecha),
+      props.points.map((point) => point.date),
     ),
   ),
 );
@@ -201,9 +202,7 @@ function fallbackMarkerPosition(marker: FundOperationMarker) {
   const width = chartDimensions.value.width || canvas.value?.clientWidth || 640;
   const height =
     chartDimensions.value.height || canvas.value?.clientHeight || 325;
-  const pointIndex = props.points.findIndex(
-    (point) => point.fecha === marker.x,
-  );
+  const pointIndex = props.points.findIndex((point) => point.date === marker.x);
   const x =
     props.points.length > 1
       ? 30 +
@@ -211,7 +210,7 @@ function fallbackMarkerPosition(marker: FundOperationMarker) {
           Math.max(width - 70, 100)
       : width / 2;
   const values = [
-    ...props.points.map((point) => point.precio),
+    ...props.points.map((point) => point.price),
     ...(props.averagePrice != null ? [props.averagePrice] : []),
     ...operationMarkers.value.map((item) => item.y),
   ];
@@ -502,7 +501,7 @@ function render() {
   const grid =
     styles.getPropertyValue("--fz-chart-grid").trim() ||
     "rgba(143,164,154,.15)";
-  const labels = props.points.map((point) => point.fecha);
+  const labels = props.points.map((point) => point.date);
   const priceFormatter = new Intl.NumberFormat(locale.value, {
     style: "currency",
     currency: reportingCurrency.value,
@@ -535,7 +534,7 @@ function render() {
   const datasets: FundChartDataset[] = [
     {
       label: t("shared.fundPrice.price"),
-      data: props.points.map((point) => point.precio),
+      data: props.points.map((point) => point.price),
       borderColor: accent,
       backgroundColor: `${accent}18`,
       borderWidth: 2.4,

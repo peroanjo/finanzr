@@ -346,13 +346,7 @@ const normalizedFundChart = computed(() =>
     ? adaptFundChart(fundChart.value, { baseCurrency: fundBaseCurrency.value })
     : null,
 );
-const fundChartPoints = computed(
-  () =>
-    normalizedFundChart.value?.data.map((item) => ({
-      fecha: item.date,
-      precio: item.price,
-    })) ?? [],
-);
+const fundChartPoints = computed(() => normalizedFundChart.value?.data ?? []);
 const marketValuePalette = [
   "#3ddc97",
   "#5b8def",

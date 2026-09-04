@@ -1,4 +1,5 @@
 import { mount } from "@vue/test-utils";
+import type { NormalizedLineChartPoint } from "../domain/investments";
 import { applyLocale, applyReportingCurrency } from "../i18n";
 import FundPriceChart from "./FundPriceChart.vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -144,9 +145,9 @@ function order(id: string, date: string): FundOrder {
   };
 }
 
-const points = [
-  { fecha: "2026-07-10", precio: 98 },
-  { fecha: "2026-07-11", precio: 101 },
+const points: NormalizedLineChartPoint[] = [
+  { seriesKind: "line", date: "2026-07-10", price: 98 },
+  { seriesKind: "line", date: "2026-07-11", price: 101 },
 ];
 
 describe("visibleFundOperationPoints", () => {
