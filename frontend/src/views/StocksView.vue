@@ -236,12 +236,9 @@ const chartRangeLabel = computed(() =>
       : (ranges.value.find((item) => item.key === chartRange.value)?.label ??
         t("stocks.ranges.period")),
 );
-const normalizedChart = computed(() =>
-  chart.value
-    ? adaptStockChart(chart.value, { baseCurrency: baseCurrency.value })
-    : null,
+const chartPoints = computed(() =>
+  chart.value ? adaptStockChart(chart.value) : [],
 );
-const chartPoints = computed(() => normalizedChart.value?.data ?? []);
 const operationAssets = computed(() =>
   instruments.value.map((instrument) => ({
     id: instrumentIdentity(instrument),

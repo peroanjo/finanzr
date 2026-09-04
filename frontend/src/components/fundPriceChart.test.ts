@@ -146,8 +146,8 @@ function order(id: string, date: string): FundOrder {
 }
 
 const points: NormalizedLineChartPoint[] = [
-  { seriesKind: "line", date: "2026-07-10", price: 98 },
-  { seriesKind: "line", date: "2026-07-11", price: 101 },
+  { date: "2026-07-10", price: 98 },
+  { date: "2026-07-11", price: 101 },
 ];
 
 describe("visibleFundOperationPoints", () => {

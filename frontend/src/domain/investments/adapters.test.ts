@@ -181,7 +181,7 @@ describe("normalized investment adapters", () => {
     });
   });
 
-  it("normalizes fund performance and chart responses, including empty/null data", () => {
+  it("normalizes fund performance and chart points, including empty/null data", () => {
     const performance = adaptFundPerformance(
       {
         range: "1y",
@@ -207,25 +207,22 @@ describe("normalized investment adapters", () => {
       range: "1y",
       data: [{ date: "2026-01-01", close: 42 }],
     } as FundChartResponse);
-    const explicitChartBase = adaptStockChart(
-      {
-        instrument_id: "00000000-0000-0000-0000-000000000102",
-        ticker: "CMP",
-        currency: "GBP",
-        base_currency: "USD",
-        range: "1y",
-        data: [
-          {
-            date: "2026-01-01",
-            open: 48,
-            high: 52,
-            low: 47,
-            close: 50,
-          },
-        ],
-      } as StockChartResponse,
-      { baseCurrency: "USD" },
-    );
+    const explicitChartBase = adaptStockChart({
+      instrument_id: "00000000-0000-0000-0000-000000000102",
+      ticker: "CMP",
+      currency: "GBP",
+      base_currency: "USD",
+      range: "1y",
+      data: [
+        {
+          date: "2026-01-01",
+          open: 48,
+          high: 52,
+          low: 47,
+          close: 50,
+        },
+      ],
+    } as StockChartResponse);
     const emptyChart = adaptStockChart({
       instrument_id: "00000000-0000-0000-0000-000000000102",
       ticker: "CMP",
@@ -249,33 +246,21 @@ describe("normalized investment adapters", () => {
       pnl: 0,
       pnlPercent: 0,
     });
-    expect(fundChart).toMatchObject({
-      kind: "fund",
-      assetId: "00000000-0000-0000-0000-000000000101",
-      assetKey: "fund:00000000-0000-0000-0000-000000000101",
-      currency: "USD",
-      baseCurrency: "USD",
-      seriesKind: "line",
-    });
-    expect(explicitChartBase).toMatchObject({
-      currency: "USD",
-      baseCurrency: "USD",
-      seriesKind: "candlestick",
-      metadata: { originalCurrency: "GBP" },
-    });
-    expect(explicitChartBase.data[0]).toEqual({
-      seriesKind: "candlestick",
-      date: "2026-01-01",
-      open: 48,
-      high: 52,
-      low: 47,
-      close: 50,
-    });
-    expect(fundChart.data[0]).toMatchObject({
-      seriesKind: "line",
-      date: "2026-01-01",
-      price: 42,
-    });
+    expect(fundChart).toEqual([
+      {
+        date: "2026-01-01",
+        price: 42,
+      },
+    ]);
+    expect(explicitChartBase).toEqual([
+      {
+        date: "2026-01-01",
+        open: 48,
+        high: 52,
+        low: 47,
+        close: 50,
+      },
+    ]);
     expect(
       adaptFundPerformance({
         range: "1y",
@@ -284,12 +269,7 @@ describe("normalized investment adapters", () => {
         data: [],
       } as FundPerformanceResponse),
     ).toMatchObject({ currency: "UNSPECIFIED", baseCurrency: null });
-    expect(emptyChart).toMatchObject({
-      kind: "stock",
-      assetId: "00000000-0000-0000-0000-000000000102",
-      currency: "USD",
-      data: [],
-    });
+    expect(emptyChart).toEqual([]);
   });
 
   it("normalizes stock performance with stock capabilities and reporting currency", () => {
@@ -380,22 +360,15 @@ describe("normalized investment adapters", () => {
       ],
     } as CryptoChartResponse);
 
-    expect(chart).toMatchObject({
-      kind: "crypto",
-      assetId: "00000000-0000-0000-0000-000000000201",
-      assetKey: "crypto:00000000-0000-0000-0000-000000000201",
-      ticker: "BTC-EUR",
-      currency: "EUR",
-      baseCurrency: "EUR",
-    });
-    expect(chart.data[0]).toEqual({
-      seriesKind: "candlestick",
-      date: "2026-01-01",
-      open: 50000,
-      high: 52000,
-      low: 49000,
-      close: 51000,
-    });
+    expect(chart).toEqual([
+      {
+        date: "2026-01-01",
+        open: 50000,
+        high: 52000,
+        low: 49000,
+        close: 51000,
+      },
+    ]);
   });
 
   it("filters market candles with missing or non-finite OHLC fields", () => {
@@ -436,9 +409,8 @@ describe("normalized investment adapters", () => {
       ],
     } as StockChartResponse);
 
-    expect(chart.data).toEqual([
+    expect(chart).toEqual([
       {
-        seriesKind: "candlestick",
         date: "2026-01-01",
         open: 48,
         high: 52,

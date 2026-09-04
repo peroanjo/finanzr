@@ -59,44 +59,14 @@ export interface NormalizedPerformanceResponse {
 }
 
 export interface NormalizedLineChartPoint {
-  seriesKind: "line";
   date: string;
   price: number;
 }
 
 export interface NormalizedCandlestickChartPoint {
-  seriesKind: "candlestick";
   date: string;
   open: number;
   high: number;
   low: number;
   close: number;
 }
-
-export type NormalizedChartPoint =
-  NormalizedLineChartPoint | NormalizedCandlestickChartPoint;
-
-interface NormalizedChartResponseBase {
-  kind: InvestmentKind;
-  assetId: string;
-  assetKey: string;
-  ticker: string | null;
-  currency: string;
-  baseCurrency: string | null;
-  range: string;
-  metadata: InvestmentMetadata;
-  capabilities: InvestmentCapabilities;
-}
-
-export interface NormalizedLineChartResponse extends NormalizedChartResponseBase {
-  seriesKind: "line";
-  data: NormalizedLineChartPoint[];
-}
-
-export interface NormalizedCandlestickChartResponse extends NormalizedChartResponseBase {
-  seriesKind: "candlestick";
-  data: NormalizedCandlestickChartPoint[];
-}
-
-export type NormalizedChartResponse =
-  NormalizedLineChartResponse | NormalizedCandlestickChartResponse;

@@ -373,12 +373,9 @@ const chartRangeLabel = computed(() => {
     t("crypto.ranges.period")
   );
 });
-const normalizedChart = computed(() =>
-  chart.value
-    ? adaptCryptoChart(chart.value, { baseCurrency: reportingCurrency.value })
-    : null,
+const chartPoints = computed(() =>
+  chart.value ? adaptCryptoChart(chart.value) : [],
 );
-const chartPoints = computed(() => normalizedChart.value?.data ?? []);
 const allocationItems = computed<InvestmentAllocationItem[]>(() => {
   const valued = openPositions.value.flatMap((position) =>
     typeof position.current_value === "number" && position.current_value > 0
