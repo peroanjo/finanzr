@@ -70,13 +70,6 @@ export function instrumentCurrency(
   return instrument?.quote_currency ?? fallback;
 }
 
-export function instrumentByIdentity<T extends NativeInstrument>(
-  instruments: T[],
-  identity: string,
-): T | undefined {
-  return instruments.find((item) => instrumentIdentity(item) === identity);
-}
-
 export function instrumentById<T extends NativeInstrument>(
   instruments: T[],
   id: string,

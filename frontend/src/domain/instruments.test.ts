@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  instrumentByIdentity,
   instrumentCurrency,
   instrumentIdentity,
   instrumentName,
@@ -29,7 +28,6 @@ describe("native instrument helpers", () => {
     expect(instrumentTicker(stock)).toBe("AAPL.MC");
     expect(instrumentName(stock)).toBe("Synthetic Apple");
     expect(instrumentCurrency(stock)).toBe("USD");
-    expect(instrumentByIdentity([stock], "US0000000001")).toBe(stock);
   });
 
   it("prefers a default venue when no provider identifier is primary", () => {
