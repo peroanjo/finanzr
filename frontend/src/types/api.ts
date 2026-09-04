@@ -413,12 +413,6 @@ export interface PriceFetchResult {
 export interface PriceFetchResponse {
   results: PriceFetchResult[];
 }
-export interface FundPricePoint {
-  fecha: string;
-  precio: number;
-  precio_orig?: number;
-  precio_base?: number;
-}
 export interface FundChartPoint {
   date: string;
   close: number;
