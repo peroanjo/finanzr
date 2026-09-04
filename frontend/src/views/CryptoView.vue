@@ -49,7 +49,6 @@ import type {
   CryptoPerformanceResponse,
   PriceFetchResponse,
   ImporterCatalogItem,
-  MarketCandle,
 } from "../types/api";
 import {
   instrumentById,
@@ -392,18 +391,7 @@ const normalizedChart = computed(() =>
     ? adaptCryptoChart(chart.value, { baseCurrency: reportingCurrency.value })
     : null,
 );
-const chartPoints = computed<MarketCandle[]>(
-  () =>
-    normalizedChart.value?.data.map((point) => ({
-      fecha: point.date,
-      precio: point.close,
-      open: point.open,
-      high: point.high,
-      low: point.low,
-      close: point.close,
-      moneda_base: reportingCurrency.value,
-    })) ?? [],
-);
+const chartPoints = computed(() => normalizedChart.value?.data ?? []);
 const allocationItems = computed<InvestmentAllocationItem[]>(() => {
   const valued = openPositions.value.flatMap((position) =>
     typeof position.current_value === "number" && position.current_value > 0

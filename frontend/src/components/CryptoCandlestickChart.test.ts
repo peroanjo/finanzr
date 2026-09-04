@@ -1,21 +1,22 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NormalizedCandlestickChartPoint } from "../domain/investments";
 import { applyLocale, applyReportingCurrency } from "../i18n";
 import type { CryptoOrder, StockOrder } from "../types/api";
 import CryptoCandlestickChart from "./CryptoCandlestickChart.vue";
 
-const points = [
+const points: NormalizedCandlestickChartPoint[] = [
   {
-    fecha: "2026-07-09",
-    precio: 69000,
+    date: "2026-07-09",
+    seriesKind: "candlestick",
     open: 68000,
     high: 70000,
     low: 67000,
     close: 69000,
   },
   {
-    fecha: "2026-07-10",
-    precio: 71000,
+    date: "2026-07-10",
+    seriesKind: "candlestick",
     open: 69000,
     high: 72000,
     low: 68500,
@@ -366,18 +367,18 @@ describe("CryptoCandlestickChart", () => {
     } as StockOrder & {
       chartAdjustment: { id: string; label: string };
     };
-    const bydPoints = [
+    const bydPoints: NormalizedCandlestickChartPoint[] = [
       {
-        fecha: "2025-02-03",
-        precio: 11.2,
+        date: "2025-02-03",
+        seriesKind: "candlestick",
         open: 11,
         high: 11.5,
         low: 10.9,
         close: 11.2,
       },
       {
-        fecha: "2025-02-04",
-        precio: 11.4,
+        date: "2025-02-04",
+        seriesKind: "candlestick",
         open: 11.2,
         high: 11.6,
         low: 11.1,

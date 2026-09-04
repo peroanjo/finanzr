@@ -2,12 +2,12 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ChartOperation } from "../domain/chartOperationFixes";
+import type { NormalizedCandlestickChartPoint } from "../domain/investments";
 import { reportingCurrency } from "../i18n";
-import type { MarketCandle } from "../types/api";
 
 const props = withDefaults(
   defineProps<{
-    points: MarketCandle[];
+    points: NormalizedCandlestickChartPoint[];
     operations: ChartOperation[];
     averagePrice: number | null;
     /** Trade pins are kept explicit so consuming views can document their visual contract. */
@@ -107,7 +107,7 @@ const percentage = computed(
 );
 
 const timestamps = computed(() =>
-  props.points.map((point) => Date.parse(`${point.fecha}T00:00:00Z`)),
+  props.points.map((point) => Date.parse(`${point.date}T00:00:00Z`)),
 );
 const domain = computed(() => {
   const values = props.points.flatMap((point) => [point.low, point.high]);
@@ -230,15 +230,15 @@ function markerPosition(
 }
 const hoveredCandle = computed(
   () =>
-    candles.value.find((candle) => candle.fecha === hoveredDate.value) ?? null,
+    candles.value.find((candle) => candle.date === hoveredDate.value) ?? null,
 );
 const selectedRange = computed(() => {
   if (!dragStartDate.value || !dragEndDate.value) return null;
   const startCandidate = candles.value.find(
-    (candle) => candle.fecha === dragStartDate.value,
+    (candle) => candle.date === dragStartDate.value,
   );
   const endCandidate = candles.value.find(
-    (candle) => candle.fecha === dragEndDate.value,
+    (candle) => candle.date === dragEndDate.value,
   );
   if (!startCandidate || !endCandidate) return null;
   const [start, end] =
@@ -263,7 +263,7 @@ const selectedRange = computed(() => {
     direction,
     label,
     formattedChange,
-    dates: `${fullDate.value.format(new Date(`${start.fecha}T00:00:00Z`))} → ${fullDate.value.format(new Date(`${end.fecha}T00:00:00Z`))}`,
+    dates: `${fullDate.value.format(new Date(`${start.date}T00:00:00Z`))} → ${fullDate.value.format(new Date(`${end.date}T00:00:00Z`))}`,
     x: start.x,
     width: Math.max(end.x - start.x, candleWidth.value),
   };
@@ -305,10 +305,10 @@ const xTicks = computed(() => {
     );
     const point = props.points[pointIndex];
     return {
-      fecha: point.fecha,
+      date: point.date,
       x: xFor(timestamps.value[pointIndex]),
       label: shortDate.value
-        .format(new Date(`${point.fecha}T00:00:00Z`))
+        .format(new Date(`${point.date}T00:00:00Z`))
         .replace(".", ""),
     };
   });
@@ -480,7 +480,7 @@ function handlePointerDown(event: PointerEvent) {
   if (!nearest) return;
   const svg = event.currentTarget as SVGSVGElement;
   svg.setPointerCapture?.(event.pointerId);
-  pointerStartDate.value = nearest.fecha;
+  pointerStartDate.value = nearest.date;
   hasDragged.value = false;
   hoveredDate.value = null;
   isDragging.value = true;
@@ -499,15 +499,15 @@ function handlePointerMove(event: PointerEvent) {
   const nearest = nearestCandle(event);
   if (isDragging.value) {
     if (nearest && pointerStartDate.value) {
-      if (nearest.fecha !== pointerStartDate.value) hasDragged.value = true;
+      if (nearest.date !== pointerStartDate.value) hasDragged.value = true;
       if (hasDragged.value) {
         dragStartDate.value = pointerStartDate.value;
-        dragEndDate.value = nearest.fecha;
+        dragEndDate.value = nearest.date;
       }
     }
     return;
   }
-  hoveredDate.value = nearest?.fecha ?? null;
+  hoveredDate.value = nearest?.date ?? null;
 }
 
 function finishSelection(event: PointerEvent) {
@@ -515,7 +515,7 @@ function finishSelection(event: PointerEvent) {
   const nearest = nearestCandle(event);
   if (hasDragged.value && nearest && pointerStartDate.value) {
     dragStartDate.value = pointerStartDate.value;
-    dragEndDate.value = nearest.fecha;
+    dragEndDate.value = nearest.date;
   } else {
     dragStartDate.value = null;
     dragEndDate.value = null;
@@ -526,7 +526,7 @@ function finishSelection(event: PointerEvent) {
   isDragging.value = false;
   pointerStartDate.value = null;
   hasDragged.value = false;
-  hoveredDate.value = nearest?.fecha ?? null;
+  hoveredDate.value = nearest?.date ?? null;
 }
 
 function handlePointerLeave(event: PointerEvent) {
@@ -578,7 +578,7 @@ function handlePointerLeave(event: PointerEvent) {
         </g>
 
         <g class="chart-dates">
-          <template v-for="tick in xTicks" :key="tick.fecha">
+          <template v-for="tick in xTicks" :key="tick.date">
             <line
               :x1="tick.x"
               :x2="tick.x"
@@ -617,7 +617,7 @@ function handlePointerLeave(event: PointerEvent) {
         <g class="candles">
           <g
             v-for="candle in candles"
-            :key="candle.fecha"
+            :key="candle.date"
             :class="{ rising: candle.rising, falling: !candle.rising }"
           >
             <line
@@ -911,7 +911,7 @@ function handlePointerLeave(event: PointerEvent) {
             />
             <text class="tooltip-date" :x="tooltip.x + 14" :y="tooltip.y + 21">
               {{
-                longDate.format(new Date(`${tooltip.candle.fecha}T00:00:00Z`))
+                longDate.format(new Date(`${tooltip.candle.date}T00:00:00Z`))
               }}
             </text>
             <text class="tooltip-value" :x="tooltip.x + 14" :y="tooltip.y + 43">

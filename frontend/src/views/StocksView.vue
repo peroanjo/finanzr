@@ -41,7 +41,6 @@ import {
 import { reportingCurrency } from "../i18n";
 import type {
   ImporterCatalogItem,
-  MarketCandle,
   StockAccount,
   StockChartResponse,
   StockInstrument,
@@ -258,18 +257,7 @@ const normalizedChart = computed(() =>
     ? adaptStockChart(chart.value, { baseCurrency: baseCurrency.value })
     : null,
 );
-const chartPoints = computed<MarketCandle[]>(
-  () =>
-    normalizedChart.value?.data.map((point) => ({
-      fecha: point.date,
-      precio: point.close,
-      open: point.open,
-      high: point.high,
-      low: point.low,
-      close: point.close,
-      moneda_base: baseCurrency.value,
-    })) ?? [],
-);
+const chartPoints = computed(() => normalizedChart.value?.data ?? []);
 const operationAssets = computed(() =>
   instruments.value.map((instrument) => ({
     id: instrumentIdentity(instrument),
