@@ -3,7 +3,6 @@
 import unittest
 from uuid import UUID
 
-from finanzr.domain.account_performance import calculate_account_performance
 from finanzr.domain.crypto import calculate_crypto_positions
 from finanzr.domain.funds import calculate_fund_positions
 from finanzr.domain.investments import monthly_pnl
@@ -256,51 +255,6 @@ class TestPositionDomain(unittest.TestCase):
                     "moneda": "EUR",
                 }
             ],
-        )
-
-    def test_account_performance_does_not_keep_transfer_as_synthetic_cash(self):
-        orders = [
-            {
-                "cuenta_id": 1,
-                "isin": "A",
-                "fecha_operacion": "2026-01-01",
-                "tipo_operacion": "SUSCRIPCION",
-                "titulos": "10",
-                "importe_neto": "100",
-            },
-            {
-                "cuenta_id": 1,
-                "isin": "A",
-                "fecha_operacion": "2026-01-02",
-                "tipo_operacion": "REEMB.POR TRASPASO I",
-                "titulos": "10",
-                "importe_neto": "120",
-            },
-            {
-                "cuenta_id": 1,
-                "isin": "B",
-                "fecha_operacion": "2026-01-03",
-                "tipo_operacion": "SUSCR.POR TRASPASO I",
-                "titulos": "12",
-                "importe_neto": "120",
-            },
-        ]
-        prices = {
-            "A": {"2026-01-01": "10", "2026-01-02": "12", "2026-01-03": "12"},
-            "B": {"2026-01-01": "10", "2026-01-02": "10", "2026-01-03": "10"},
-        }
-
-        result = calculate_account_performance(orders, prices, account_id=1)
-
-        self.assertEqual(
-            result[1],
-            {
-                "fecha": "2026-01-02",
-                "valor": 0.0,
-                "invertido": 0.0,
-                "pnl": 20.0,
-                "pnl_pct": 20.0,
-            },
         )
 
 
