@@ -4,31 +4,25 @@ import {
   adaptCryptoAccount,
   adaptCryptoChart,
   adaptCryptoPerformance,
-  adaptCryptoMovement,
   adaptCryptoPosition,
   adaptFundAccount,
   adaptFundChart,
-  adaptFundMovement,
   adaptFundPerformance,
   adaptFundPosition,
   adaptStockAccount,
   adaptStockChart,
-  adaptStockMovement,
   adaptStockPosition,
   adaptStockPerformance,
 } from "./adapters";
 import type {
   CryptoChartResponse,
-  CryptoOrder,
   CryptoPosition,
   CryptoPerformanceResponse,
   FundChartResponse,
-  FundOrder,
   FundPerformanceResponse,
   FundPosition,
   StockChartResponse,
   StockInstrument,
-  StockOrder,
   StockPerformanceResponse,
   StockPosition,
   CryptoInstrument,
@@ -250,206 +244,6 @@ describe("normalized investment adapters", () => {
       unrealizedPnl: null,
       realizedPnl: 40,
       currency: "EUR",
-    });
-  });
-
-  it("maps fund movements to base amounts while retaining original currency metadata", () => {
-    const fundOrder: FundOrder = {
-      id: "fund-1",
-      trade_date: "2026-01-02",
-      settlement_date: "2026-01-03",
-      operation_type: "buy",
-      cash_flow_type: "contribution",
-      isin: "LU000",
-      asset_name: "Global fund",
-      quantity: 2,
-      unit_price: 50,
-      net_amount: 100,
-      fee: 0,
-      account_id: "00000000-0000-0000-0000-000000000001",
-      currency: "USD",
-      base_currency: "EUR",
-      base_unit_price: 46,
-      base_net_amount: 92,
-      base_fee: 0,
-      fx_rate_to_base: 0.92,
-      fx_rate_date: "2026-01-02",
-      fx_source: "test",
-      market: "",
-      account_name: "Broker",
-      platform: "Broker",
-      provider_operation_type: "SUSCRIPCION",
-    };
-    const movement = adaptFundMovement(fundOrder);
-
-    expect(movement).toMatchObject({
-      kind: "fund",
-      id: "fund-1",
-      assetId: "LU000",
-      assetKey: "fund:LU000",
-      date: "2026-01-02",
-      quantity: 2,
-      price: 46,
-      cost: 92,
-      amount: 92,
-      fee: null,
-      currency: "EUR",
-      baseCurrency: "EUR",
-      capabilities: { fees: false },
-    });
-    expect(movement.metadata).toMatchObject({
-      originalCurrency: "USD",
-      operationType: "buy",
-      accountId: "00000000-0000-0000-0000-000000000001",
-      accountName: "Broker",
-      settlementDate: "2026-01-03",
-    });
-
-    const nonEurBase = adaptFundMovement({
-      ...fundOrder,
-      currency: "GBP",
-      base_currency: "USD",
-      net_amount: 100,
-      unit_price: 50,
-      base_net_amount: 80,
-      base_unit_price: 40,
-    });
-    expect(nonEurBase).toMatchObject({ currency: "USD", baseCurrency: "USD" });
-    expect(nonEurBase.metadata).toMatchObject({ originalCurrency: "GBP" });
-
-    const dtoBaseWins = adaptFundMovement(
-      {
-        id: "fund-conflict",
-        trade_date: "2026-01-02",
-        settlement_date: "2026-01-03",
-        operation_type: "buy",
-        cash_flow_type: "contribution",
-        isin: "LU000",
-        asset_name: "Global fund",
-        quantity: 2,
-        unit_price: 50,
-        net_amount: 100,
-        fee: 0,
-        account_id: "00000000-0000-0000-0000-000000000001",
-        currency: "GBP",
-        base_currency: "USD",
-        base_unit_price: 40,
-        base_net_amount: 80,
-        base_fee: 0,
-        fx_rate_to_base: 0.8,
-        fx_rate_date: "2026-01-02",
-        fx_source: "test",
-        market: "",
-        account_name: "Broker",
-        platform: "Broker",
-        provider_operation_type: "SUSCRIPCION",
-      },
-      { baseCurrency: "EUR" },
-    );
-    expect(dtoBaseWins).toMatchObject({ currency: "USD", baseCurrency: "USD" });
-    expect(dtoBaseWins.metadata).toMatchObject({
-      originalCurrency: "GBP",
-      currencySource: "dto-base",
-    });
-
-    const explicitBaseWithoutDtoBase = adaptFundMovement(
-      {
-        ...fundOrder,
-        currency: "GBP",
-        base_currency: "",
-        base_unit_price: null,
-        base_net_amount: null,
-        base_fee: null,
-      },
-      { baseCurrency: "USD" },
-    );
-    expect(explicitBaseWithoutDtoBase).toMatchObject({
-      currency: "USD",
-      baseCurrency: "USD",
-    });
-    expect(explicitBaseWithoutDtoBase.metadata).toMatchObject({
-      originalCurrency: "GBP",
-    });
-  });
-
-  it("keeps stock fees, saveback, and split capability metadata", () => {
-    const movement = adaptStockMovement({
-      id: "stock-1",
-      trade_date: "2026-01-02",
-      quantity: 3,
-      net_amount: 300,
-      fee: 2,
-      account_id: "00000000-0000-0000-0000-000000000001",
-      account_name: "Broker",
-      platform: "Broker",
-      operation_type: "buy",
-      cash_flow_type: "none",
-      isin: "US000",
-      asset_name: "Company",
-      unit_price: 100,
-      is_saveback: true,
-      currency: "USD",
-      base_currency: "EUR",
-      base_unit_price: 92,
-      base_net_amount: 276,
-      base_fee: 1.5,
-      fx_rate_to_base: 0.92,
-      fx_rate_date: "2026-01-02",
-      fx_source: "test",
-      market: "",
-    } as StockOrder);
-
-    expect(movement).toMatchObject({
-      kind: "stock",
-      price: 92,
-      cost: 276,
-      amount: 276,
-      fee: 1.5,
-      currency: "EUR",
-      capabilities: { fees: true, saveback: true, splits: true },
-    });
-    expect(movement.metadata).toMatchObject({
-      originalCurrency: "USD",
-      saveback: true,
-      splitAdjusted: false,
-    });
-  });
-
-  it("maps crypto fees and leaves saveback and split support disabled", () => {
-    const movement = adaptCryptoMovement({
-      id: "crypto-1",
-      trade_date: "2026-01-02",
-      quantity: 0.01,
-      net_amount: 500,
-      fee: 1.2,
-      account_id: "00000000-0000-0000-0000-000000000001",
-      account_name: "Broker",
-      platform: "Broker",
-      operation_type: "buy",
-      cash_flow_type: "none",
-      symbol: "BTC",
-      asset_name: "Bitcoin",
-      unit_price: 50000,
-      currency: "EUR",
-      base_currency: "EUR",
-      base_unit_price: 50000,
-      base_net_amount: 500,
-      base_fee: 1.2,
-      fx_rate_to_base: 1,
-      fx_rate_date: "2026-01-02",
-      fx_source: "identity",
-      market: "",
-    } as CryptoOrder);
-
-    expect(movement).toMatchObject({
-      kind: "crypto",
-      assetId: "BTC",
-      price: 50000,
-      cost: 500,
-      amount: 500,
-      fee: 1.2,
-      currency: "EUR",
-      capabilities: { fees: true, saveback: false, splits: false },
     });
   });
 

@@ -2,19 +2,16 @@ import type {
   CryptoAccount,
   CryptoChartResponse,
   CryptoInstrument,
-  CryptoOrder,
   CryptoPerformanceResponse,
   CryptoPosition,
   FundAccount,
   FundChartResponse,
   FundInstrument,
-  FundOrder,
   FundPerformanceResponse,
   FundPosition,
   StockAccount,
   StockChartResponse,
   StockInstrument,
-  StockOrder,
   StockPerformanceResponse,
   StockPosition,
 } from "../../types/api";
@@ -33,7 +30,6 @@ import type {
   NormalizedCandlestickChartPoint,
   NormalizedCandlestickChartResponse,
   NormalizedLineChartResponse,
-  NormalizedMovement,
   NormalizedPerformanceResponse,
   NormalizedPosition,
 } from "./normalized";
@@ -74,10 +70,6 @@ function number(value: unknown, fallback = 0): number {
 
 function nullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function boolean(value: unknown): boolean {
-  return value === true || value === "true" || value === 1;
 }
 
 function currency(...values: unknown[]): string {
@@ -139,24 +131,6 @@ function accountMetadata(
     source,
     importerSlug: text(account.importer_slug) || null,
     importerName: text(account.importer_name) || null,
-  };
-}
-
-function movementMetadata(
-  item: LooseRecord,
-  source: string,
-  originalCurrencyCode: string | null,
-): InvestmentMetadata {
-  return {
-    source,
-    operationType: text(item.operation_type) || null,
-    cashFlowType: text(item.cash_flow_type) || null,
-    accountId: item.account_id ?? null,
-    accountName: text(item.account_name) || null,
-    provider: text(item.platform) || null,
-    settlementDate: text(item.settlement_date) || null,
-    providerOperationType: text(item.provider_operation_type) || null,
-    originalCurrency: originalCurrencyCode,
   };
 }
 
@@ -319,108 +293,6 @@ export function adaptCryptoPosition(
       ticker: text(instrumentTicker(instrument)) || null,
       symbol: displayIdentifier || null,
       originalCurrency: currencies.originalCurrency,
-      currencySource: currencies.source,
-    },
-    capabilities: capabilities(CRYPTO_CAPABILITIES),
-  };
-}
-
-export function adaptFundMovement(
-  item: FundOrder,
-  options?: InvestmentAdapterOptions,
-): NormalizedMovement {
-  const value = record(item);
-  const assetId = text(value.isin);
-  const currencies = currencyDetails(
-    options,
-    value.base_currency,
-    value.currency,
-  );
-  const amount = number(value.base_net_amount, number(value.net_amount));
-  return {
-    kind: "fund",
-    id: text(value.id),
-    assetId,
-    assetKey: assetKey("fund", assetId),
-    date: text(value.trade_date),
-    quantity: number(value.quantity),
-    price: number(value.base_unit_price, number(value.unit_price)),
-    cost: amount,
-    amount,
-    fee: null,
-    currency: currencies.currency,
-    baseCurrency: currencies.baseCurrency,
-    metadata: {
-      ...movementMetadata(value, "fund-order", currencies.originalCurrency),
-      currencySource: currencies.source,
-    },
-    capabilities: capabilities(FUND_CAPABILITIES),
-  };
-}
-
-export function adaptStockMovement(
-  item: StockOrder,
-  options?: InvestmentAdapterOptions,
-): NormalizedMovement {
-  const value = record(item);
-  const assetId = text(value.isin);
-  const currencies = currencyDetails(
-    options,
-    value.base_currency,
-    value.currency,
-  );
-  const amount = number(value.base_net_amount, number(value.net_amount));
-  const saveback = boolean(value.is_saveback);
-  return {
-    kind: "stock",
-    id: text(value.id),
-    assetId,
-    assetKey: assetKey("stock", assetId),
-    date: text(value.trade_date),
-    quantity: number(value.quantity),
-    price: number(value.base_unit_price, number(value.unit_price)),
-    cost: amount,
-    amount,
-    fee: nullableNumber(value.base_fee) ?? nullableNumber(value.fee),
-    currency: currencies.currency,
-    baseCurrency: currencies.baseCurrency,
-    metadata: {
-      ...movementMetadata(value, "stock-order", currencies.originalCurrency),
-      saveback,
-      splitAdjusted: boolean(value.split_adjusted),
-      currencySource: currencies.source,
-    },
-    capabilities: capabilities(STOCK_CAPABILITIES),
-  };
-}
-
-export function adaptCryptoMovement(
-  item: CryptoOrder,
-  options?: InvestmentAdapterOptions,
-): NormalizedMovement {
-  const value = record(item);
-  const assetId = text(value.symbol);
-  const currencies = currencyDetails(
-    options,
-    value.base_currency,
-    value.currency,
-  );
-  const amount = number(value.base_net_amount, number(value.net_amount));
-  return {
-    kind: "crypto",
-    id: text(value.id),
-    assetId,
-    assetKey: assetKey("crypto", assetId),
-    date: text(value.trade_date),
-    quantity: number(value.quantity),
-    price: number(value.base_unit_price, number(value.unit_price)),
-    cost: amount,
-    amount,
-    fee: nullableNumber(value.base_fee) ?? nullableNumber(value.fee),
-    currency: currencies.currency,
-    baseCurrency: currencies.baseCurrency,
-    metadata: {
-      ...movementMetadata(value, "crypto-order", currencies.originalCurrency),
       currencySource: currencies.source,
     },
     capabilities: capabilities(CRYPTO_CAPABILITIES),
