@@ -3,7 +3,7 @@ from __future__ import annotations
 from calendar import monthrange
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
@@ -19,8 +19,16 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
+from apps.accounts.models import Account, AccountSnapshot
 from apps.api.account_projection import account_row
+from apps.api.account_queries import (
+    find_manual_investment_account,
+    find_savings_account,
+    find_traded_account,
+    kind_accounts,
+    resolve_provider,
+)
+from apps.api.context import workspace
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
 from apps.api.market_data_projection import (
     instrument_calculation_row,
@@ -28,10 +36,12 @@ from apps.api.market_data_projection import (
     price_calculation_row,
     price_row,
 )
+from apps.api.permissions import forbidden_if_readonly
 from apps.api.portfolio_projection import manual_asset_row
 from apps.api.position_projection import native_position_rows
 from apps.api.projection import identifier, number, provider_name, select_identifier
 from apps.api.real_estate_projection import real_estate_row
+from apps.api.request_data import decimal, payload
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.api.schemas import (
     CryptoTransactionRequestSerializer,
@@ -93,7 +103,7 @@ from apps.real_estate.models import RealEstateCashFlow, RealEstateInvestment
 from apps.real_estate.withholding import effective_withholding_rate
 from apps.transactions.models import Transaction
 from apps.users.models import User
-from apps.workspaces.models import Workspace, WorkspaceMembership
+from apps.workspaces.models import Workspace
 from finanzr.domain.crypto import calculate_crypto_positions
 from finanzr.domain.funds import calculate_fund_positions
 from finanzr.domain.investment_performance import calculate_investment_performance
@@ -110,82 +120,6 @@ ACCOUNT_IMPORT_TARGETS = {
     Account.Kind.STOCKS: "stock_orders",
     Account.Kind.CRYPTO: "crypto_orders",
 }
-
-
-def payload(request: Request) -> dict[str, Any]:
-    return request.data if isinstance(request.data, dict) else {}
-
-
-def decimal(value: Any, default: str = "0") -> Decimal:
-    try:
-        return Decimal(str(value if value not in (None, "") else default))
-    except InvalidOperation as exc:
-        raise ValueError(_("A valid number was expected")) from exc
-
-
-def percentage_rate(value: Any) -> Decimal:
-    """Parse a withholding rate and enforce the public percentage range."""
-
-    try:
-        rate = Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError) as exc:
-        raise ValueError(_("A valid percentage between 0 and 100 was expected")) from exc
-    if not rate.is_finite() or rate < 0 or rate > 100:
-        raise ValueError(_("A valid percentage between 0 and 100 was expected"))
-    return rate
-
-
-def active_membership(request: Request) -> WorkspaceMembership:
-    user = cast(User, request.user)
-    memberships = WorkspaceMembership.objects.select_related("workspace").filter(
-        user=user, workspace__archived_at__isnull=True
-    )
-    workspace_id = request.session.get("active_workspace_id")
-    if workspace_id:
-        selected = memberships.filter(workspace_id=workspace_id).first()
-        if selected:
-            return selected
-    membership = memberships.first()
-    if not membership:
-        raise Workspace.DoesNotExist
-    request.session["active_workspace_id"] = str(membership.workspace_id)
-    return membership
-
-
-def workspace(request: Request) -> Workspace:
-    return active_membership(request).workspace
-
-
-def forbidden_if_readonly(request: Request) -> Response | None:
-    if request.method in {"GET", "HEAD", "OPTIONS"}:
-        return None
-    if active_membership(request).role == WorkspaceMembership.Role.VIEWER:
-        return Response({"error": _("Insufficient permissions")}, status=403)
-    return None
-
-
-def kind_accounts(request: Request, kind: str) -> QuerySet[Account]:
-    return Account.objects.filter(workspace=workspace(request), kind=kind, archived_at__isnull=True)
-
-
-def find_traded_account(request: Request, kind: str, account_id: UUID) -> Account:
-    """Resolve a traded account by its native UUID within the active workspace."""
-
-    return get_object_or_404(kind_accounts(request, kind), pk=account_id)
-
-
-def find_savings_account(request: Request, account_id: UUID) -> Account:
-    return get_object_or_404(kind_accounts(request, Account.Kind.SAVINGS), pk=account_id)
-
-
-def find_manual_investment_account(request: Request, account_id: UUID) -> Account:
-    return get_object_or_404(kind_accounts(request, Account.Kind.MANUAL_INVESTMENT), pk=account_id)
-
-
-def resolve_provider(label: str) -> tuple[FinancialProvider | None, str]:
-    value = label.strip()
-    provider = FinancialProvider.objects.filter(name__iexact=value).first() if value else None
-    return provider, "" if provider else value
 
 
 def account_importer(data: dict[str, Any], kind: str, current: str | None = None) -> str:

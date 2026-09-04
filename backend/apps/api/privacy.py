@@ -14,6 +14,7 @@ from apps.accounts.models import Account, AccountSnapshot
 from apps.api import views
 from apps.api.account_projection import account_row
 from apps.api.auth import user_payload
+from apps.api.context import active_membership, workspace
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
 from apps.api.portfolio_projection import manual_asset_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
@@ -37,7 +38,7 @@ def _native_savings_sections(
 
     accounts = list(
         Account.objects.filter(
-            workspace=views.workspace(request),
+            workspace=workspace(request),
             kind=Account.Kind.SAVINGS,
         )
         .select_related("provider")
@@ -57,7 +58,7 @@ def _native_investment_sections(
 
     accounts = list(
         Account.objects.filter(
-            workspace=views.workspace(request),
+            workspace=workspace(request),
             kind=Account.Kind.MANUAL_INVESTMENT,
         )
         .select_related("provider")
@@ -75,9 +76,7 @@ def _native_investment_sections(
 def _native_portfolio_section(request: Request) -> list[dict[str, object]]:
     """Serialize every manual asset so the v4 export is complete."""
 
-    assets = ManualAsset.objects.filter(workspace=views.workspace(request)).select_related(
-        "provider"
-    )
+    assets = ManualAsset.objects.filter(workspace=workspace(request)).select_related("provider")
     return [manual_asset_row(asset) for asset in assets.order_by("name", "id")]
 
 
@@ -85,7 +84,7 @@ def _native_traded_accounts(request: Request, kind: str) -> list[dict[str, objec
     """Export every traded account, including archived and legacy-origin rows."""
 
     accounts = (
-        Account.objects.filter(workspace=views.workspace(request), kind=kind)
+        Account.objects.filter(workspace=workspace(request), kind=kind)
         .select_related("provider")
         .order_by("name", "id")
     )
@@ -158,7 +157,7 @@ def delete_account(request: Request) -> Response:
 
 @api_view(["GET"])
 def audit_events(request: Request) -> Response:
-    membership = views.active_membership(request)
+    membership = active_membership(request)
     if membership.role != WorkspaceMembership.Role.OWNER:
         return Response({"error": _("Insufficient permissions")}, status=403)
     events = AuditEvent.objects.filter(workspace=membership.workspace)[:200]
