@@ -19,24 +19,16 @@ export interface InvestmentMetadata {
   [key: string]: unknown;
 }
 
-export interface NormalizedPosition {
-  kind: InvestmentKind;
-  assetId: string;
+export interface InvestmentOverviewPosition {
   assetKey: string;
   displayIdentifier: string;
   name: string;
-  type: string | null;
-  subtype: string | null;
   quantity: number;
   cost: number;
   currentPrice: number | null;
   currentValue: number | null;
   unrealizedPnl: number | null;
-  realizedPnl: number | null;
-  currency: string;
-  baseCurrency: string | null;
-  metadata: InvestmentMetadata;
-  capabilities: InvestmentCapabilities;
+  returnPercent: number | null;
 }
 
 export interface NormalizedPerformancePoint {

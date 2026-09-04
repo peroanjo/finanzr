@@ -104,7 +104,6 @@ function createPortfolio({
   instruments: instrumentRows = [],
   prices: priceRows = [],
   selectedFund: selectedFundId = "",
-  baseCurrency: currency = "EUR",
   locale: currentLocale = "en",
 }: {
   positions?: FundPosition[];
@@ -112,7 +111,6 @@ function createPortfolio({
   instruments?: FundInstrument[];
   prices?: FundPrice[];
   selectedFund?: string;
-  baseCurrency?: string;
   locale?: string;
 } = {}) {
   const positions = ref(positionRows);
@@ -120,7 +118,6 @@ function createPortfolio({
   const instruments = ref(instrumentRows);
   const prices = ref(priceRows);
   const selectedFund = ref(selectedFundId);
-  const baseCurrency = ref(currency);
   const locale = ref(currentLocale);
   const portfolio = useFundsPortfolio({
     positions,
@@ -128,7 +125,6 @@ function createPortfolio({
     instruments,
     prices,
     selectedFund,
-    baseCurrency,
     locale,
   });
   return {
@@ -138,7 +134,6 @@ function createPortfolio({
     instruments,
     prices,
     selectedFund,
-    baseCurrency,
     locale,
   };
 }
@@ -278,7 +273,7 @@ describe("useFundsPortfolio", () => {
     expect(portfolio.realizedPnl.value).toBeCloseTo(115);
   });
 
-  it("normalizes top positions with nullable values and the supplied base currency", () => {
+  it("normalizes top positions with nullable values and direct return", () => {
     const portfolio = createPortfolio({
       positions: [
         makePosition({
@@ -287,7 +282,7 @@ describe("useFundsPortfolio", () => {
           current_price: null,
           current_value: null,
           unrealized_pnl: null,
-          return_percent: null,
+          return_percent: 0,
           currency: "USD",
           base_currency: "EUR",
         }),
@@ -302,22 +297,17 @@ describe("useFundsPortfolio", () => {
           ],
         }),
       ],
-      baseCurrency: "EUR",
     });
 
     expect(portfolio.normalizedTopPositions.value[0]).toMatchObject({
-      kind: "fund",
-      assetId: "USD-FUND",
+      assetKey: "fund:USD-FUND",
+      displayIdentifier: "USD-FUND",
       name: "Dollar fund",
       currentPrice: null,
       currentValue: null,
       unrealizedPnl: null,
-      currency: "EUR",
-      baseCurrency: "EUR",
+      returnPercent: 0,
     });
-    expect(
-      portfolio.normalizedTopPositions.value[0].metadata.originalCurrency,
-    ).toBe("USD");
   });
 
   it("reacts to selected fund and price changes", () => {

@@ -1,7 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import {
-  adaptCryptoPosition,
-  type NormalizedPosition,
+  toInvestmentOverviewPosition,
+  type InvestmentOverviewPosition,
 } from "../domain/investments";
 import type {
   CryptoInstrument,
@@ -33,14 +33,13 @@ export interface UseCryptoPortfolioOptions {
   orders: CryptoPortfolioSource<CryptoOrder[]>;
   instruments: CryptoPortfolioSource<CryptoInstrument[]>;
   selectedInstrumentId: CryptoPortfolioSource<string>;
-  baseCurrency: CryptoPortfolioSource<string>;
   locale: CryptoPortfolioSource<string>;
 }
 
 export interface UseCryptoPortfolio {
   openPositions: ComputedRef<CryptoPosition[]>;
   topPositions: ComputedRef<CryptoPosition[]>;
-  normalizedTopPositions: ComputedRef<NormalizedPosition[]>;
+  normalizedTopPositions: ComputedRef<InvestmentOverviewPosition[]>;
   totalValue: ComputedRef<number>;
   totalCost: ComputedRef<number>;
   unrealizedPnl: ComputedRef<number>;
@@ -65,14 +64,8 @@ export interface UseCryptoPortfolio {
 export function useCryptoPortfolio(
   options: UseCryptoPortfolioOptions,
 ): UseCryptoPortfolio {
-  const {
-    positions,
-    orders,
-    instruments,
-    selectedInstrumentId,
-    baseCurrency,
-    locale,
-  } = options;
+  const { positions, orders, instruments, selectedInstrumentId, locale } =
+    options;
   const positionSortKey = ref<CryptoPositionSortKey>("value");
   const positionSortDirection = ref<CryptoSortDirection>("desc");
 
@@ -84,10 +77,10 @@ export function useCryptoPortfolio(
   const topPositions = computed(() => openPositions.value.slice(0, 5));
   const normalizedTopPositions = computed(() =>
     topPositions.value.map((position) =>
-      adaptCryptoPosition(
+      toInvestmentOverviewPosition(
         position,
         instrumentById(instruments.value, position.instrument_id),
-        { baseCurrency: baseCurrency.value },
+        null,
       ),
     ),
   );

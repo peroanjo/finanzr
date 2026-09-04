@@ -79,28 +79,24 @@ function createPortfolio({
   orders: orderRows = [],
   instruments: instrumentRows = [],
   selectedInstrumentId: selectedAsset = "",
-  baseCurrency: currency = "EUR",
   locale: currentLocale = "en",
 }: {
   positions?: StockPosition[];
   orders?: StockOrder[];
   instruments?: StockInstrument[];
   selectedInstrumentId?: string;
-  baseCurrency?: string;
   locale?: string;
 } = {}) {
   const positions = ref(positionRows);
   const orders = ref(orderRows);
   const instruments = ref(instrumentRows);
   const selectedInstrumentId = ref(selectedAsset);
-  const baseCurrency = ref(currency);
   const locale = ref(currentLocale);
   const portfolio = useStocksPortfolio({
     positions,
     orders,
     instruments,
     selectedInstrumentId,
-    baseCurrency,
     locale,
   });
   return {
@@ -109,7 +105,6 @@ function createPortfolio({
     orders,
     instruments,
     selectedInstrumentId,
-    baseCurrency,
     locale,
   };
 }
@@ -219,63 +214,27 @@ describe("useStocksPortfolio", () => {
           ],
         }),
       ],
-      baseCurrency: "EUR",
     });
 
     const normalized = portfolio.normalizedTopPositions.value;
-    const dollarStock = normalized.find((item) => item.assetId === "USD-STOCK");
-    const missing = normalized.find((item) => item.assetId === "MISSING");
+    const dollarStock = normalized.find(
+      (item) => item.assetKey === "stock:USD-STOCK",
+    );
+    const missing = normalized.find(
+      (item) => item.assetKey === "stock:MISSING",
+    );
     expect(dollarStock).toMatchObject({
-      kind: "stock",
+      assetKey: "stock:USD-STOCK",
+      displayIdentifier: "USD-STOCK",
       name: "Dollar stock",
       currentPrice: null,
       currentValue: null,
       unrealizedPnl: null,
-      currency: "EUR",
-      baseCurrency: "EUR",
-    });
-    expect(dollarStock?.metadata).toMatchObject({
-      ticker: "USDSTK",
-      originalCurrency: "USD",
+      returnPercent: null,
     });
     expect(missing).toMatchObject({
       name: "Missing instrument",
-      assetId: "MISSING",
       currentValue: 90,
-    });
-    expect(missing?.metadata).toMatchObject({ ticker: null });
-
-    portfolio.instruments.value[0] = makeInstrument({
-      name: "Dollar stock",
-      quote_currency: "USD",
-      identifiers: [
-        { scheme: "isin", value: "USD-STOCK", venue: "", is_primary: true },
-        {
-          scheme: "yahoo",
-          value: "USDSTK-UPDATED",
-          venue: "",
-          is_primary: true,
-        },
-      ],
-    });
-    portfolio.positions.value[0] = makePosition({
-      instrument_id: "USD-STOCK",
-      name: "Dollar stock",
-      current_price: null,
-      current_value: null,
-      unrealized_pnl: null,
-      currency: "USD",
-      base_currency: undefined,
-    });
-    portfolio.baseCurrency.value = "USD";
-    expect(
-      portfolio.normalizedTopPositions.value.find(
-        (item) => item.assetId === "USD-STOCK",
-      ),
-    ).toMatchObject({
-      currency: "USD",
-      baseCurrency: "USD",
-      metadata: { ticker: "USDSTK-UPDATED" },
     });
   });
 

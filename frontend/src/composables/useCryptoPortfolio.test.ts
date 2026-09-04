@@ -89,28 +89,24 @@ function createPortfolio({
   orders: orderRows = [],
   instruments: instrumentRows = [],
   selectedInstrumentId: selectedAsset = "",
-  baseCurrency: currency = "EUR",
   locale: currentLocale = "en",
 }: {
   positions?: CryptoPosition[];
   orders?: CryptoOrder[];
   instruments?: CryptoInstrument[];
   selectedInstrumentId?: string;
-  baseCurrency?: string;
   locale?: string;
 } = {}) {
   const positions = ref(positionRows);
   const orders = ref(orderRows);
   const instruments = ref(instrumentRows);
   const selectedInstrumentId = ref(selectedAsset);
-  const baseCurrency = ref(currency);
   const locale = ref(currentLocale);
   const portfolio = useCryptoPortfolio({
     positions,
     orders,
     instruments,
     selectedInstrumentId,
-    baseCurrency,
     locale,
   });
   return {
@@ -119,7 +115,6 @@ function createPortfolio({
     orders,
     instruments,
     selectedInstrumentId,
-    baseCurrency,
     locale,
   };
 }
@@ -237,69 +232,27 @@ describe("useCryptoPortfolio", () => {
           ],
         }),
       ],
-      baseCurrency: "EUR",
     });
 
     const normalized = portfolio.normalizedTopPositions.value;
-    const dollarCoin = normalized.find((item) => item.assetId === "USD-COIN");
-    const missing = normalized.find((item) => item.assetId === "MISSING");
+    const dollarCoin = normalized.find(
+      (item) => item.assetKey === "crypto:USD-COIN",
+    );
+    const missing = normalized.find(
+      (item) => item.assetKey === "crypto:MISSING",
+    );
     expect(dollarCoin).toMatchObject({
-      kind: "crypto",
+      assetKey: "crypto:USD-COIN",
+      displayIdentifier: "USD-COIN",
       name: "Dollar coin",
       currentPrice: null,
       currentValue: null,
       unrealizedPnl: null,
-      currency: "EUR",
-      baseCurrency: "EUR",
-    });
-    expect(dollarCoin?.metadata).toMatchObject({
-      ticker: "USDCOIN",
-      symbol: "USD-COIN",
-      originalCurrency: "USD",
+      returnPercent: null,
     });
     expect(missing).toMatchObject({
       name: "Missing instrument",
-      assetId: "MISSING",
       currentValue: 90,
-    });
-    expect(missing?.metadata).toMatchObject({ ticker: null });
-
-    portfolio.instruments.value[0] = makeInstrument({
-      name: "Dollar coin",
-      quote_currency: "USD",
-      identifiers: [
-        {
-          scheme: "crypto_symbol",
-          value: "USD-COIN",
-          venue: "",
-          is_primary: true,
-        },
-        {
-          scheme: "yahoo",
-          value: "USDCOIN-UPDATED",
-          venue: "",
-          is_primary: true,
-        },
-      ],
-    });
-    portfolio.positions.value[0] = makePosition({
-      instrument_id: "USD-COIN",
-      name: "Dollar coin",
-      current_price: null,
-      current_value: null,
-      unrealized_pnl: null,
-      currency: "USD",
-      base_currency: undefined,
-    });
-    portfolio.baseCurrency.value = "USD";
-    expect(
-      portfolio.normalizedTopPositions.value.find(
-        (item) => item.assetId === "USD-COIN",
-      ),
-    ).toMatchObject({
-      currency: "USD",
-      baseCurrency: "USD",
-      metadata: { ticker: "USDCOIN-UPDATED" },
     });
   });
 
@@ -372,23 +325,8 @@ describe("useCryptoPortfolio", () => {
       "pair-order",
     ]);
     expect(
-      portfolio.normalizedTopPositions.value.map((item) => item.assetId),
-    ).toEqual(["BTC", "BTC-EUR", "btc"]);
-    expect(
-      portfolio.normalizedTopPositions.value.find(
-        (item) => item.assetId === "BTC",
-      )?.metadata.ticker,
-    ).toBe("000");
-    expect(
-      portfolio.normalizedTopPositions.value.find(
-        (item) => item.assetId === "BTC-EUR",
-      )?.metadata.ticker,
-    ).toBe("100");
-    expect(
-      portfolio.normalizedTopPositions.value.find(
-        (item) => item.assetId === "btc",
-      )?.metadata.ticker,
-    ).toBeNull();
+      portfolio.normalizedTopPositions.value.map((item) => item.assetKey),
+    ).toEqual(["crypto:BTC", "crypto:BTC-EUR", "crypto:btc"]);
 
     portfolio.sortPositions("ticker");
     expect(

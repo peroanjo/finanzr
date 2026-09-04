@@ -1,8 +1,6 @@
 export * from "./normalized";
 export {
-  adaptFundPosition,
-  adaptStockPosition,
-  adaptCryptoPosition,
+  toInvestmentOverviewPosition,
   adaptFundChart,
   adaptStockChart,
   adaptCryptoChart,

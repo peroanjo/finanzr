@@ -3,26 +3,23 @@ import * as investmentBarrel from "./index";
 import {
   adaptCryptoChart,
   adaptCryptoPerformance,
-  adaptCryptoPosition,
   adaptFundChart,
   adaptFundPerformance,
-  adaptFundPosition,
   adaptStockChart,
-  adaptStockPosition,
   adaptStockPerformance,
+  toInvestmentOverviewPosition,
 } from "./adapters";
 import type {
   CryptoChartResponse,
-  CryptoPosition,
   CryptoPerformanceResponse,
+  CryptoInstrument,
   FundChartResponse,
+  FundInstrument,
   FundPerformanceResponse,
-  FundPosition,
+  NativePosition,
   StockChartResponse,
   StockInstrument,
   StockPerformanceResponse,
-  StockPosition,
-  CryptoInstrument,
 } from "../../types/api";
 
 describe("normalized investment adapters", () => {
@@ -33,8 +30,8 @@ describe("normalized investment adapters", () => {
     );
   });
 
-  it("preserves nullable fund position values and instrument metadata", () => {
-    const position = adaptFundPosition(
+  it("preserves nullable overview values and direct fund return", () => {
+    const position = toInvestmentOverviewPosition(
       {
         instrument_id: "00000000-0000-0000-0000-000000000012",
         kind: "fund",
@@ -51,7 +48,7 @@ describe("normalized investment adapters", () => {
         currency: "gbp",
         base_currency: "usd",
         return_percent: null,
-      } as FundPosition,
+      } as NativePosition,
       {
         id: "00000000-0000-0000-0000-000000000012",
         kind: "fund",
@@ -64,35 +61,25 @@ describe("normalized investment adapters", () => {
         asset_class: "RV",
         subtype: "Index",
         is_active: true,
-      },
+      } as FundInstrument,
+      null,
     );
 
     expect(position).toMatchObject({
-      kind: "fund",
-      assetId: "00000000-0000-0000-0000-000000000012",
       assetKey: "fund:00000000-0000-0000-0000-000000000012",
       displayIdentifier: "LU000",
       name: "Global fund",
-      type: "Renta Variable",
-      subtype: "Global",
       quantity: 0,
       cost: 0,
       currentPrice: null,
       currentValue: null,
       unrealizedPnl: null,
-      realizedPnl: null,
-      currency: "USD",
-      baseCurrency: "USD",
-    });
-    expect(position.metadata).toMatchObject({
-      ticker: "GLOBAL",
       returnPercent: null,
-      originalCurrency: "GBP",
     });
   });
 
-  it("maps stock and crypto positions to distinct discriminated keys", () => {
-    const stock = adaptStockPosition(
+  it("maps stock and crypto positions to distinct stable keys", () => {
+    const stock = toInvestmentOverviewPosition(
       {
         instrument_id: "00000000-0000-0000-0000-000000000401",
         kind: "stock",
@@ -105,7 +92,7 @@ describe("normalized investment adapters", () => {
         realized_pnl: -3,
         currency: "USD",
         base_currency: "EUR",
-      } as StockPosition,
+      } as NativePosition,
       {
         id: "00000000-0000-0000-0000-000000000401",
         kind: "stock",
@@ -120,7 +107,7 @@ describe("normalized investment adapters", () => {
         is_active: true,
       } as StockInstrument,
     );
-    const crypto = adaptCryptoPosition(
+    const crypto = toInvestmentOverviewPosition(
       {
         instrument_id: "00000000-0000-0000-0000-000000000402",
         kind: "crypto",
@@ -133,7 +120,7 @@ describe("normalized investment adapters", () => {
         realized_pnl: 40,
         currency: "EUR",
         base_currency: "EUR",
-      } as CryptoPosition,
+      } as NativePosition,
       {
         id: "00000000-0000-0000-0000-000000000402",
         kind: "crypto",
@@ -155,8 +142,6 @@ describe("normalized investment adapters", () => {
     );
 
     expect(stock).toMatchObject({
-      kind: "stock",
-      assetId: "00000000-0000-0000-0000-000000000401",
       assetKey: "stock:00000000-0000-0000-0000-000000000401",
       displayIdentifier: "US000",
       quantity: 2,
@@ -164,20 +149,15 @@ describe("normalized investment adapters", () => {
       currentPrice: 60,
       currentValue: 120,
       unrealizedPnl: 20,
-      realizedPnl: -3,
-      currency: "EUR",
+      returnPercent: null,
     });
     expect(crypto).toMatchObject({
-      kind: "crypto",
-      assetId: "00000000-0000-0000-0000-000000000402",
       assetKey: "crypto:00000000-0000-0000-0000-000000000402",
       displayIdentifier: "BTC",
-      type: "crypto",
       currentPrice: null,
       currentValue: null,
       unrealizedPnl: null,
-      realizedPnl: 40,
-      currency: "EUR",
+      returnPercent: null,
     });
   });
 

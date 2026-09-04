@@ -4,8 +4,8 @@ import {
   type ChartOperation,
 } from "../domain/chartOperationFixes";
 import {
-  adaptStockPosition,
-  type NormalizedPosition,
+  toInvestmentOverviewPosition,
+  type InvestmentOverviewPosition,
 } from "../domain/investments";
 import type { StockInstrument, StockOrder, StockPosition } from "../types/api";
 import {
@@ -33,14 +33,13 @@ export interface UseStocksPortfolioOptions {
   orders: StockPortfolioSource<StockOrder[]>;
   instruments: StockPortfolioSource<StockInstrument[]>;
   selectedInstrumentId: StockPortfolioSource<string>;
-  baseCurrency: StockPortfolioSource<string>;
   locale: StockPortfolioSource<string>;
 }
 
 export interface UseStocksPortfolio {
   openPositions: ComputedRef<StockPosition[]>;
   topPositions: ComputedRef<StockPosition[]>;
-  normalizedTopPositions: ComputedRef<NormalizedPosition[]>;
+  normalizedTopPositions: ComputedRef<InvestmentOverviewPosition[]>;
   totalValue: ComputedRef<number>;
   totalCost: ComputedRef<number>;
   unrealizedPnl: ComputedRef<number>;
@@ -65,14 +64,8 @@ export interface UseStocksPortfolio {
 export function useStocksPortfolio(
   options: UseStocksPortfolioOptions,
 ): UseStocksPortfolio {
-  const {
-    positions,
-    orders,
-    instruments,
-    selectedInstrumentId,
-    baseCurrency,
-    locale,
-  } = options;
+  const { positions, orders, instruments, selectedInstrumentId, locale } =
+    options;
   const positionSortKey = ref<StockPositionSortKey>("value");
   const positionSortDirection = ref<StockSortDirection>("desc");
 
@@ -114,10 +107,10 @@ export function useStocksPortfolio(
   );
   const normalizedTopPositions = computed(() =>
     topPositions.value.map((position) =>
-      adaptStockPosition(
+      toInvestmentOverviewPosition(
         position,
         instrumentById(instruments.value, position.instrument_id),
-        { baseCurrency: baseCurrency.value },
+        null,
       ),
     ),
   );
