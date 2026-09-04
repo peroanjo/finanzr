@@ -50,23 +50,6 @@ export interface NormalizedPosition {
   capabilities: InvestmentCapabilities;
 }
 
-export interface NormalizedMovement {
-  kind: InvestmentKind;
-  id: string;
-  assetId: string;
-  assetKey: string;
-  date: string;
-  quantity: number;
-  price: number;
-  cost: number;
-  amount: number;
-  fee: number | null;
-  currency: string;
-  baseCurrency: string | null;
-  metadata: InvestmentMetadata;
-  capabilities: InvestmentCapabilities;
-}
-
 export interface NormalizedPerformancePoint {
   date: string;
   value: number;
