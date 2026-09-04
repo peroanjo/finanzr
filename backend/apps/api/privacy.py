@@ -11,7 +11,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.models import Account, AccountSnapshot
-from apps.api import views
+from apps.api import transaction_views, views
 from apps.api.account_projection import account_row
 from apps.api.auth import user_payload
 from apps.api.context import active_membership, workspace
@@ -114,9 +114,9 @@ def export_payload(request: Request) -> dict[str, object]:
         "funds": _view_data(views.funds, request),
         "stocks": _view_data(views.stocks, request),
         "cryptos": _view_data(views.cryptos, request),
-        "orders": _view_data(views.orders, request),
-        "stock_orders": _view_data(views.stock_orders, request),
-        "crypto_orders": _view_data(views.crypto_orders, request),
+        "orders": _view_data(transaction_views.orders, request),
+        "stock_orders": _view_data(transaction_views.stock_orders, request),
+        "crypto_orders": _view_data(transaction_views.crypto_orders, request),
         "fund_prices": _view_data(views.fund_prices, request),
         "stock_prices": _view_data(views.stock_prices, request),
         "crypto_prices": _view_data(views.crypto_prices, request),

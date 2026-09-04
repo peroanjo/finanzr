@@ -1,6 +1,14 @@
 from django.urls import path
 
 from . import admin_users, auth, fx_views, privacy, uploads, views
+from .transaction_views import (
+    crypto_orders,
+    crypto_transaction_detail,
+    fund_transaction_detail,
+    orders,
+    stock_orders,
+    stock_transaction_detail,
+)
 
 urlpatterns = [
     path("auth/csrf", auth.csrf),
@@ -57,17 +65,17 @@ urlpatterns = [
     path("stocks/<uuid:instrument_id>", views.stock_detail),
     path("cryptos", views.cryptos),
     path("cryptos/<uuid:instrument_id>", views.crypto_detail),
-    path("orders", views.orders),
-    path("orders/<uuid:transaction_id>", views.fund_transaction_detail),
+    path("orders", orders),
+    path("orders/<uuid:transaction_id>", fund_transaction_detail),
     path("fund-orders/upload", uploads.upload_funds),
     path("fund-prices/fetch", views.fetch_fund_prices),
-    path("stock-orders", views.stock_orders),
+    path("stock-orders", stock_orders),
     path("stock-orders/upload-tr", uploads.upload_trade_republic),
-    path("stock-orders/<uuid:transaction_id>", views.stock_transaction_detail),
-    path("crypto-orders", views.crypto_orders),
+    path("stock-orders/<uuid:transaction_id>", stock_transaction_detail),
+    path("crypto-orders", crypto_orders),
     path("crypto-orders/upload-kraken-pro", uploads.upload_kraken_pro),
     path("crypto-orders/upload-kraken", uploads.upload_kraken_pro),
-    path("crypto-orders/<uuid:transaction_id>", views.crypto_transaction_detail),
+    path("crypto-orders/<uuid:transaction_id>", crypto_transaction_detail),
     path("fund-prices", views.fund_prices),
     path("fund-prices/<uuid:instrument_id>", views.fund_price_detail),
     path("stock-prices/fetch", views.fetch_stock_prices),
