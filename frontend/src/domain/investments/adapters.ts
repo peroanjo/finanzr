@@ -1,15 +1,12 @@
 import type {
-  CryptoAccount,
   CryptoChartResponse,
   CryptoInstrument,
   CryptoPerformanceResponse,
   CryptoPosition,
-  FundAccount,
   FundChartResponse,
   FundInstrument,
   FundPerformanceResponse,
   FundPosition,
-  StockAccount,
   StockChartResponse,
   StockInstrument,
   StockPerformanceResponse,
@@ -25,8 +22,6 @@ import type {
   InvestmentCapabilities,
   InvestmentAdapterOptions,
   InvestmentKind,
-  InvestmentMetadata,
-  NormalizedAccount,
   NormalizedCandlestickChartPoint,
   NormalizedCandlestickChartResponse,
   NormalizedLineChartResponse,
@@ -72,13 +67,6 @@ function nullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function currency(...values: unknown[]): string {
-  const value = values.find(
-    (candidate) => typeof candidate === "string" && candidate.trim(),
-  );
-  return text(value, "EUR").toUpperCase();
-}
-
 function reportedCurrency(value: unknown): string | null {
   return typeof value === "string" && value.trim()
     ? value.trim().toUpperCase()
@@ -121,59 +109,6 @@ function assetKey(kind: InvestmentKind, assetId: string): string {
 
 function capabilities(value: InvestmentCapabilities): InvestmentCapabilities {
   return { ...value };
-}
-
-function accountMetadata(
-  account: LooseRecord,
-  source: string,
-): InvestmentMetadata {
-  return {
-    source,
-    importerSlug: text(account.importer_slug) || null,
-    importerName: text(account.importer_name) || null,
-  };
-}
-
-export function adaptFundAccount(account: FundAccount): NormalizedAccount {
-  const item = record(account);
-  return {
-    kind: "fund",
-    id: text(item.id),
-    name: text(item.name, "Unnamed fund account"),
-    provider: text(item.platform, "Unknown provider"),
-    type: text(item.type) || null,
-    currency: currency(item.currency),
-    metadata: accountMetadata(item, "fund-account"),
-    capabilities: capabilities(FUND_CAPABILITIES),
-  };
-}
-
-export function adaptStockAccount(account: StockAccount): NormalizedAccount {
-  const item = record(account);
-  return {
-    kind: "stock",
-    id: text(item.id),
-    name: text(item.name, "Unnamed stock account"),
-    provider: text(item.platform, "Unknown provider"),
-    type: text(item.type) || null,
-    currency: currency(item.currency),
-    metadata: accountMetadata(item, "stock-account"),
-    capabilities: capabilities(STOCK_CAPABILITIES),
-  };
-}
-
-export function adaptCryptoAccount(account: CryptoAccount): NormalizedAccount {
-  const item = record(account);
-  return {
-    kind: "crypto",
-    id: text(item.id),
-    name: text(item.name, "Unnamed crypto account"),
-    provider: text(item.platform, "Unknown provider"),
-    type: text(item.type) || null,
-    currency: currency(item.currency),
-    metadata: accountMetadata(item, "crypto-account"),
-    capabilities: capabilities(CRYPTO_CAPABILITIES),
-  };
 }
 
 export function adaptFundPosition(

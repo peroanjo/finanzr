@@ -1,15 +1,12 @@
 import { describe, expect, it } from "vitest";
 import * as investmentBarrel from "./index";
 import {
-  adaptCryptoAccount,
   adaptCryptoChart,
   adaptCryptoPerformance,
   adaptCryptoPosition,
-  adaptFundAccount,
   adaptFundChart,
   adaptFundPerformance,
   adaptFundPosition,
-  adaptStockAccount,
   adaptStockChart,
   adaptStockPosition,
   adaptStockPerformance,
@@ -34,69 +31,6 @@ describe("normalized investment adapters", () => {
     expect(investmentBarrel.adaptCryptoPerformance).toBe(
       adaptCryptoPerformance,
     );
-  });
-
-  it("normalizes accounts with a stable id, currency, and source metadata", () => {
-    const fund = adaptFundAccount({
-      id: "00000000-0000-0000-0000-000000000007",
-      name: "Index funds",
-      platform: "Broker",
-      type: "renta_variable",
-      currency: "usd",
-      importer_slug: "fund_csv",
-      importer_name: "Fund CSV",
-    });
-    const stock = adaptStockAccount({
-      id: "00000000-0000-0000-0000-000000000008",
-      name: "Stocks",
-      platform: "Trade Republic",
-      type: "",
-      currency: "EUR",
-      importer_slug: "tr",
-      importer_name: "Trade Republic",
-    });
-    const crypto = adaptCryptoAccount({
-      id: "00000000-0000-0000-0000-000000000009",
-      name: "Kraken",
-      platform: "KrakenPro",
-      type: "",
-      currency: "eur",
-      importer_slug: "kraken",
-      importer_name: "Kraken",
-    });
-
-    expect(fund).toMatchObject({
-      kind: "fund",
-      id: "00000000-0000-0000-0000-000000000007",
-      currency: "USD",
-      type: "renta_variable",
-      capabilities: { fees: false, saveback: false, splits: false },
-    });
-    expect(fund.metadata).toMatchObject({
-      source: "fund-account",
-      importerSlug: "fund_csv",
-    });
-    expect(stock).toMatchObject({
-      kind: "stock",
-      id: "00000000-0000-0000-0000-000000000008",
-      type: null,
-      currency: "EUR",
-    });
-    expect(stock.capabilities).toMatchObject({
-      fees: true,
-      saveback: true,
-      splits: true,
-    });
-    expect(crypto).toMatchObject({
-      kind: "crypto",
-      id: "00000000-0000-0000-0000-000000000009",
-      currency: "EUR",
-    });
-    expect(crypto.capabilities).toMatchObject({
-      fees: true,
-      saveback: false,
-      splits: false,
-    });
   });
 
   it("preserves nullable fund position values and instrument metadata", () => {

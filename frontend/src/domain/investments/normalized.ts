@@ -19,17 +19,6 @@ export interface InvestmentMetadata {
   [key: string]: unknown;
 }
 
-export interface NormalizedAccount {
-  kind: InvestmentKind;
-  id: string;
-  name: string;
-  provider: string;
-  type: string | null;
-  currency: string;
-  metadata: InvestmentMetadata;
-  capabilities: InvestmentCapabilities;
-}
-
 export interface NormalizedPosition {
   kind: InvestmentKind;
   assetId: string;
