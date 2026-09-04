@@ -4226,22 +4226,21 @@ def test_fund_performance_uses_market_history_and_filters_by_account(
     assert response.json() == {
         "range": "1y",
         "account_id": str(account_id),
-        "kind": "fund",
-        "moneda_base": "EUR",
+        "base_currency": "EUR",
         "data": [
             {
-                "fecha": "2026-01-01",
-                "valor": 100.0,
-                "invertido": 100.0,
+                "date": "2026-01-01",
+                "value": 100.0,
+                "invested": 100.0,
                 "pnl": 0.0,
-                "pnl_pct": 0.0,
+                "pnl_percent": 0.0,
             },
             {
-                "fecha": "2026-02-01",
-                "valor": 120.0,
-                "invertido": 100.0,
+                "date": "2026-02-01",
+                "value": 120.0,
+                "invested": 100.0,
                 "pnl": 20.0,
-                "pnl_pct": 20.0,
+                "pnl_percent": 20.0,
             },
         ],
     }

@@ -32,14 +32,13 @@ import type {
   FundChartResponse,
   FundInstrument,
   FundOrder,
-  FundPerformanceResponse,
   FundPosition,
   FundPrice,
   ImporterCatalogItem,
+  InvestmentPerformanceResponse,
   PriceFetchResponse,
 } from "../types/api";
-import { adaptFundChart, adaptFundPerformance } from "../domain/investments";
-import type { NormalizedPerformancePoint } from "../domain/investments";
+import { adaptFundChart } from "../domain/investments";
 import {
   useFundsPortfolio,
   type FundPositionSortKey,
@@ -61,7 +60,7 @@ const positions = ref<FundPosition[]>([]);
 const orders = ref<FundOrder[]>([]);
 const instruments = ref<FundInstrument[]>([]);
 const prices = ref<FundPrice[]>([]);
-const performance = ref<FundPerformanceResponse | null>(null);
+const performance = ref<InvestmentPerformanceResponse | null>(null);
 const fundChart = ref<FundChartResponse | null>(null);
 const selectedAccount = ref(
   new URLSearchParams(window.location.search).get("account") ?? "all",
@@ -268,16 +267,7 @@ const latestUpdate = computed(() => {
     ? d(new Date(`${dates.at(-1)}T00:00:00`), "short")
     : t("funds.kpis.neverUpdated");
 });
-const normalizedPerformance = computed(() =>
-  performance.value
-    ? adaptFundPerformance(performance.value, {
-        baseCurrency: fundBaseCurrency.value,
-      })
-    : null,
-);
-const performancePoints = computed<NormalizedPerformancePoint[]>(
-  () => normalizedPerformance.value?.data ?? [],
-);
+const performancePoints = computed(() => performance.value?.data ?? []);
 const firstPerformance = computed(() => performancePoints.value[0] ?? null);
 const lastPerformance = computed(() => performancePoints.value.at(-1) ?? null);
 const periodPnl = computed(() => {
@@ -605,7 +595,7 @@ async function loadPerformance(generation = dashboardGeneration) {
   performanceLoading.value = true;
   performanceError.value = "";
   try {
-    const nextPerformance = await api<FundPerformanceResponse>(
+    const nextPerformance = await api<InvestmentPerformanceResponse>(
       `/investment-performance/fund?${performanceQuery()}`,
     );
     if (

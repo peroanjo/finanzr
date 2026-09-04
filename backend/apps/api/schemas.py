@@ -809,16 +809,21 @@ class PortfolioAnalysisResponseSerializer(serializers.Serializer[dict[str, Any]]
     items = PortfolioAnalysisItemSerializer(many=True)
 
 
+class InvestmentPerformancePointSerializer(serializers.Serializer[dict[str, Any]]):
+    date = serializers.DateField()
+    value = serializers.FloatField()
+    invested = serializers.FloatField()
+    pnl = serializers.FloatField()
+    pnl_percent = serializers.FloatField()
+
+
 class InvestmentPerformanceResponseSerializer(serializers.Serializer[dict[str, Any]]):
     """Canonical performance envelope shared by all traded instrument kinds."""
 
     range = serializers.CharField()
     account_id = serializers.CharField()
-    kind = serializers.CharField()
-    moneda_base = serializers.CharField()
-    # DRF's Serializer.data property collides with this response field name;
-    # keep the public OpenAPI key while narrowing the typing escape hatch here.
-    data = cast(Any, serializers.ListField(child=serializers.JSONField()))
+    base_currency = serializers.CharField()
+    data = InvestmentPerformancePointSerializer(many=True)  # type: ignore[assignment]
 
 
 class RealEstateMovementResponseSerializer(serializers.Serializer[dict[str, Any]]):

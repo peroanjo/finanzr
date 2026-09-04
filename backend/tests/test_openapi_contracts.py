@@ -525,6 +525,45 @@ class OpenApiMutationContractTests(SimpleTestCase):
         )
         assert performance_account["schema"] == {"type": "string"}
         assert "UUID" in performance_account["description"]
+        performance_response = self._resolve(
+            document,
+            document["paths"]["/api/investment-performance/{kind}"]["get"]["responses"]["200"][
+                "content"
+            ]["application/json"]["schema"],
+        )
+        assert set(performance_response["properties"]) == {
+            "range",
+            "account_id",
+            "base_currency",
+            "data",
+        }
+        performance_point = self._resolve(
+            document, performance_response["properties"]["data"]["items"]
+        )
+        assert set(performance_point["properties"]) == {
+            "date",
+            "value",
+            "invested",
+            "pnl",
+            "pnl_percent",
+        }
+        assert performance_point["properties"]["date"] == {
+            "type": "string",
+            "format": "date",
+        }
+        assert all(
+            performance_point["properties"][field]["type"] == "number"
+            for field in {"value", "invested", "pnl", "pnl_percent"}
+        )
+        assert not {
+            "kind",
+            "moneda_base",
+            "fecha",
+            "valor",
+            "invertido",
+            "pnl_pct",
+        } & set(performance_response["properties"])
+        assert not {"fecha", "valor", "invertido", "pnl_pct"} & set(performance_point["properties"])
 
         path_upload_schema = self._resolve(
             document,

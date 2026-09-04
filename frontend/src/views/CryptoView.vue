@@ -32,11 +32,7 @@ import type {
   AssetEditorHandle,
   EditableAsset,
 } from "../components/assetEditor";
-import {
-  adaptCryptoChart,
-  adaptCryptoPerformance,
-} from "../domain/investments";
-import type { NormalizedPerformancePoint } from "../domain/investments";
+import { adaptCryptoChart } from "../domain/investments";
 import { reportingCurrency } from "../i18n";
 import type {
   CryptoChartResponse,
@@ -45,7 +41,7 @@ import type {
   CryptoOrder,
   CryptoPosition,
   CryptoPrice,
-  CryptoPerformanceResponse,
+  InvestmentPerformanceResponse,
   PriceFetchResponse,
   ImporterCatalogItem,
 } from "../types/api";
@@ -173,7 +169,7 @@ const instruments = ref<CryptoInstrument[]>([]);
 const prices = ref<CryptoPrice[]>([]);
 const accounts = ref<CryptoAccount[]>([]);
 const importerCatalog = ref<ImporterCatalogItem[]>([]);
-const performance = ref<CryptoPerformanceResponse | null>(null);
+const performance = ref<InvestmentPerformanceResponse | null>(null);
 const chart = ref<CryptoChartResponse | null>(null);
 const selectedAccount = ref(
   new URLSearchParams(window.location.search).get("account") ?? "all",
@@ -289,16 +285,7 @@ const movementRangeValid = computed(() =>
   ),
 );
 
-const normalizedPerformance = computed(() =>
-  performance.value
-    ? adaptCryptoPerformance(performance.value, {
-        baseCurrency: reportingCurrency.value,
-      })
-    : null,
-);
-const performancePoints = computed<NormalizedPerformancePoint[]>(
-  () => normalizedPerformance.value?.data ?? [],
-);
+const performancePoints = computed(() => performance.value?.data ?? []);
 const firstPerformance = computed(() => performancePoints.value[0] ?? null);
 const lastPerformance = computed(() => performancePoints.value.at(-1) ?? null);
 const periodPnl = computed(() =>
@@ -678,7 +665,7 @@ async function loadPerformance(generation = dashboardGeneration) {
   performanceLoading.value = true;
   performanceError.value = "";
   try {
-    const result = await api<CryptoPerformanceResponse>(
+    const result = await api<InvestmentPerformanceResponse>(
       `/investment-performance/crypto?${performanceQuery()}`,
     );
     if (
@@ -1221,7 +1208,7 @@ onMounted(loadDashboard);
               }"
               >{{ signedMoney(lastPerformance?.pnl ?? 0) }}</strong
             ><span>{{
-              percentage((lastPerformance?.pnlPercent ?? 0) / 100)
+              percentage((lastPerformance?.pnl_percent ?? 0) / 100)
             }}</span>
           </div>
           <div>

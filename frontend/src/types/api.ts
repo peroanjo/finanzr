@@ -316,19 +316,18 @@ export interface MarketChartResponse {
   data: MarketChartCandle[];
 }
 export type CryptoChartResponse = MarketChartResponse;
-export interface CryptoPerformancePoint {
-  fecha: string;
-  valor: number;
-  invertido: number;
+export interface InvestmentPerformancePoint {
+  date: string;
+  value: number;
+  invested: number;
   pnl: number;
-  pnl_pct: number;
+  pnl_percent: number;
 }
-export interface CryptoPerformanceResponse {
+export interface InvestmentPerformanceResponse {
   range: string;
   account_id: string;
-  kind?: string;
-  moneda_base: string;
-  data: CryptoPerformancePoint[];
+  base_currency: string;
+  data: InvestmentPerformancePoint[];
 }
 export interface StockPosition extends NativePosition {
   kind: "stock";
@@ -351,20 +350,6 @@ export interface StockInstrument extends Instrument {
 }
 export type StockPrice = MarketPrice;
 export type StockChartResponse = MarketChartResponse;
-export interface StockPerformancePoint {
-  fecha: string;
-  valor: number;
-  invertido: number;
-  pnl: number;
-  pnl_pct: number;
-}
-export interface StockPerformanceResponse {
-  range: string;
-  account_id: string;
-  kind?: string;
-  moneda_base: string;
-  data: StockPerformancePoint[];
-}
 export interface FundAccount {
   id: string;
   name: string;
@@ -383,20 +368,6 @@ export interface FundPosition extends NativePosition {
 }
 export interface FundOrder extends TransactionDtoBase {
   isin: string;
-}
-export interface FundPerformancePoint {
-  fecha: string;
-  valor: number;
-  invertido: number;
-  pnl: number;
-  pnl_pct: number;
-}
-export interface FundPerformanceResponse {
-  range: string;
-  account_id: string;
-  kind?: string;
-  moneda_base: string;
-  data: FundPerformancePoint[];
 }
 export interface FundInstrument extends Instrument {
   kind: "fund";
