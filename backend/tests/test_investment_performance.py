@@ -344,9 +344,9 @@ def test_canonical_endpoint_serves_all_kinds_and_removes_legacy_alias(
     for kind in ("fund", "stock", "crypto"):
         response = client.get(f"/api/investment-performance/{kind}")
         assert response.status_code == 200
-        assert response.json()["kind"] == kind
-        assert response.json()["moneda_base"] == workspace.base_currency
-        assert response.json()["data"][0]["valor"] == 110.0
+        assert set(response.json()) == {"range", "account_id", "base_currency", "data"}
+        assert response.json()["base_currency"] == workspace.base_currency
+        assert response.json()["data"][0]["value"] == 110.0
 
     alias = client.get("/api/account-performance")
     assert alias.status_code == 404
@@ -435,18 +435,18 @@ def test_custom_bounds_are_inclusive_and_history_uses_point_date_fx(
     assert response.json()["range"] == "2026-01-01_2026-02-01"
     assert response.json()["data"] == [
         {
-            "fecha": "2026-01-01",
-            "valor": 90.0,
-            "invertido": 100.0,
+            "date": "2026-01-01",
+            "value": 90.0,
+            "invested": 100.0,
             "pnl": -10.0,
-            "pnl_pct": -10.0,
+            "pnl_percent": -10.0,
         },
         {
-            "fecha": "2026-02-01",
-            "valor": 88.0,
-            "invertido": 100.0,
+            "date": "2026-02-01",
+            "value": 88.0,
+            "invested": 100.0,
             "pnl": -12.0,
-            "pnl_pct": -12.0,
+            "pnl_percent": -12.0,
         },
     ]
 
@@ -488,11 +488,11 @@ def test_named_range_bounds_exclude_old_and_future_transactions_but_keep_termina
     response = client.get("/api/investment-performance/fund?range=6m")
 
     assert response.status_code == 200
-    assert [point["fecha"] for point in response.json()["data"]] == [
+    assert [point["date"] for point in response.json()["data"]] == [
         "2026-02-24",
         "2026-08-22",
     ]
-    assert response.json()["data"][-1]["valor"] == 0.0
+    assert response.json()["data"][-1]["value"] == 0.0
     assert response.json()["data"][-1]["pnl"] == 30.0
 
 
@@ -530,7 +530,7 @@ def test_transient_history_failure_does_not_warm_aggregate_cache(
     second = client.get("/api/investment-performance/fund")
 
     assert first.json()["data"] == []
-    assert second.json()["data"][0]["valor"] == 110.0
+    assert second.json()["data"][0]["value"] == 110.0
     assert len(calls) == 2
 
 
@@ -568,7 +568,7 @@ def test_transient_ticker_discovery_failure_does_not_warm_aggregate_cache(
     second = client.get("/api/investment-performance/fund")
 
     assert first.json()["data"] == []
-    assert second.json()["data"][0]["valor"] == 110.0
+    assert second.json()["data"][0]["value"] == 110.0
     assert len(discoveries) == 2
 
 
@@ -583,7 +583,7 @@ def test_stock_split_mutation_invalidates_performance_cache() -> None:
         is_primary=True,
     )
     WorkspaceInstrument.objects.create(workspace=workspace, instrument=instrument)
-    cache_key = f"investment-performance:{workspace.pk}:stock:all:1y:EUR:saveback=0"
+    cache_key = f"investment-performance:v2:{workspace.pk}:stock:all:1y:EUR:saveback=0"
     cache.set(cache_key, {"data": ["stale"]}, timeout=3600)
 
     response = client.post(

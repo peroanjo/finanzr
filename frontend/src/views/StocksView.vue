@@ -28,8 +28,7 @@ import type {
   AssetEditorHandle,
   EditableAsset,
 } from "../components/assetEditor";
-import { adaptStockChart, adaptStockPerformance } from "../domain/investments";
-import type { NormalizedPerformancePoint } from "../domain/investments";
+import { adaptStockChart } from "../domain/investments";
 import {
   useStocksPortfolio,
   type StockPositionSortKey as SortKey,
@@ -41,9 +40,9 @@ import type {
   StockChartResponse,
   StockInstrument,
   StockOrder,
-  StockPerformanceResponse,
   StockPosition,
   StockPrice,
+  InvestmentPerformanceResponse,
   PriceFetchResponse,
 } from "../types/api";
 import {
@@ -62,7 +61,7 @@ const positions = ref<StockPosition[]>([]);
 const orders = ref<StockOrder[]>([]);
 const instruments = ref<StockInstrument[]>([]);
 const prices = ref<StockPrice[]>([]);
-const performance = ref<StockPerformanceResponse | null>(null);
+const performance = ref<InvestmentPerformanceResponse | null>(null);
 const chart = ref<StockChartResponse | null>(null);
 const selectedAccount = ref(
   new URLSearchParams(window.location.search).get("account") ?? "all",
@@ -189,16 +188,7 @@ const isTradeRepublic = computed(
       .toLowerCase()
       .includes("trade republic") ?? false,
 );
-const normalizedPerformance = computed(() =>
-  performance.value
-    ? adaptStockPerformance(performance.value, {
-        baseCurrency: baseCurrency.value,
-      })
-    : null,
-);
-const performancePoints = computed<NormalizedPerformancePoint[]>(
-  () => normalizedPerformance.value?.data ?? [],
-);
+const performancePoints = computed(() => performance.value?.data ?? []);
 const firstPerformance = computed(() => performancePoints.value[0] ?? null);
 const lastPerformance = computed(() => performancePoints.value.at(-1) ?? null);
 const periodPnl = computed(() =>
@@ -599,7 +589,7 @@ async function loadPerformance(generation = dashboardGeneration) {
   performanceLoading.value = true;
   performanceError.value = "";
   try {
-    const result = await api<StockPerformanceResponse>(
+    const result = await api<InvestmentPerformanceResponse>(
       `/investment-performance/stock?${performanceQuery()}`,
     );
     if (
@@ -1003,7 +993,7 @@ onMounted(loadDashboard);
               }"
               >{{ signedMoney(lastPerformance?.pnl ?? 0) }}</strong
             ><span>{{
-              percentage((lastPerformance?.pnlPercent ?? 0) / 100)
+              percentage((lastPerformance?.pnl_percent ?? 0) / 100)
             }}</span>
           </div>
           <div>

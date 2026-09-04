@@ -213,15 +213,21 @@ const orders = [
 const performance = {
   range: "1y",
   account_id: "all",
-  moneda_base: "EUR",
+  base_currency: "EUR",
   data: [
-    { fecha: "2026-01-01", valor: 1000, invertido: 1000, pnl: 0, pnl_pct: 0 },
     {
-      fecha: "2026-07-01",
-      valor: 1200,
-      invertido: 1000,
+      date: "2026-01-01",
+      value: 1000,
+      invested: 1000,
+      pnl: 0,
+      pnl_percent: 0,
+    },
+    {
+      date: "2026-07-01",
+      value: 1200,
+      invested: 1000,
       pnl: 200,
-      pnl_pct: 20,
+      pnl_percent: 20,
     },
   ],
 };
@@ -1109,8 +1115,8 @@ describe("FundsView", () => {
     const latestPerformance = {
       ...performance,
       data: [
-        { ...performance.data[0], valor: 2000 },
-        { ...performance.data[1], valor: 2200 },
+        { ...performance.data[0], value: 2000 },
+        { ...performance.data[1], value: 2200 },
       ],
     };
     const latestChart = { ...chart, data: [chart.data[0]] };

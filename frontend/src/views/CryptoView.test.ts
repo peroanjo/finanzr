@@ -165,21 +165,21 @@ const orders: CryptoOrder[] = [
 const performance = {
   range: "1y",
   account_id: "all",
-  moneda_base: "EUR",
+  base_currency: "EUR",
   data: [
     {
-      fecha: "2026-01-10",
-      valor: 1000,
-      invertido: 900,
+      date: "2026-01-10",
+      value: 1000,
+      invested: 900,
       pnl: 100,
-      pnl_pct: 11.11,
+      pnl_percent: 11.11,
     },
     {
-      fecha: "2026-07-10",
-      valor: 1400,
-      invertido: 1200,
+      date: "2026-07-10",
+      value: 1400,
+      invested: 1200,
       pnl: 200,
-      pnl_pct: 16.67,
+      pnl_percent: 16.67,
     },
   ],
 };

@@ -209,15 +209,21 @@ const primaryInstrument: StockInstrument = {
 const performance = {
   range: "1y",
   account_id: "all",
-  moneda_base: "EUR",
+  base_currency: "EUR",
   data: [
-    { fecha: "2026-01-01", valor: 800, invertido: 800, pnl: 0, pnl_pct: 0 },
     {
-      fecha: "2026-07-01",
-      valor: 935,
-      invertido: 800,
+      date: "2026-01-01",
+      value: 800,
+      invested: 800,
+      pnl: 0,
+      pnl_percent: 0,
+    },
+    {
+      date: "2026-07-01",
+      value: 935,
+      invested: 800,
       pnl: 135,
-      pnl_pct: 16.875,
+      pnl_percent: 16.875,
     },
   ],
 };

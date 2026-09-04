@@ -2705,7 +2705,7 @@ def investment_performance(request: Request, kind: str) -> Response:
         named_start, named_end = _named_performance_bounds(range_name)
         timeline_start, timeline_end = named_start.isoformat(), named_end.isoformat()
     cache_key = (
-        f"investment-performance:{current_workspace.pk}:{kind}:{account_value}:"
+        f"investment-performance:v2:{current_workspace.pk}:{kind}:{account_value}:"
         f"{response_range}:{base_currency}:saveback={int(ignore_savebacks)}"
     )
     cached = cache.get(cache_key)
@@ -2716,8 +2716,7 @@ def investment_performance(request: Request, kind: str) -> Response:
     result_base: dict[str, Any] = {
         "range": response_range,
         "account_id": account_value,
-        "kind": kind,
-        "moneda_base": base_currency,
+        "base_currency": base_currency,
         "data": [],
     }
     if not rows:
@@ -2804,16 +2803,25 @@ def investment_performance(request: Request, kind: str) -> Response:
             history_failed = history_failed or failed
 
     split_rows = _stock_split_rows(request) if kind == "stock" else ()
-    result_base["data"] = calculate_investment_performance(
-        rows,
-        histories,
-        kind=kind,
-        account_id=account_value,
-        splits=split_rows,
-        ignore_savebacks=ignore_savebacks,
-        timeline_start=timeline_start,
-        timeline_end=timeline_end,
-    )
+    result_base["data"] = [
+        {
+            "date": point["fecha"],
+            "value": point["valor"],
+            "invested": point["invertido"],
+            "pnl": point["pnl"],
+            "pnl_percent": point["pnl_pct"],
+        }
+        for point in calculate_investment_performance(
+            rows,
+            histories,
+            kind=kind,
+            account_id=account_value,
+            splits=split_rows,
+            ignore_savebacks=ignore_savebacks,
+            timeline_start=timeline_start,
+            timeline_end=timeline_end,
+        )
+    ]
     if not history_failed:
         cache.set(cache_key, result_base, timeout=3600)
     return Response(result_base)

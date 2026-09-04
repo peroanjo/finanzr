@@ -1,35 +1,21 @@
 import { describe, expect, it } from "vitest";
-import * as investmentBarrel from "./index";
 import {
   adaptCryptoChart,
-  adaptCryptoPerformance,
   adaptFundChart,
-  adaptFundPerformance,
   adaptStockChart,
-  adaptStockPerformance,
   toInvestmentOverviewPosition,
 } from "./adapters";
 import type {
   CryptoChartResponse,
-  CryptoPerformanceResponse,
   CryptoInstrument,
   FundChartResponse,
   FundInstrument,
-  FundPerformanceResponse,
   NativePosition,
   StockChartResponse,
   StockInstrument,
-  StockPerformanceResponse,
 } from "../../types/api";
 
 describe("normalized investment adapters", () => {
-  it("exports stock and crypto performance through the investments barrel", () => {
-    expect(investmentBarrel.adaptStockPerformance).toBe(adaptStockPerformance);
-    expect(investmentBarrel.adaptCryptoPerformance).toBe(
-      adaptCryptoPerformance,
-    );
-  });
-
   it("preserves nullable overview values and direct fund return", () => {
     const position = toInvestmentOverviewPosition(
       {
@@ -161,24 +147,7 @@ describe("normalized investment adapters", () => {
     });
   });
 
-  it("normalizes fund performance and chart points, including empty/null data", () => {
-    const performance = adaptFundPerformance(
-      {
-        range: "1y",
-        account_id: "00000000-0000-0000-0000-000000000002",
-        moneda_base: "EUR",
-        data: [
-          {
-            fecha: "2026-01-01",
-            valor: 100,
-            invertido: 100,
-            pnl: 0,
-            pnl_pct: 0,
-          },
-        ],
-      } as FundPerformanceResponse,
-      { baseCurrency: "EUR" },
-    );
+  it("maps OHLC market candles, fund prices and empty chart data", () => {
     const fundChart = adaptFundChart({
       instrument_id: "00000000-0000-0000-0000-000000000101",
       ticker: "GLOBAL",
@@ -212,20 +181,6 @@ describe("normalized investment adapters", () => {
       data: null as never,
     } as StockChartResponse);
 
-    expect(performance).toMatchObject({
-      kind: "fund",
-      accountId: "00000000-0000-0000-0000-000000000002",
-      range: "1y",
-      currency: "EUR",
-      baseCurrency: "EUR",
-    });
-    expect(performance.data[0]).toEqual({
-      date: "2026-01-01",
-      value: 100,
-      invested: 100,
-      pnl: 0,
-      pnlPercent: 0,
-    });
     expect(fundChart).toEqual([
       {
         date: "2026-01-01",
@@ -241,85 +196,7 @@ describe("normalized investment adapters", () => {
         close: 50,
       },
     ]);
-    expect(
-      adaptFundPerformance({
-        range: "1y",
-        account_id: "all",
-        moneda_base: "",
-        data: [],
-      } as FundPerformanceResponse),
-    ).toMatchObject({ currency: "UNSPECIFIED", baseCurrency: null });
     expect(emptyChart).toEqual([]);
-  });
-
-  it("normalizes stock performance with stock capabilities and reporting currency", () => {
-    const performance = adaptStockPerformance({
-      range: "1y",
-      account_id: "all",
-      moneda_base: "EUR",
-      data: [
-        {
-          fecha: "2026-01-01",
-          valor: 100,
-          invertido: 90,
-          pnl: 10,
-          pnl_pct: 11.11,
-        },
-      ],
-    } as StockPerformanceResponse);
-
-    expect(performance).toMatchObject({
-      kind: "stock",
-      accountId: "all",
-      currency: "EUR",
-      baseCurrency: "EUR",
-      capabilities: { fees: true, saveback: true, splits: true },
-    });
-    expect(performance.data).toEqual([
-      {
-        date: "2026-01-01",
-        value: 100,
-        invested: 90,
-        pnl: 10,
-        pnlPercent: 11.11,
-      },
-    ]);
-  });
-
-  it("normalizes crypto performance with the crypto capability contract", () => {
-    const performance = adaptCryptoPerformance({
-      range: "2y",
-      account_id: "all",
-      moneda_base: "EUR",
-      data: [
-        {
-          fecha: "2026-01-01",
-          valor: 1250,
-          invertido: 1000,
-          pnl: 250,
-          pnl_pct: 25,
-        },
-      ],
-    } as CryptoPerformanceResponse);
-
-    expect(performance).toMatchObject({
-      kind: "crypto",
-      accountId: "all",
-      range: "2y",
-      currency: "EUR",
-      baseCurrency: "EUR",
-      metadata: { source: "crypto-performance", currencySource: "dto-base" },
-      capabilities: { fees: true, saveback: false, splits: false },
-    });
-    expect(performance.data).toEqual([
-      {
-        date: "2026-01-01",
-        value: 1250,
-        invested: 1000,
-        pnl: 250,
-        pnlPercent: 25,
-      },
-    ]);
   });
 
   it("maps OHLC market candles and crypto chart identity without changing DTOs", () => {

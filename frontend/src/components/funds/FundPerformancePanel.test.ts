@@ -1,6 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
-import type { NormalizedPerformancePoint } from "../../domain/investments";
+import type { InvestmentPerformancePoint } from "../../types/api";
 import { applyLocale } from "../../i18n";
 import FundPerformancePanel, {
   type FundPerformancePanelModel,
@@ -15,20 +15,20 @@ vi.mock("../FundPerformanceChart.vue", () => ({
   },
 }));
 
-const points: NormalizedPerformancePoint[] = [
+const points: InvestmentPerformancePoint[] = [
   {
     date: "2026-01-01",
     value: 900,
     invested: 800,
     pnl: 100,
-    pnlPercent: 0.125,
+    pnl_percent: 0.125,
   },
   {
     date: "2026-07-01",
     value: 1200,
     invested: 1000,
     pnl: 200,
-    pnlPercent: 0.2,
+    pnl_percent: 0.2,
   },
 ];
 

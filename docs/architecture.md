@@ -71,10 +71,15 @@ identities are represented by their typed `identifiers` list; legacy IDs and
 raw metadata are not exported. Traded orders use the same strict
 English transaction DTO as the HTTP API; provider `external_id`, import batch
 links, and raw metadata remain private import storage. Pure position and
-performance calculations consume a separate private Spanish-shaped projection
+performance calculations consume separate private Spanish-shaped projections
 so importer records and financial formulas remain unchanged. The three analysis
-routes convert that private position result at the HTTP boundary to a native
-DTO keyed by the workspace-visible instrument UUID. The common fields are
+routes convert the private position result at the HTTP boundary to a native
+DTO keyed by the workspace-visible instrument UUID. The investment-performance
+route likewise converts the private calculation rows once at the HTTP boundary
+to the shared native envelope `range`, `account_id`, `base_currency`, and
+`data` points with `date`, `value`, `invested`, `pnl`, and `pnl_percent`. Its
+`kind` is supplied by the route and is not duplicated in the response. The
+common fields are
 `instrument_id`, `kind`, `name`, `quantity`, `cost`, `current_price`,
 `current_value`, `unrealized_pnl`, `realized_pnl`, `currency`, and
 `base_currency`; funds additionally expose `asset_class`, `subtype`,
