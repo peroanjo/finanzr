@@ -304,15 +304,6 @@ const normalizedPerformance = computed(() =>
 const performancePoints = computed<NormalizedPerformancePoint[]>(
   () => normalizedPerformance.value?.data ?? [],
 );
-const performanceChartPoints = computed(() =>
-  performancePoints.value.map((point) => ({
-    fecha: point.date,
-    valor: point.value,
-    invertido: point.invested,
-    pnl: point.pnl,
-    pnl_pct: point.pnlPercent,
-  })),
-);
 const firstPerformance = computed(() => performancePoints.value[0] ?? null);
 const lastPerformance = computed(() => performancePoints.value.at(-1) ?? null);
 const periodPnl = computed(() =>
@@ -1267,8 +1258,8 @@ onMounted(loadDashboard);
           </button>
         </div>
         <FundPerformanceChart
-          v-else-if="performanceChartPoints.length >= 2"
-          :points="performanceChartPoints"
+          v-else-if="performancePoints.length >= 2"
+          :points="performancePoints"
           :mode="mode"
         />
         <div v-else class="fund-chart-state">

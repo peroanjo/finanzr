@@ -12,8 +12,8 @@ import {
 } from "chart.js";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import type { NormalizedPerformancePoint } from "../domain/investments";
 import { reportingCurrency } from "../i18n";
-import type { FundPerformancePoint, StockPerformancePoint } from "../types/api";
 
 Chart.register(
   LineController,
@@ -27,7 +27,7 @@ Chart.register(
 );
 
 const props = defineProps<{
-  points: Array<FundPerformancePoint | StockPerformancePoint>;
+  points: NormalizedPerformancePoint[];
   mode: "value" | "return";
 }>();
 const { locale, t } = useI18n();
@@ -38,9 +38,9 @@ let themeObserver: MutationObserver | null = null;
 const rebasedReturns = computed(() => {
   const first = props.points[0];
   if (!first) return [];
-  const base = 1 + first.pnl_pct / 100;
+  const base = 1 + first.pnlPercent / 100;
   return props.points.map(
-    (point) => ((1 + point.pnl_pct / 100) / base - 1) * 100,
+    (point) => ((1 + point.pnlPercent / 100) / base - 1) * 100,
   );
 });
 
@@ -60,7 +60,7 @@ function render() {
     styles.getPropertyValue("--fz-chart-tooltip-text").trim() || "#edf3ef";
   const tooltipMuted =
     styles.getPropertyValue("--fz-chart-tooltip-muted").trim() || "#a5b2aa";
-  const labels = props.points.map((point) => point.fecha);
+  const labels = props.points.map((point) => point.date);
   const money = new Intl.NumberFormat(locale.value, {
     style: "currency",
     currency: reportingCurrency.value,
@@ -96,7 +96,7 @@ function render() {
     : [
         {
           label: t("shared.fundPerformance.portfolioValue"),
-          data: props.points.map((point) => point.valor),
+          data: props.points.map((point) => point.value),
           borderColor: accent,
           backgroundColor: `${accent}20`,
           borderWidth: 2.5,
@@ -107,7 +107,7 @@ function render() {
         },
         {
           label: t("shared.fundPerformance.contributedCapital"),
-          data: props.points.map((point) => point.invertido),
+          data: props.points.map((point) => point.invested),
           borderColor: muted,
           backgroundColor: "transparent",
           borderWidth: 1.5,

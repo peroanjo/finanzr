@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import FundPerformanceChart from "../FundPerformanceChart.vue";
-import type { FundPerformancePoint } from "../../types/api";
+import type { NormalizedPerformancePoint } from "../../domain/investments";
 
 export type PerformanceRange = "6m" | "1y" | "2y" | "custom";
 export type PerformanceMode = "value" | "return";
@@ -17,8 +17,8 @@ export interface FundPerformancePanelModel {
   range: PerformanceRange;
   mode: PerformanceMode;
   ranges: readonly FundPerformancePanelRange[];
-  points: FundPerformancePoint[];
-  lastPerformance: FundPerformancePoint | null;
+  points: NormalizedPerformancePoint[];
+  lastPerformance: NormalizedPerformancePoint | null;
   totalValue: number;
   totalInvested: number;
   realizedPnl: number;
@@ -102,7 +102,7 @@ const { t } = useI18n();
         <small>{{ t("funds.performance.closingValue") }}</small>
         <strong>{{
           model.formatters.money(
-            model.lastPerformance?.valor ?? model.totalValue,
+            model.lastPerformance?.value ?? model.totalValue,
           )
         }}</strong>
       </div>
@@ -110,7 +110,7 @@ const { t } = useI18n();
         <small>{{ t("funds.performance.contributedCapital") }}</small>
         <strong>{{
           model.formatters.money(
-            model.lastPerformance?.invertido ?? model.totalInvested,
+            model.lastPerformance?.invested ?? model.totalInvested,
           )
         }}</strong>
       </div>
@@ -127,7 +127,7 @@ const { t } = useI18n();
         <span>
           {{
             model.formatters.percentage(
-              (model.lastPerformance?.pnl_pct ?? 0) / 100,
+              (model.lastPerformance?.pnlPercent ?? 0) / 100,
             )
           }}
         </span>

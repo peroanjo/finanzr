@@ -33,7 +33,6 @@ import type {
   FundInstrument,
   FundOrder,
   FundPerformanceResponse,
-  FundPerformancePoint,
   FundPosition,
   FundPrice,
   ImporterCatalogItem,
@@ -44,6 +43,7 @@ import {
   adaptFundChart,
   adaptFundPerformance,
 } from "../domain/investments";
+import type { NormalizedPerformancePoint } from "../domain/investments";
 import {
   useFundsPortfolio,
   type FundPositionSortKey,
@@ -281,15 +281,8 @@ const normalizedPerformance = computed(() =>
       })
     : null,
 );
-const performancePoints = computed<FundPerformancePoint[]>(
-  () =>
-    normalizedPerformance.value?.data.map((item) => ({
-      fecha: item.date,
-      valor: item.value,
-      invertido: item.invested,
-      pnl: item.pnl,
-      pnl_pct: item.pnlPercent,
-    })) ?? [],
+const performancePoints = computed<NormalizedPerformancePoint[]>(
+  () => normalizedPerformance.value?.data ?? [],
 );
 const firstPerformance = computed(() => performancePoints.value[0] ?? null);
 const lastPerformance = computed(() => performancePoints.value.at(-1) ?? null);
@@ -298,14 +291,14 @@ const periodPnl = computed(() => {
   return lastPerformance.value.pnl - firstPerformance.value.pnl;
 });
 const periodPnlPercent = computed(() =>
-  firstPerformance.value?.valor
-    ? periodPnl.value / firstPerformance.value.valor
+  firstPerformance.value?.value
+    ? periodPnl.value / firstPerformance.value.value
     : 0,
 );
 const displayedRange = computed(() => {
   const points = performancePoints.value;
   if (points.length) {
-    return `${displayDate(points[0].fecha)} → ${displayDate(points.at(-1)?.fecha ?? points[0].fecha)}`;
+    return `${displayDate(points[0].date)} → ${displayDate(points.at(-1)?.date ?? points[0].date)}`;
   }
   if (range.value === "custom") {
     return `${displayDate(customStart.value)} → ${displayDate(customEnd.value)}`;
