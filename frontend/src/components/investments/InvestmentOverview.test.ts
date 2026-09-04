@@ -1,6 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
-import type { NormalizedPosition } from "../../domain/investments";
+import type { InvestmentOverviewPosition } from "../../domain/investments";
 import InvestmentOverview from "./InvestmentOverview.vue";
 
 const labels = {
@@ -38,28 +38,20 @@ const labels = {
 };
 
 function position(
-  kind: NormalizedPosition["kind"],
+  kind: "fund" | "stock" | "crypto",
   assetId: string,
   displayIdentifier: string,
-): NormalizedPosition {
+): InvestmentOverviewPosition {
   return {
-    kind,
-    assetId,
     assetKey: `${kind}:${assetId}`,
     displayIdentifier,
     name: `${kind} asset`,
-    type: null,
-    subtype: null,
     quantity: 1,
     cost: 10,
     currentPrice: 11,
     currentValue: 11,
     unrealizedPnl: 1,
-    realizedPnl: 0,
-    currency: "EUR",
-    baseCurrency: "EUR",
-    metadata: {},
-    capabilities: { fees: true, saveback: false, splits: false },
+    returnPercent: null,
   };
 }
 

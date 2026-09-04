@@ -147,7 +147,6 @@ const {
   instruments,
   prices,
   selectedFund,
-  baseCurrency: fundBaseCurrency,
   locale,
 });
 

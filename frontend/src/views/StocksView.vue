@@ -161,7 +161,6 @@ const {
   orders,
   instruments,
   selectedInstrumentId,
-  baseCurrency,
   locale,
 });
 const selectedAccountRow = computed(

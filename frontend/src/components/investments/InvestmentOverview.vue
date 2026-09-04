@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import AssetReturnToggle from "../AssetReturnToggle.vue";
 import type { AssetReturnMode } from "../AssetReturnToggle.vue";
-import type { NormalizedPosition } from "../../domain/investments";
+import type { InvestmentOverviewPosition } from "../../domain/investments";
 
 type Formatter = (value: number) => string;
 
@@ -46,7 +46,7 @@ const emit = defineEmits<{
 }>();
 
 const props = defineProps<{
-  topPositions: NormalizedPosition[];
+  topPositions: InvestmentOverviewPosition[];
   openPositionsCount: number;
   totalValue: number;
   unrealizedPnl: number;
@@ -69,10 +69,9 @@ const assetReturnMode = computed({
   set: (value: AssetReturnMode) => emit("update:assetReturnMode", value),
 });
 
-function positionReturn(position: NormalizedPosition) {
-  const metadataValue = position.metadata.returnPercent;
-  return typeof metadataValue === "number"
-    ? metadataValue
+function positionReturn(position: InvestmentOverviewPosition) {
+  return typeof position.returnPercent === "number"
+    ? position.returnPercent
     : position.cost
       ? (position.unrealizedPnl ?? 0) / position.cost
       : 0;

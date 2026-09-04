@@ -6,8 +6,8 @@ import type {
   FundPrice,
 } from "../types/api";
 import {
-  adaptFundPosition,
-  type NormalizedPosition,
+  toInvestmentOverviewPosition,
+  type InvestmentOverviewPosition,
 } from "../domain/investments";
 import { instrumentById, instrumentIdentity } from "../domain/instruments";
 
@@ -31,14 +31,13 @@ export interface UseFundsPortfolioOptions {
   instruments: Ref<FundInstrument[]>;
   prices: Ref<FundPrice[]>;
   selectedFund: Ref<string>;
-  baseCurrency: Ref<string>;
   locale: Ref<string>;
 }
 
 export interface UseFundsPortfolio {
   openPositions: ComputedRef<FundPosition[]>;
   topPositions: ComputedRef<FundPosition[]>;
-  normalizedTopPositions: ComputedRef<NormalizedPosition[]>;
+  normalizedTopPositions: ComputedRef<InvestmentOverviewPosition[]>;
   totalInvested: ComputedRef<number>;
   totalValue: ComputedRef<number>;
   unrealizedPnl: ComputedRef<number>;
@@ -60,15 +59,8 @@ export interface UseFundsPortfolio {
 export function useFundsPortfolio(
   options: UseFundsPortfolioOptions,
 ): UseFundsPortfolio {
-  const {
-    positions,
-    orders,
-    instruments,
-    prices,
-    selectedFund,
-    baseCurrency,
-    locale,
-  } = options;
+  const { positions, orders, instruments, prices, selectedFund, locale } =
+    options;
   const positionSortKey = ref<FundPositionSortKey>("value");
   const positionSortDirection = ref<FundSortDirection>("desc");
 
@@ -78,11 +70,13 @@ export function useFundsPortfolio(
       .sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0)),
   );
   const topPositions = computed(() => openPositions.value.slice(0, 5));
-  const normalizedPosition = (position: FundPosition): NormalizedPosition =>
-    adaptFundPosition(
+  const normalizedPosition = (
+    position: FundPosition,
+  ): InvestmentOverviewPosition =>
+    toInvestmentOverviewPosition(
       position,
       instrumentById(instruments.value, position.instrument_id),
-      { baseCurrency: baseCurrency.value },
+      position.return_percent,
     );
   const normalizedTopPositions = computed(() =>
     topPositions.value.map(normalizedPosition),

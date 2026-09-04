@@ -258,7 +258,6 @@ const {
   orders,
   instruments,
   selectedInstrumentId,
-  baseCurrency: reportingCurrency,
   locale,
 });
 
