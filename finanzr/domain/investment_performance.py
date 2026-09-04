@@ -308,8 +308,3 @@ def calculate_investment_performance(
             }
         )
     return data
-
-
-# A concise alias is useful to callers that do not need to know the API's
-# historical name for this calculation.
-calculate_performance = calculate_investment_performance
