@@ -12,14 +12,17 @@ import type {
 
 function makePosition(overrides: Partial<CryptoPosition> = {}): CryptoPosition {
   return {
-    symbol: "CRYPTO-1",
-    nombre: "Crypto 1",
-    titulos: 2,
-    coste_total: 100,
-    precio_actual: 60,
-    valor_actual: 120,
-    pnl: 20,
-    pnl_realizada: 5,
+    instrument_id: "CRYPTO-1",
+    kind: "crypto",
+    name: "Crypto 1",
+    quantity: 2,
+    cost: 100,
+    current_price: 60,
+    current_value: 120,
+    unrealized_pnl: 20,
+    realized_pnl: 5,
+    currency: "EUR",
+    base_currency: "EUR",
     ...overrides,
   };
 }
@@ -57,8 +60,11 @@ function makeOrder(overrides: Partial<CryptoOrder> = {}): CryptoOrder {
 function makeInstrument(
   overrides: Partial<CryptoInstrument> = {},
 ): CryptoInstrument {
+  const identity = overrides.identifiers?.find(
+    (item) => item.scheme === "crypto_symbol",
+  )?.value;
   return {
-    id: "00000000-0000-0000-0000-000000000201",
+    id: identity ?? "CRYPTO-1",
     kind: "crypto",
     name: "Crypto 1",
     quote_currency: "EUR",
@@ -82,28 +88,28 @@ function createPortfolio({
   positions: positionRows = [],
   orders: orderRows = [],
   instruments: instrumentRows = [],
-  selectedSymbol: selectedAsset = "",
+  selectedInstrumentId: selectedAsset = "",
   baseCurrency: currency = "EUR",
   locale: currentLocale = "en",
 }: {
   positions?: CryptoPosition[];
   orders?: CryptoOrder[];
   instruments?: CryptoInstrument[];
-  selectedSymbol?: string;
+  selectedInstrumentId?: string;
   baseCurrency?: string;
   locale?: string;
 } = {}) {
   const positions = ref(positionRows);
   const orders = ref(orderRows);
   const instruments = ref(instrumentRows);
-  const selectedSymbol = ref(selectedAsset);
+  const selectedInstrumentId = ref(selectedAsset);
   const baseCurrency = ref(currency);
   const locale = ref(currentLocale);
   const portfolio = useCryptoPortfolio({
     positions,
     orders,
     instruments,
-    selectedSymbol,
+    selectedInstrumentId,
     baseCurrency,
     locale,
   });
@@ -112,7 +118,7 @@ function createPortfolio({
     positions,
     orders,
     instruments,
-    selectedSymbol,
+    selectedInstrumentId,
     baseCurrency,
     locale,
   };
@@ -122,23 +128,25 @@ describe("useCryptoPortfolio", () => {
   it("filters positive positions, sorts by value, and limits the top five", () => {
     const portfolio = createPortfolio({
       positions: [
-        makePosition({ symbol: "CRYPTO-1", valor_actual: 100 }),
-        makePosition({ symbol: "CRYPTO-2", valor_actual: 600 }),
-        makePosition({ symbol: "CRYPTO-3", valor_actual: 500 }),
-        makePosition({ symbol: "CRYPTO-4", valor_actual: 400 }),
-        makePosition({ symbol: "CRYPTO-5", valor_actual: 300 }),
-        makePosition({ symbol: "CRYPTO-6", valor_actual: 200 }),
-        makePosition({ symbol: "NULL-VALUE", valor_actual: null }),
+        makePosition({ instrument_id: "CRYPTO-1", current_value: 100 }),
+        makePosition({ instrument_id: "CRYPTO-2", current_value: 600 }),
+        makePosition({ instrument_id: "CRYPTO-3", current_value: 500 }),
+        makePosition({ instrument_id: "CRYPTO-4", current_value: 400 }),
+        makePosition({ instrument_id: "CRYPTO-5", current_value: 300 }),
+        makePosition({ instrument_id: "CRYPTO-6", current_value: 200 }),
+        makePosition({ instrument_id: "NULL-VALUE", current_value: null }),
         makePosition({
-          symbol: "CLOSED",
-          nombre: "Closed",
-          titulos: 0,
-          valor_actual: 900,
+          instrument_id: "CLOSED",
+          name: "Closed",
+          quantity: 0,
+          current_value: 900,
         }),
       ],
     });
 
-    expect(portfolio.openPositions.value.map((item) => item.symbol)).toEqual([
+    expect(
+      portfolio.openPositions.value.map((item) => item.instrument_id),
+    ).toEqual([
       "CRYPTO-2",
       "CRYPTO-3",
       "CRYPTO-4",
@@ -147,39 +155,35 @@ describe("useCryptoPortfolio", () => {
       "CRYPTO-1",
       "NULL-VALUE",
     ]);
-    expect(portfolio.topPositions.value.map((item) => item.symbol)).toEqual([
-      "CRYPTO-2",
-      "CRYPTO-3",
-      "CRYPTO-4",
-      "CRYPTO-5",
-      "CRYPTO-6",
-    ]);
+    expect(
+      portfolio.topPositions.value.map((item) => item.instrument_id),
+    ).toEqual(["CRYPTO-2", "CRYPTO-3", "CRYPTO-4", "CRYPTO-5", "CRYPTO-6"]);
   });
 
   it("calculates open totals and keeps server realized P&L for every position", () => {
     const portfolio = createPortfolio({
       positions: [
         makePosition({
-          symbol: "OPEN-1",
-          coste_total: 1000,
-          valor_actual: 1200,
-          pnl: 200,
-          pnl_realizada: 11,
+          instrument_id: "OPEN-1",
+          cost: 1000,
+          current_value: 1200,
+          unrealized_pnl: 200,
+          realized_pnl: 11,
         }),
         makePosition({
-          symbol: "OPEN-2",
-          coste_total: 500,
-          valor_actual: null,
-          pnl: null,
-          pnl_realizada: -3,
+          instrument_id: "OPEN-2",
+          cost: 500,
+          current_value: null,
+          unrealized_pnl: null,
+          realized_pnl: -3,
         }),
         makePosition({
-          symbol: "CLOSED",
-          titulos: 0,
-          coste_total: 900,
-          valor_actual: 900,
-          pnl: 100,
-          pnl_realizada: 25,
+          instrument_id: "CLOSED",
+          quantity: 0,
+          cost: 900,
+          current_value: 900,
+          unrealized_pnl: 100,
+          realized_pnl: 25,
         }),
       ],
     });
@@ -192,7 +196,7 @@ describe("useCryptoPortfolio", () => {
     expect(portfolio.totalPnl.value).toBe(233);
 
     portfolio.positions.value = [
-      makePosition({ coste_total: 0, valor_actual: 10, pnl: 5 }),
+      makePosition({ cost: 0, current_value: 10, unrealized_pnl: 5 }),
     ];
     expect(portfolio.openReturn.value).toBe(0);
   });
@@ -201,24 +205,25 @@ describe("useCryptoPortfolio", () => {
     const portfolio = createPortfolio({
       positions: [
         makePosition({
-          symbol: "USD-COIN",
-          nombre: "Dollar coin",
-          precio_actual: null,
-          valor_actual: null,
-          pnl: null,
-          moneda: "USD",
-          moneda_base: "EUR",
+          instrument_id: "USD-COIN",
+          name: "Dollar coin",
+          current_price: null,
+          current_value: null,
+          unrealized_pnl: null,
+          currency: "USD",
+          base_currency: "EUR",
         }),
         makePosition({
-          symbol: "MISSING",
-          nombre: "Missing instrument",
-          titulos: 1,
-          valor_actual: 90,
-          moneda: "EUR",
+          instrument_id: "MISSING",
+          name: "Missing instrument",
+          quantity: 1,
+          current_value: 90,
+          currency: "EUR",
         }),
       ],
       instruments: [
         makeInstrument({
+          id: "USD-COIN",
           name: "Dollar coin",
           quote_currency: "USD",
           identifiers: [
@@ -278,13 +283,13 @@ describe("useCryptoPortfolio", () => {
       ],
     });
     portfolio.positions.value[0] = makePosition({
-      symbol: "USD-COIN",
-      nombre: "Dollar coin",
-      precio_actual: null,
-      valor_actual: null,
-      pnl: null,
-      moneda: "USD",
-      moneda_base: undefined,
+      instrument_id: "USD-COIN",
+      name: "Dollar coin",
+      current_price: null,
+      current_value: null,
+      unrealized_pnl: null,
+      currency: "USD",
+      base_currency: undefined,
     });
     portfolio.baseCurrency.value = "USD";
     expect(
@@ -301,16 +306,20 @@ describe("useCryptoPortfolio", () => {
   it("keeps confusable symbols distinct across selection, orders, normalization, and sorting", () => {
     const portfolio = createPortfolio({
       positions: [
-        makePosition({ symbol: "BTC", nombre: "Bitcoin", valor_actual: 300 }),
         makePosition({
-          symbol: "BTC-EUR",
-          nombre: "Bitcoin pair",
-          valor_actual: 200,
+          instrument_id: "BTC",
+          name: "Bitcoin",
+          current_value: 300,
         }),
         makePosition({
-          symbol: "btc",
-          nombre: "Lowercase bitcoin",
-          valor_actual: 100,
+          instrument_id: "BTC-EUR",
+          name: "Bitcoin pair",
+          current_value: 200,
+        }),
+        makePosition({
+          instrument_id: "btc",
+          name: "Lowercase bitcoin",
+          current_value: 100,
         }),
       ],
       orders: [
@@ -320,6 +329,7 @@ describe("useCryptoPortfolio", () => {
       ],
       instruments: [
         makeInstrument({
+          id: "BTC",
           identifiers: [
             {
               scheme: "crypto_symbol",
@@ -331,6 +341,7 @@ describe("useCryptoPortfolio", () => {
           ],
         }),
         makeInstrument({
+          id: "BTC-EUR",
           identifiers: [
             {
               scheme: "crypto_symbol",
@@ -341,11 +352,22 @@ describe("useCryptoPortfolio", () => {
             { scheme: "yahoo", value: "100", venue: "", is_primary: true },
           ],
         }),
+        makeInstrument({
+          id: "btc",
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "btc",
+              venue: "",
+              is_primary: true,
+            },
+          ],
+        }),
       ],
-      selectedSymbol: "BTC-EUR",
+      selectedInstrumentId: "BTC-EUR",
     });
 
-    expect(portfolio.selectedPosition.value?.symbol).toBe("BTC-EUR");
+    expect(portfolio.selectedPosition.value?.instrument_id).toBe("BTC-EUR");
     expect(portfolio.selectedOrders.value.map((item) => item.id)).toEqual([
       "pair-order",
     ]);
@@ -369,14 +391,12 @@ describe("useCryptoPortfolio", () => {
     ).toBeNull();
 
     portfolio.sortPositions("ticker");
-    expect(portfolio.sortedPositions.value.map((item) => item.symbol)).toEqual([
-      "BTC",
-      "BTC-EUR",
-      "btc",
-    ]);
+    expect(
+      portfolio.sortedPositions.value.map((item) => item.instrument_id),
+    ).toEqual(["BTC", "BTC-EUR", "btc"]);
 
-    portfolio.selectedSymbol.value = "btc";
-    expect(portfolio.selectedPosition.value?.symbol).toBe("btc");
+    portfolio.selectedInstrumentId.value = "btc";
+    expect(portfolio.selectedPosition.value?.instrument_id).toBe("btc");
     expect(portfolio.selectedOrders.value.map((item) => item.id)).toEqual([
       "lowercase-order",
     ]);
@@ -408,17 +428,32 @@ describe("useCryptoPortfolio", () => {
     const portfolio = createPortfolio({
       positions: [
         makePosition({
-          symbol: "CNE100000296",
-          nombre: "Crypto split-like symbol",
-          titulos: 1,
-          coste_total: 40,
+          instrument_id: "CNE100000296",
+          name: "Crypto split-like symbol",
+          quantity: 1,
+          cost: 40,
         }),
       ],
       orders: [zeroBaseOrder, fallbackOrder],
-      selectedSymbol: "CNE100000296",
+      selectedInstrumentId: "CNE100000296",
+      instruments: [
+        makeInstrument({
+          id: "CNE100000296",
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "CNE100000296",
+              venue: "",
+              is_primary: true,
+            },
+          ],
+        }),
+      ],
     });
 
-    expect(portfolio.selectedPosition.value?.symbol).toBe("CNE100000296");
+    expect(portfolio.selectedPosition.value?.instrument_id).toBe(
+      "CNE100000296",
+    );
     expect(portfolio.selectedOrders.value.map((item) => item.id)).toEqual([
       "zero-base",
       "fallback",
@@ -462,29 +497,53 @@ describe("useCryptoPortfolio", () => {
   it("reacts to selection, order, and price changes and averages only open positions", () => {
     const portfolio = createPortfolio({
       positions: [
-        makePosition({ symbol: "BTC", coste_total: 100, titulos: 2 }),
+        makePosition({ instrument_id: "BTC", cost: 100, quantity: 2 }),
         makePosition({
-          symbol: "ETH",
-          nombre: "Ethereum",
-          coste_total: 200,
-          titulos: 0,
-          precio_actual: null,
+          instrument_id: "ETH",
+          name: "Ethereum",
+          cost: 200,
+          quantity: 0,
+          current_price: null,
         }),
       ],
       orders: [
         makeOrder({ symbol: "BTC" }),
         makeOrder({ symbol: "ETH", id: "operation-2" }),
       ],
-      selectedSymbol: "BTC",
+      selectedInstrumentId: "BTC",
+      instruments: [
+        makeInstrument({
+          id: "BTC",
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "BTC",
+              venue: "",
+              is_primary: true,
+            },
+          ],
+        }),
+        makeInstrument({
+          id: "ETH",
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "ETH",
+              venue: "",
+              is_primary: true,
+            },
+          ],
+        }),
+      ],
     });
 
-    expect(portfolio.selectedPosition.value?.symbol).toBe("BTC");
+    expect(portfolio.selectedPosition.value?.instrument_id).toBe("BTC");
     expect(portfolio.selectedOrders.value).toHaveLength(1);
     expect(portfolio.averagePrice.value).toBe(50);
     expect(portfolio.pricedPositions.value).toBe(1);
 
-    portfolio.selectedSymbol.value = "ETH";
-    expect(portfolio.selectedPosition.value?.symbol).toBe("ETH");
+    portfolio.selectedInstrumentId.value = "ETH";
+    expect(portfolio.selectedPosition.value?.instrument_id).toBe("ETH");
     expect(portfolio.selectedOrders.value[0].symbol).toBe("ETH");
     expect(portfolio.averagePrice.value).toBeNull();
 
@@ -495,10 +554,10 @@ describe("useCryptoPortfolio", () => {
     expect(portfolio.selectedOrders.value).toHaveLength(2);
 
     portfolio.positions.value[1] = makePosition({
-      symbol: "ETH",
-      nombre: "Ethereum",
-      titulos: 2,
-      precio_actual: 70,
+      instrument_id: "ETH",
+      name: "Ethereum",
+      quantity: 2,
+      current_price: 70,
     });
     expect(portfolio.pricedPositions.value).toBe(2);
     expect(portfolio.averagePrice.value).toBe(50);
@@ -507,31 +566,31 @@ describe("useCryptoPortfolio", () => {
   it("sorts every key with nulls last, stable name ties, and initial/toggle directions", () => {
     const positions = [
       makePosition({
-        symbol: "ZETA",
-        nombre: "Zeta",
-        titulos: 3,
-        coste_total: 300,
-        precio_actual: 60,
-        valor_actual: 180,
-        pnl: 30,
+        instrument_id: "ZETA",
+        name: "Zeta",
+        quantity: 3,
+        cost: 300,
+        current_price: 60,
+        current_value: 180,
+        unrealized_pnl: 30,
       }),
       makePosition({
-        symbol: "ALPHA",
-        nombre: "Alpha",
-        titulos: 2,
-        coste_total: 100,
-        precio_actual: 120,
-        valor_actual: 240,
-        pnl: 20,
+        instrument_id: "ALPHA",
+        name: "Alpha",
+        quantity: 2,
+        cost: 100,
+        current_price: 120,
+        current_value: 240,
+        unrealized_pnl: 20,
       }),
       makePosition({
-        symbol: "BETA",
-        nombre: "Beta",
-        titulos: 2,
-        coste_total: 200,
-        precio_actual: 50,
-        valor_actual: 100,
-        pnl: -20,
+        instrument_id: "BETA",
+        name: "Beta",
+        quantity: 2,
+        cost: 200,
+        current_price: 50,
+        current_value: 100,
+        unrealized_pnl: -20,
       }),
     ];
     const portfolio = createPortfolio({
@@ -616,11 +675,9 @@ describe("useCryptoPortfolio", () => {
 
     expect(portfolio.positionSortKey.value).toBe("value");
     expect(portfolio.positionSortDirection.value).toBe("desc");
-    expect(portfolio.sortedPositions.value.map((item) => item.symbol)).toEqual([
-      "ALPHA",
-      "ZETA",
-      "BETA",
-    ]);
+    expect(
+      portfolio.sortedPositions.value.map((item) => item.instrument_id),
+    ).toEqual(["ALPHA", "ZETA", "BETA"]);
     expect(portfolio.ariaSort("value")).toBe("descending");
     expect(portfolio.ariaSort("asset")).toBe("none");
 
@@ -629,13 +686,13 @@ describe("useCryptoPortfolio", () => {
       expect(portfolio.positionSortKey.value).toBe(key);
       expect(portfolio.positionSortDirection.value).toBe("asc");
       expect(
-        portfolio.sortedPositions.value.map((item) => item.symbol),
+        portfolio.sortedPositions.value.map((item) => item.instrument_id),
       ).toEqual(expectedOrder[key].asc);
       expect(portfolio.ariaSort(key)).toBe("ascending");
       portfolio.sortPositions(key);
       expect(portfolio.positionSortDirection.value).toBe("desc");
       expect(
-        portfolio.sortedPositions.value.map((item) => item.symbol),
+        portfolio.sortedPositions.value.map((item) => item.instrument_id),
       ).toEqual(expectedOrder[key].desc);
       expect(portfolio.ariaSort(key)).toBe("descending");
     }
@@ -643,20 +700,28 @@ describe("useCryptoPortfolio", () => {
     const nullPortfolio = createPortfolio({
       positions: [
         makePosition({
-          symbol: "NULL",
-          nombre: "Null value",
-          valor_actual: null,
+          instrument_id: "NULL",
+          name: "Null value",
+          current_value: null,
         }),
-        makePosition({ symbol: "BETA", nombre: "Beta", valor_actual: 100 }),
-        makePosition({ symbol: "ALPHA", nombre: "Alpha", valor_actual: 100 }),
+        makePosition({
+          instrument_id: "BETA",
+          name: "Beta",
+          current_value: 100,
+        }),
+        makePosition({
+          instrument_id: "ALPHA",
+          name: "Alpha",
+          current_value: 100,
+        }),
       ],
     });
     expect(
-      nullPortfolio.sortedPositions.value.map((item) => item.symbol),
+      nullPortfolio.sortedPositions.value.map((item) => item.instrument_id),
     ).toEqual(["ALPHA", "BETA", "NULL"]);
     nullPortfolio.sortPositions("value");
     expect(
-      nullPortfolio.sortedPositions.value.map((item) => item.symbol),
+      nullPortfolio.sortedPositions.value.map((item) => item.instrument_id),
     ).toEqual(["ALPHA", "BETA", "NULL"]);
     expect(nullPortfolio.ariaSort("value")).toBe("ascending");
 
@@ -667,25 +732,61 @@ describe("useCryptoPortfolio", () => {
       {
         key: "currentPrice",
         positions: [
-          makePosition({ symbol: "NULL", nombre: "Null", precio_actual: null }),
-          makePosition({ symbol: "LOW", nombre: "Low", precio_actual: 10 }),
-          makePosition({ symbol: "HIGH", nombre: "High", precio_actual: 20 }),
+          makePosition({
+            instrument_id: "NULL",
+            name: "Null",
+            current_price: null,
+          }),
+          makePosition({
+            instrument_id: "LOW",
+            name: "Low",
+            current_price: 10,
+          }),
+          makePosition({
+            instrument_id: "HIGH",
+            name: "High",
+            current_price: 20,
+          }),
         ],
       },
       {
         key: "value",
         positions: [
-          makePosition({ symbol: "NULL", nombre: "Null", valor_actual: null }),
-          makePosition({ symbol: "LOW", nombre: "Low", valor_actual: 10 }),
-          makePosition({ symbol: "HIGH", nombre: "High", valor_actual: 20 }),
+          makePosition({
+            instrument_id: "NULL",
+            name: "Null",
+            current_value: null,
+          }),
+          makePosition({
+            instrument_id: "LOW",
+            name: "Low",
+            current_value: 10,
+          }),
+          makePosition({
+            instrument_id: "HIGH",
+            name: "High",
+            current_value: 20,
+          }),
         ],
       },
       {
         key: "pnl",
         positions: [
-          makePosition({ symbol: "NULL", nombre: "Null", pnl: null }),
-          makePosition({ symbol: "LOW", nombre: "Low", pnl: -10 }),
-          makePosition({ symbol: "HIGH", nombre: "High", pnl: 20 }),
+          makePosition({
+            instrument_id: "NULL",
+            name: "Null",
+            unrealized_pnl: null,
+          }),
+          makePosition({
+            instrument_id: "LOW",
+            name: "Low",
+            unrealized_pnl: -10,
+          }),
+          makePosition({
+            instrument_id: "HIGH",
+            name: "High",
+            unrealized_pnl: 20,
+          }),
         ],
       },
     ];
@@ -694,24 +795,44 @@ describe("useCryptoPortfolio", () => {
         positions: nullablePositions,
       });
       nullablePortfolio.sortPositions(key);
-      expect(nullablePortfolio.sortedPositions.value.at(-1)?.symbol).toBe(
-        "NULL",
-      );
+      expect(
+        nullablePortfolio.sortedPositions.value.at(-1)?.instrument_id,
+      ).toBe("NULL");
       nullablePortfolio.sortPositions(key);
-      expect(nullablePortfolio.sortedPositions.value.at(-1)?.symbol).toBe(
-        "NULL",
-      );
+      expect(
+        nullablePortfolio.sortedPositions.value.at(-1)?.instrument_id,
+      ).toBe("NULL");
     }
   });
 
   it("uses the raw symbol when an instrument ticker is missing", () => {
+    const missingTickerInstrumentId = "00000000-0000-0000-0000-000000000031";
+    const knownTickerInstrumentId = "ffffffff-ffff-ffff-ffff-ffffffffffff";
     const portfolio = createPortfolio({
       positions: [
-        makePosition({ symbol: "ZZ9", nombre: "Missing ticker" }),
-        makePosition({ symbol: "KNOWN", nombre: "Known ticker" }),
+        makePosition({
+          instrument_id: missingTickerInstrumentId,
+          name: "Missing ticker",
+        }),
+        makePosition({
+          instrument_id: knownTickerInstrumentId,
+          name: "Known ticker",
+        }),
       ],
       instruments: [
         makeInstrument({
+          id: missingTickerInstrumentId,
+          identifiers: [
+            {
+              scheme: "crypto_symbol",
+              value: "ZZ9",
+              venue: "",
+              is_primary: true,
+            },
+          ],
+        }),
+        makeInstrument({
+          id: knownTickerInstrumentId,
           identifiers: [
             {
               scheme: "crypto_symbol",
@@ -726,17 +847,16 @@ describe("useCryptoPortfolio", () => {
     });
 
     portfolio.sortPositions("ticker");
-    expect(portfolio.sortedPositions.value.map((item) => item.symbol)).toEqual([
-      "KNOWN",
-      "ZZ9",
-    ]);
+    expect(
+      portfolio.sortedPositions.value.map((item) => item.instrument_id),
+    ).toEqual([knownTickerInstrumentId, missingTickerInstrumentId]);
   });
 
   it("uses numeric crypto ticker collation and recomputes locale-sensitive names", () => {
     const numericPortfolio = createPortfolio({
       positions: [
-        makePosition({ symbol: "A2", nombre: "A2" }),
-        makePosition({ symbol: "A10", nombre: "A10" }),
+        makePosition({ instrument_id: "A2", name: "A2" }),
+        makePosition({ instrument_id: "A10", name: "A10" }),
       ],
       instruments: [
         makeInstrument({
@@ -765,7 +885,7 @@ describe("useCryptoPortfolio", () => {
     });
     numericPortfolio.sortPositions("ticker");
     expect(
-      numericPortfolio.sortedPositions.value.map((item) => item.symbol),
+      numericPortfolio.sortedPositions.value.map((item) => item.instrument_id),
     ).toEqual(["A2", "A10"]);
 
     const localeNames = ["ñ", "n"];
@@ -783,17 +903,17 @@ describe("useCryptoPortfolio", () => {
 
     const localePortfolio = createPortfolio({
       positions: [
-        makePosition({ symbol: "TILDE", nombre: "ñ" }),
-        makePosition({ symbol: "PLAIN", nombre: "n" }),
+        makePosition({ instrument_id: "TILDE", name: "ñ" }),
+        makePosition({ instrument_id: "PLAIN", name: "n" }),
       ],
     });
     localePortfolio.sortPositions("asset");
     expect(
-      localePortfolio.sortedPositions.value.map((item) => item.nombre),
+      localePortfolio.sortedPositions.value.map((item) => item.name),
     ).toEqual(englishOrder);
     localePortfolio.locale.value = "es";
     expect(
-      localePortfolio.sortedPositions.value.map((item) => item.nombre),
+      localePortfolio.sortedPositions.value.map((item) => item.name),
     ).toEqual(spanishOrder);
   });
 });

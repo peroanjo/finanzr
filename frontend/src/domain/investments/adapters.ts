@@ -208,32 +208,34 @@ export function adaptFundPosition(
   options?: InvestmentAdapterOptions,
 ): NormalizedPosition {
   const item = record(position);
-  const assetId = text(item.isin, instrumentIdentity(instrument));
+  const assetId = text(item.instrument_id, instrument?.id ?? "");
+  const displayIdentifier = instrumentIdentity(instrument);
   const currencies = currencyDetails(
     options,
-    item.moneda_base,
-    item.moneda,
+    item.base_currency,
+    item.currency,
     instrumentCurrency(instrument),
   );
   return {
     kind: "fund",
     assetId,
     assetKey: assetKey("fund", assetId),
-    name: text(item.nombre, instrumentName(instrument, assetId)),
-    type: text(item.tipo, instrument?.asset_class ?? "") || null,
-    subtype: text(item.subtipo, instrument?.subtype ?? "") || null,
-    quantity: number(item.participaciones),
-    cost: number(item.total_invertido),
-    currentPrice: nullableNumber(item.precio_actual),
-    currentValue: nullableNumber(item.valor_actual),
-    unrealizedPnl: nullableNumber(item.pnl),
-    realizedPnl: nullableNumber(item.pnl_realizada),
+    displayIdentifier,
+    name: text(item.name, instrumentName(instrument, assetId)),
+    type: text(item.asset_class, instrument?.asset_class ?? "") || null,
+    subtype: text(item.subtype, instrument?.subtype ?? "") || null,
+    quantity: number(item.quantity),
+    cost: number(item.cost),
+    currentPrice: nullableNumber(item.current_price),
+    currentValue: nullableNumber(item.current_value),
+    unrealizedPnl: nullableNumber(item.unrealized_pnl),
+    realizedPnl: nullableNumber(item.realized_pnl),
     currency: currencies.currency,
     baseCurrency: currencies.baseCurrency,
     metadata: {
       source: "fund-position",
       ticker: text(instrumentTicker(instrument)) || null,
-      returnPercent: nullableNumber(item.pnl_pct),
+      returnPercent: nullableNumber(item.return_percent),
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
     },
@@ -247,32 +249,34 @@ export function adaptStockPosition(
   options?: InvestmentAdapterOptions,
 ): NormalizedPosition {
   const item = record(position);
-  const assetId = text(item.isin, instrumentIdentity(instrument));
+  const assetId = text(item.instrument_id, instrument?.id ?? "");
+  const displayIdentifier = instrumentIdentity(instrument);
   const currencies = currencyDetails(
     options,
-    item.moneda_base,
-    item.moneda,
+    item.base_currency,
+    item.currency,
     instrumentCurrency(instrument),
   );
   return {
     kind: "stock",
     assetId,
     assetKey: assetKey("stock", assetId),
-    name: text(item.nombre, instrumentName(instrument, assetId)),
+    displayIdentifier,
+    name: text(item.name, instrumentName(instrument, assetId)),
     type: null,
     subtype: null,
-    quantity: number(item.titulos),
-    cost: number(item.coste_total),
-    currentPrice: nullableNumber(item.precio_actual),
-    currentValue: nullableNumber(item.valor_actual),
-    unrealizedPnl: nullableNumber(item.pnl),
-    realizedPnl: number(item.pnl_realizada),
+    quantity: number(item.quantity),
+    cost: number(item.cost),
+    currentPrice: nullableNumber(item.current_price),
+    currentValue: nullableNumber(item.current_value),
+    unrealizedPnl: nullableNumber(item.unrealized_pnl),
+    realizedPnl: nullableNumber(item.realized_pnl),
     currency: currencies.currency,
     baseCurrency: currencies.baseCurrency,
     metadata: {
       source: "stock-position",
       ticker: text(instrumentTicker(instrument)) || null,
-      isin: assetId,
+      isin: displayIdentifier || null,
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
     },
@@ -286,32 +290,34 @@ export function adaptCryptoPosition(
   options?: InvestmentAdapterOptions,
 ): NormalizedPosition {
   const item = record(position);
-  const assetId = text(item.symbol, instrumentIdentity(instrument));
+  const assetId = text(item.instrument_id, instrument?.id ?? "");
+  const displayIdentifier = instrumentIdentity(instrument);
   const currencies = currencyDetails(
     options,
-    item.moneda_base,
-    item.moneda,
+    item.base_currency,
+    item.currency,
     instrumentCurrency(instrument),
   );
   return {
     kind: "crypto",
     assetId,
     assetKey: assetKey("crypto", assetId),
-    name: text(item.nombre, instrumentName(instrument, assetId)),
+    displayIdentifier,
+    name: text(item.name, instrumentName(instrument, assetId)),
     type: "crypto",
     subtype: null,
-    quantity: number(item.titulos),
-    cost: number(item.coste_total),
-    currentPrice: nullableNumber(item.precio_actual),
-    currentValue: nullableNumber(item.valor_actual),
-    unrealizedPnl: nullableNumber(item.pnl),
-    realizedPnl: number(item.pnl_realizada),
+    quantity: number(item.quantity),
+    cost: number(item.cost),
+    currentPrice: nullableNumber(item.current_price),
+    currentValue: nullableNumber(item.current_value),
+    unrealizedPnl: nullableNumber(item.unrealized_pnl),
+    realizedPnl: nullableNumber(item.realized_pnl),
     currency: currencies.currency,
     baseCurrency: currencies.baseCurrency,
     metadata: {
       source: "crypto-position",
       ticker: text(instrumentTicker(instrument)) || null,
-      symbol: assetId,
+      symbol: displayIdentifier || null,
       originalCurrency: currencies.originalCurrency,
       currencySource: currencies.source,
     },

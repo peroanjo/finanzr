@@ -34,6 +34,7 @@ export interface NormalizedPosition {
   kind: InvestmentKind;
   assetId: string;
   assetKey: string;
+  displayIdentifier: string;
   name: string;
   type: string | null;
   subtype: string | null;

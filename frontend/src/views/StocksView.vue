@@ -52,7 +52,7 @@ import type {
   PriceFetchResponse,
 } from "../types/api";
 import {
-  instrumentByIdentity,
+  instrumentById,
   instrumentCurrency,
   instrumentIdentity,
   instrumentName,
@@ -72,7 +72,7 @@ const chart = ref<StockChartResponse | null>(null);
 const selectedAccount = ref(
   new URLSearchParams(window.location.search).get("account") ?? "all",
 );
-const selectedIsin = ref("");
+const selectedInstrumentId = ref("");
 const range = ref<Range>("1y");
 const chartRange = ref<Range>("1y");
 const mode = ref<"value" | "return">("value");
@@ -165,7 +165,7 @@ const {
   positions,
   orders,
   instruments,
-  selectedIsin,
+  selectedInstrumentId,
   baseCurrency,
   locale,
 });
@@ -345,16 +345,16 @@ const positionSortColumns = computed(() => [
 ]);
 const allocationItems = computed<InvestmentAllocationItem[]>(() => {
   const valued = openPositions.value.flatMap((position) =>
-    typeof position.valor_actual === "number" && position.valor_actual > 0
-      ? [{ position, value: position.valor_actual }]
+    typeof position.current_value === "number" && position.current_value > 0
+      ? [{ position, value: position.current_value }]
       : [],
   );
   const total = valued.reduce((sum, item) => sum + item.value, 0);
   if (!(total > 0)) return [];
   const colors = ["#3ddc97", "#5b8def", "#d69b3d", "#9b7be8", "#e67b78"];
   const items = valued.slice(0, 5).map(({ position, value }, index) => ({
-    key: position.isin,
-    label: position.nombre,
+    key: position.instrument_id,
+    label: position.name,
     value,
     share: value / total,
     color: colors[index],
@@ -481,12 +481,15 @@ function operationLabel(order: StockOrder) {
   return isBuy(order) ? t("stocks.movements.buy") : t("stocks.movements.sell");
 }
 function positionReturn(position: StockPosition) {
-  return position.coste_total ? (position.pnl ?? 0) / position.coste_total : 0;
+  return position.cost ? (position.unrealized_pnl ?? 0) / position.cost : 0;
 }
 function assetTicker(position: StockPosition) {
-  return (
-    instrumentTicker(instrumentByIdentity(instruments.value, position.isin)) ||
-    "—"
+  const instrument = instrumentById(instruments.value, position.instrument_id);
+  return instrumentTicker(instrument) || instrumentIdentity(instrument);
+}
+function positionIdentity(position: StockPosition) {
+  return instrumentIdentity(
+    instrumentById(instruments.value, position.instrument_id),
   );
 }
 function segmentAria(item: InvestmentAllocationItem) {
@@ -599,8 +602,11 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
     instruments.value = nextInstruments;
     prices.value = nextPrices;
     initializeMovementRange();
-    const available = openPositions.value.map((position) => position.isin);
-    if (!available.includes(selectedIsin.value)) selectedIsin.value = "";
+    const available = openPositions.value.map(
+      (position) => position.instrument_id,
+    );
+    if (!available.includes(selectedInstrumentId.value))
+      selectedInstrumentId.value = "";
   } catch (reason) {
     if (generation !== dashboardGeneration) return;
     error.value =
@@ -614,7 +620,7 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
     if (
       loadSelectedChart &&
       generation === dashboardGeneration &&
-      selectedIsin.value
+      selectedInstrumentId.value
     )
       await loadChart(generation);
   }
@@ -652,12 +658,9 @@ async function loadPerformance(generation = dashboardGeneration) {
   }
 }
 async function loadChart(generation = dashboardGeneration) {
-  if (generation !== dashboardGeneration || !selectedIsin.value) return;
+  if (generation !== dashboardGeneration || !selectedInstrumentId.value) return;
   const request = ++chartRequestGeneration;
-  const instrumentId = instrumentByIdentity(
-    instruments.value,
-    selectedIsin.value,
-  )?.id;
+  const instrumentId = selectedInstrumentId.value;
   if (!instrumentId) {
     chart.value = null;
     chartLoading.value = false;
@@ -694,18 +697,18 @@ async function loadChart(generation = dashboardGeneration) {
   }
 }
 function closePosition() {
-  selectedIsin.value = "";
+  selectedInstrumentId.value = "";
   chartRequestGeneration += 1;
   chart.value = null;
   chartLoading.value = false;
   chartError.value = "";
 }
-async function togglePosition(isin: string) {
-  if (selectedIsin.value === isin) {
+async function togglePosition(instrumentId: string) {
+  if (selectedInstrumentId.value === instrumentId) {
     closePosition();
     return;
   }
-  selectedIsin.value = isin;
+  selectedInstrumentId.value = instrumentId;
   await loadChart();
 }
 async function selectRange(value: Range) {
@@ -898,11 +901,11 @@ function askDeleteOrder(order: StockOrder) {
 }
 async function handleAssetSaved(asset: EditableAsset) {
   const generation = ++assetSaveGeneration;
-  const targetIsin = instrumentIdentity(asset);
-  if (targetIsin) selectedIsin.value = targetIsin;
+  const targetInstrumentId = asset.id;
+  if (targetInstrumentId) selectedInstrumentId.value = targetInstrumentId;
   await loadDashboard(true, false);
-  if (generation !== assetSaveGeneration || !targetIsin) return;
-  selectedIsin.value = targetIsin;
+  if (generation !== assetSaveGeneration || !targetInstrumentId) return;
+  selectedInstrumentId.value = targetInstrumentId;
   await loadChart();
 }
 watch([movementIsin, movementType, movementStart, movementEnd], () => {
@@ -1172,74 +1175,80 @@ onMounted(loadDashboard);
               <tbody>
                 <template
                   v-for="position in sortedPositions"
-                  :key="position.isin"
+                  :key="position.instrument_id"
                   ><tr
                     class="fund-position-row"
-                    :class="{ active: selectedIsin === position.isin }"
-                    @click="togglePosition(position.isin)"
+                    :class="{
+                      active: selectedInstrumentId === position.instrument_id,
+                    }"
+                    @click="togglePosition(position.instrument_id)"
                   >
                     <td>
                       <button
                         type="button"
                         class="fund-position-disclosure"
-                        :aria-expanded="selectedIsin === position.isin"
-                        :aria-controls="detailId(position.isin)"
+                        :aria-expanded="
+                          selectedInstrumentId === position.instrument_id
+                        "
+                        :aria-controls="detailId(position.instrument_id)"
                         :aria-label="
                           t(
-                            selectedIsin === position.isin
+                            selectedInstrumentId === position.instrument_id
                               ? 'stocks.positions.collapseChartAria'
                               : 'stocks.positions.expandChartAria',
-                            { asset: position.nombre },
+                            { asset: position.name },
                           )
                         "
-                        @click.stop="togglePosition(position.isin)"
+                        @click.stop="togglePosition(position.instrument_id)"
                         @keydown.enter.prevent.stop="
-                          togglePosition(position.isin)
+                          togglePosition(position.instrument_id)
                         "
                         @keydown.space.prevent.stop="
-                          togglePosition(position.isin)
+                          togglePosition(position.instrument_id)
                         "
                       >
                         <span class="fund-position-disclosure-copy"
-                          ><strong>{{ position.nombre }}</strong
-                          ><small>{{ position.isin }}</small></span
+                          ><strong>{{ position.name }}</strong
+                          ><small>{{ positionIdentity(position) }}</small></span
                         ><span aria-hidden="true">⌄</span>
                       </button>
                     </td>
                     <td>{{ assetTicker(position) }}</td>
-                    <td>{{ money(position.coste_total) }}</td>
-                    <td>{{ quantity(position.titulos) }}</td>
+                    <td>{{ money(position.cost) }}</td>
+                    <td>{{ quantity(position.quantity) }}</td>
                     <td>
                       {{
                         money(
-                          position.titulos
-                            ? position.coste_total / position.titulos
+                          position.quantity
+                            ? position.cost / position.quantity
                             : 0,
                         )
                       }}
                     </td>
                     <td>
                       {{
-                        position.precio_actual == null
+                        position.current_price == null
                           ? t("stocks.positions.pending")
-                          : money(position.precio_actual)
+                          : money(position.current_price)
                       }}
                     </td>
                     <td>
                       {{
-                        position.valor_actual == null
+                        position.current_value == null
                           ? "—"
-                          : money(position.valor_actual)
+                          : money(position.current_value)
                       }}
                     </td>
                     <td
                       :class="{
-                        positive: (position.pnl ?? 0) >= 0,
-                        negative: (position.pnl ?? 0) < 0,
+                        positive: (position.unrealized_pnl ?? 0) >= 0,
+                        negative: (position.unrealized_pnl ?? 0) < 0,
                       }"
                     >
                       <strong>{{
-                        position.pnl == null ? "—" : signedMoney(position.pnl)
+                        position.unrealized_pnl == null
+                          ? "—"
+                          : signedMoney(position.unrealized_pnl)
                       }}</strong>
                     </td>
                     <td
@@ -1259,7 +1268,7 @@ onMounted(loadDashboard);
                         :aria-label="t('stocks.positions.editAria')"
                         @click.stop="
                           assetEditor?.openEdit(
-                            instrumentByIdentity(instruments, position.isin),
+                            instrumentById(instruments, position.instrument_id),
                           )
                         "
                       >
@@ -1268,17 +1277,17 @@ onMounted(loadDashboard);
                     </td>
                   </tr>
                   <tr
-                    v-if="selectedIsin === position.isin"
+                    v-if="selectedInstrumentId === position.instrument_id"
                     class="fund-inline-detail-row"
                   >
                     <td :colspan="positionSortColumns.length + 1">
                       <div
-                        :id="detailId(position.isin)"
+                        :id="detailId(position.instrument_id)"
                         class="fund-inline-price-panel"
                         role="region"
                         :aria-label="
                           t('stocks.positions.priceDetailAria', {
-                            asset: position.nombre,
+                            asset: position.name,
                           })
                         "
                       >
@@ -1385,10 +1394,10 @@ onMounted(loadDashboard);
                 </option>
                 <option
                   v-for="position in positions"
-                  :key="position.isin"
-                  :value="position.isin"
+                  :key="position.instrument_id"
+                  :value="positionIdentity(position)"
                 >
-                  {{ position.nombre }}
+                  {{ position.name }}
                 </option></select
               ><select
                 v-model="movementType"

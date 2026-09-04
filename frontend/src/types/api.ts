@@ -207,17 +207,21 @@ export interface InvestmentSnapshot {
   exchange_rate_date: string;
   exchange_rate_source: string;
 }
-export interface CryptoPosition {
-  symbol: string;
-  nombre: string;
-  titulos: number;
-  coste_total: number;
-  precio_actual: number | null;
-  valor_actual: number | null;
-  pnl: number | null;
-  pnl_realizada: number;
-  moneda?: string;
-  moneda_base?: string;
+export interface NativePosition {
+  instrument_id: string;
+  kind: "fund" | "stock" | "crypto";
+  name: string;
+  quantity: number;
+  cost: number;
+  current_price: number | null;
+  current_value: number | null;
+  unrealized_pnl: number | null;
+  realized_pnl: number | null;
+  currency: string;
+  base_currency: string;
+}
+export interface CryptoPosition extends NativePosition {
+  kind: "crypto";
 }
 export interface CryptoAccount {
   id: string;
@@ -336,17 +340,8 @@ export interface CryptoPerformanceResponse {
   moneda_base: string;
   data: CryptoPerformancePoint[];
 }
-export interface StockPosition {
-  isin: string;
-  nombre: string;
-  titulos: number;
-  coste_total: number;
-  precio_actual: number | null;
-  valor_actual: number | null;
-  pnl: number | null;
-  pnl_realizada: number;
-  moneda?: string;
-  moneda_base?: string;
+export interface StockPosition extends NativePosition {
+  kind: "stock";
 }
 export interface StockAccount {
   id: string;
@@ -389,20 +384,12 @@ export interface FundAccount {
   importer_slug: string;
   importer_name: string;
 }
-export interface FundPosition {
-  isin: string;
-  nombre: string;
-  tipo: string;
-  subtipo: string;
-  total_invertido: number;
-  participaciones: number;
-  precio_medio: number;
-  precio_actual: number | null;
-  valor_actual: number | null;
-  pnl: number | null;
-  pnl_pct: number | null;
-  moneda?: string;
-  moneda_base?: string;
+export interface FundPosition extends NativePosition {
+  kind: "fund";
+  asset_class: string;
+  subtype: string;
+  average_price: number;
+  return_percent: number | null;
 }
 export interface FundOrder extends TransactionDtoBase {
   isin: string;

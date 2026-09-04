@@ -38,14 +38,16 @@ function render() {
   const tooltipText =
     styles.getPropertyValue("--fz-chart-tooltip-text").trim() || "#edf3ef";
   const sorted = [...props.positions]
-    .filter((item) => item.pnl != null)
+    .filter((item) => item.unrealized_pnl != null)
     .sort((a, b) =>
       props.mode === "percent"
-        ? (b.pnl_pct ?? 0) - (a.pnl_pct ?? 0)
-        : (b.pnl ?? 0) - (a.pnl ?? 0),
+        ? (b.return_percent ?? 0) - (a.return_percent ?? 0)
+        : (b.unrealized_pnl ?? 0) - (a.unrealized_pnl ?? 0),
     );
   const values = sorted.map((item) =>
-    props.mode === "percent" ? (item.pnl_pct ?? 0) * 100 : (item.pnl ?? 0),
+    props.mode === "percent"
+      ? (item.return_percent ?? 0) * 100
+      : (item.unrealized_pnl ?? 0),
   );
   const money = new Intl.NumberFormat(locale.value, {
     style: "currency",
@@ -60,7 +62,7 @@ function render() {
   chart = new Chart(canvas.value, {
     type: "bar",
     data: {
-      labels: sorted.map((item) => item.nombre),
+      labels: sorted.map((item) => item.name),
       datasets: [
         {
           data: values,
@@ -87,11 +89,11 @@ function render() {
           padding: 12,
           displayColors: false,
           callbacks: {
-            title: (items) => sorted[items[0]?.dataIndex ?? 0]?.nombre ?? "",
+            title: (items) => sorted[items[0]?.dataIndex ?? 0]?.name ?? "",
             label: (context) => {
               const item = sorted[context.dataIndex];
-              const pnl = item.pnl ?? 0;
-              const pnlPct = item.pnl_pct ?? 0;
+              const pnl = item.unrealized_pnl ?? 0;
+              const pnlPct = item.return_percent ?? 0;
               return [
                 t("shared.fundPnl.pnl", {
                   value: `${pnl >= 0 ? "+" : "−"}${money.format(Math.abs(pnl))}`,
@@ -124,7 +126,7 @@ function render() {
           ticks: {
             color: muted,
             callback: (_value, index) => {
-              const label = sorted[index]?.nombre ?? "";
+              const label = sorted[index]?.name ?? "";
               return label.length > 21 ? `${label.slice(0, 20)}…` : label;
             },
             font: { size: 10, weight: 600 },

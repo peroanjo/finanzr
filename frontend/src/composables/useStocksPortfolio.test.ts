@@ -6,14 +6,17 @@ import type { StockInstrument, StockOrder, StockPosition } from "../types/api";
 
 function makePosition(overrides: Partial<StockPosition> = {}): StockPosition {
   return {
-    isin: "STOCK-1",
-    nombre: "Stock 1",
-    titulos: 2,
-    coste_total: 100,
-    precio_actual: 60,
-    valor_actual: 120,
-    pnl: 20,
-    pnl_realizada: 5,
+    instrument_id: "STOCK-1",
+    kind: "stock",
+    name: "Stock 1",
+    quantity: 2,
+    cost: 100,
+    current_price: 60,
+    current_value: 120,
+    unrealized_pnl: 20,
+    realized_pnl: 5,
+    currency: "EUR",
+    base_currency: "EUR",
     ...overrides,
   };
 }
@@ -52,8 +55,11 @@ function makeOrder(overrides: Partial<StockOrder> = {}): StockOrder {
 function makeInstrument(
   overrides: Partial<StockInstrument> = {},
 ): StockInstrument {
+  const identity = overrides.identifiers?.find(
+    (item) => item.scheme === "isin",
+  )?.value;
   return {
-    id: "00000000-0000-0000-0000-000000000101",
+    id: identity ?? "STOCK-1",
     kind: "stock",
     name: "Stock 1",
     quote_currency: "EUR",
@@ -72,28 +78,28 @@ function createPortfolio({
   positions: positionRows = [],
   orders: orderRows = [],
   instruments: instrumentRows = [],
-  selectedIsin: selectedAsset = "",
+  selectedInstrumentId: selectedAsset = "",
   baseCurrency: currency = "EUR",
   locale: currentLocale = "en",
 }: {
   positions?: StockPosition[];
   orders?: StockOrder[];
   instruments?: StockInstrument[];
-  selectedIsin?: string;
+  selectedInstrumentId?: string;
   baseCurrency?: string;
   locale?: string;
 } = {}) {
   const positions = ref(positionRows);
   const orders = ref(orderRows);
   const instruments = ref(instrumentRows);
-  const selectedIsin = ref(selectedAsset);
+  const selectedInstrumentId = ref(selectedAsset);
   const baseCurrency = ref(currency);
   const locale = ref(currentLocale);
   const portfolio = useStocksPortfolio({
     positions,
     orders,
     instruments,
-    selectedIsin,
+    selectedInstrumentId,
     baseCurrency,
     locale,
   });
@@ -102,7 +108,7 @@ function createPortfolio({
     positions,
     orders,
     instruments,
-    selectedIsin,
+    selectedInstrumentId,
     baseCurrency,
     locale,
   };
@@ -111,22 +117,24 @@ function createPortfolio({
 describe("useStocksPortfolio", () => {
   it("filters open positions by positive quantity and limits the top five", () => {
     const positions = [
-      makePosition({ isin: "STOCK-1", valor_actual: 100 }),
-      makePosition({ isin: "STOCK-2", valor_actual: 600 }),
-      makePosition({ isin: "STOCK-3", valor_actual: 500 }),
-      makePosition({ isin: "STOCK-4", valor_actual: 400 }),
-      makePosition({ isin: "STOCK-5", valor_actual: 300 }),
-      makePosition({ isin: "STOCK-6", valor_actual: 200 }),
+      makePosition({ instrument_id: "STOCK-1", current_value: 100 }),
+      makePosition({ instrument_id: "STOCK-2", current_value: 600 }),
+      makePosition({ instrument_id: "STOCK-3", current_value: 500 }),
+      makePosition({ instrument_id: "STOCK-4", current_value: 400 }),
+      makePosition({ instrument_id: "STOCK-5", current_value: 300 }),
+      makePosition({ instrument_id: "STOCK-6", current_value: 200 }),
       makePosition({
-        isin: "CLOSED",
-        nombre: "Closed",
-        titulos: 0,
-        valor_actual: 900,
+        instrument_id: "CLOSED",
+        name: "Closed",
+        quantity: 0,
+        current_value: 900,
       }),
     ];
     const portfolio = createPortfolio({ positions });
 
-    expect(portfolio.openPositions.value.map((item) => item.isin)).toEqual([
+    expect(
+      portfolio.openPositions.value.map((item) => item.instrument_id),
+    ).toEqual([
       "STOCK-2",
       "STOCK-3",
       "STOCK-4",
@@ -134,39 +142,35 @@ describe("useStocksPortfolio", () => {
       "STOCK-6",
       "STOCK-1",
     ]);
-    expect(portfolio.topPositions.value.map((item) => item.isin)).toEqual([
-      "STOCK-2",
-      "STOCK-3",
-      "STOCK-4",
-      "STOCK-5",
-      "STOCK-6",
-    ]);
+    expect(
+      portfolio.topPositions.value.map((item) => item.instrument_id),
+    ).toEqual(["STOCK-2", "STOCK-3", "STOCK-4", "STOCK-5", "STOCK-6"]);
   });
 
   it("calculates totals from open positions and realized P&L from every position", () => {
     const portfolio = createPortfolio({
       positions: [
         makePosition({
-          isin: "OPEN-1",
-          coste_total: 1000,
-          valor_actual: 1200,
-          pnl: 200,
-          pnl_realizada: 11,
+          instrument_id: "OPEN-1",
+          cost: 1000,
+          current_value: 1200,
+          unrealized_pnl: 200,
+          realized_pnl: 11,
         }),
         makePosition({
-          isin: "OPEN-2",
-          coste_total: 500,
-          valor_actual: null,
-          pnl: null,
-          pnl_realizada: -3,
+          instrument_id: "OPEN-2",
+          cost: 500,
+          current_value: null,
+          unrealized_pnl: null,
+          realized_pnl: -3,
         }),
         makePosition({
-          isin: "CLOSED",
-          titulos: 0,
-          coste_total: 900,
-          valor_actual: 900,
-          pnl: 100,
-          pnl_realizada: 25,
+          instrument_id: "CLOSED",
+          quantity: 0,
+          cost: 900,
+          current_value: 900,
+          unrealized_pnl: 100,
+          realized_pnl: 25,
         }),
       ],
     });
@@ -179,7 +183,7 @@ describe("useStocksPortfolio", () => {
     expect(portfolio.totalPnl.value).toBe(233);
 
     portfolio.positions.value = [
-      makePosition({ coste_total: 0, valor_actual: 10, pnl: 5 }),
+      makePosition({ cost: 0, current_value: 10, unrealized_pnl: 5 }),
     ];
     expect(portfolio.openReturn.value).toBe(0);
   });
@@ -188,24 +192,25 @@ describe("useStocksPortfolio", () => {
     const portfolio = createPortfolio({
       positions: [
         makePosition({
-          isin: "USD-STOCK",
-          nombre: "Dollar stock",
-          precio_actual: null,
-          valor_actual: null,
-          pnl: null,
-          moneda: "USD",
-          moneda_base: "EUR",
+          instrument_id: "USD-STOCK",
+          name: "Dollar stock",
+          current_price: null,
+          current_value: null,
+          unrealized_pnl: null,
+          currency: "USD",
+          base_currency: "EUR",
         }),
         makePosition({
-          isin: "MISSING",
-          nombre: "Missing instrument",
-          titulos: 1,
-          valor_actual: 90,
-          moneda: "EUR",
+          instrument_id: "MISSING",
+          name: "Missing instrument",
+          quantity: 1,
+          current_value: 90,
+          currency: "EUR",
         }),
       ],
       instruments: [
         makeInstrument({
+          id: "USD-STOCK",
           name: "Dollar stock",
           quote_currency: "USD",
           identifiers: [
@@ -254,13 +259,13 @@ describe("useStocksPortfolio", () => {
       ],
     });
     portfolio.positions.value[0] = makePosition({
-      isin: "USD-STOCK",
-      nombre: "Dollar stock",
-      precio_actual: null,
-      valor_actual: null,
-      pnl: null,
-      moneda: "USD",
-      moneda_base: undefined,
+      instrument_id: "USD-STOCK",
+      name: "Dollar stock",
+      current_price: null,
+      current_value: null,
+      unrealized_pnl: null,
+      currency: "USD",
+      base_currency: undefined,
     });
     portfolio.baseCurrency.value = "USD";
     expect(
@@ -277,27 +282,41 @@ describe("useStocksPortfolio", () => {
   it("reacts to selection and source changes while counting only priced positions", () => {
     const portfolio = createPortfolio({
       positions: [
-        makePosition({ isin: "STOCK-A", nombre: "Stock A" }),
+        makePosition({ instrument_id: "STOCK-A", name: "Stock A" }),
         makePosition({
-          isin: "STOCK-B",
-          nombre: "Stock B",
-          precio_actual: null,
+          instrument_id: "STOCK-B",
+          name: "Stock B",
+          current_price: null,
+        }),
+      ],
+      instruments: [
+        makeInstrument({
+          id: "STOCK-A",
+          identifiers: [
+            { scheme: "isin", value: "STOCK-A", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          id: "STOCK-B",
+          identifiers: [
+            { scheme: "isin", value: "STOCK-B", venue: "", is_primary: true },
+          ],
         }),
       ],
       orders: [
         makeOrder({ isin: "STOCK-A" }),
         makeOrder({ isin: "STOCK-B", id: "operation-2" }),
       ],
-      selectedIsin: "STOCK-A",
+      selectedInstrumentId: "STOCK-A",
     });
 
-    expect(portfolio.selectedPosition.value?.isin).toBe("STOCK-A");
+    expect(portfolio.selectedPosition.value?.instrument_id).toBe("STOCK-A");
     expect(portfolio.selectedOrders.value).toHaveLength(1);
     expect(portfolio.averagePrice.value).toBe(50);
     expect(portfolio.pricedPositions.value).toBe(1);
 
-    portfolio.selectedIsin.value = "STOCK-B";
-    expect(portfolio.selectedPosition.value?.isin).toBe("STOCK-B");
+    portfolio.selectedInstrumentId.value = "STOCK-B";
+    expect(portfolio.selectedPosition.value?.instrument_id).toBe("STOCK-B");
     expect(portfolio.selectedOrders.value[0].isin).toBe("STOCK-B");
     expect(portfolio.averagePrice.value).toBe(50);
 
@@ -308,8 +327,8 @@ describe("useStocksPortfolio", () => {
     expect(portfolio.selectedOrders.value).toHaveLength(2);
 
     portfolio.positions.value[1] = makePosition({
-      isin: "STOCK-B",
-      precio_actual: 70,
+      instrument_id: "STOCK-B",
+      current_price: 70,
     });
     expect(portfolio.pricedPositions.value).toBe(2);
   });
@@ -348,7 +367,32 @@ describe("useStocksPortfolio", () => {
     });
     const portfolio = createPortfolio({
       orders: [sourceWithBase, sourceWithoutBase, sourceWithZeroBase],
-      selectedIsin: "CNE100000296",
+      selectedInstrumentId: "CNE100000296",
+      instruments: [
+        makeInstrument({
+          id: "CNE100000296",
+          identifiers: [
+            {
+              scheme: "isin",
+              value: "CNE100000296",
+              venue: "",
+              is_primary: true,
+            },
+          ],
+        }),
+        makeInstrument({
+          id: "STOCK-1",
+          identifiers: [
+            { scheme: "isin", value: "STOCK-1", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          id: "ZERO-BASE",
+          identifiers: [
+            { scheme: "isin", value: "ZERO-BASE", venue: "", is_primary: true },
+          ],
+        }),
+      ],
     });
 
     expect(portfolio.baseAmount(sourceWithBase)).toBe(30);
@@ -377,7 +421,7 @@ describe("useStocksPortfolio", () => {
       quantity: 1,
     });
 
-    portfolio.selectedIsin.value = "ZERO-BASE";
+    portfolio.selectedInstrumentId.value = "ZERO-BASE";
     expect(portfolio.selectedChartOrders.value[0]).toMatchObject({
       net_amount: 0,
       unit_price: 0,
@@ -385,7 +429,7 @@ describe("useStocksPortfolio", () => {
       quantity: 1,
     });
 
-    portfolio.selectedIsin.value = "STOCK-1";
+    portfolio.selectedInstrumentId.value = "STOCK-1";
     expect(portfolio.selectedChartOrders.value[0]).toMatchObject({
       net_amount: 80,
       unit_price: 40,
@@ -396,31 +440,31 @@ describe("useStocksPortfolio", () => {
   it("sorts every stock column with null ordering, locale collation, and tie breaks", () => {
     const positions = [
       makePosition({
-        isin: "ZETA",
-        nombre: "Zeta",
-        titulos: 4,
-        coste_total: 400,
-        precio_actual: 40,
-        valor_actual: 160,
-        pnl: 40,
+        instrument_id: "ZETA",
+        name: "Zeta",
+        quantity: 4,
+        cost: 400,
+        current_price: 40,
+        current_value: 160,
+        unrealized_pnl: 40,
       }),
       makePosition({
-        isin: "ALPHA",
-        nombre: "Alpha",
-        titulos: 1,
-        coste_total: 100,
-        precio_actual: 100,
-        valor_actual: 100,
-        pnl: 10,
+        instrument_id: "ALPHA",
+        name: "Alpha",
+        quantity: 1,
+        cost: 100,
+        current_price: 100,
+        current_value: 100,
+        unrealized_pnl: 10,
       }),
       makePosition({
-        isin: "BETA",
-        nombre: "Beta",
-        titulos: 2,
-        coste_total: 200,
-        precio_actual: 50,
-        valor_actual: 100,
-        pnl: -20,
+        instrument_id: "BETA",
+        name: "Beta",
+        quantity: 2,
+        cost: 200,
+        current_price: 50,
+        current_value: 100,
+        unrealized_pnl: -20,
       }),
     ];
     const portfolio = createPortfolio({
@@ -465,42 +509,52 @@ describe("useStocksPortfolio", () => {
       portfolio.sortPositions(key);
       expect(portfolio.positionSortKey.value).toBe(key);
       expect(portfolio.positionSortDirection.value).toBe("asc");
-      expect(portfolio.sortedPositions.value.map((item) => item.isin)).toEqual(
-        expected,
-      );
+      expect(
+        portfolio.sortedPositions.value.map((item) => item.instrument_id),
+      ).toEqual(expected);
       expect(portfolio.ariaSort(key)).toBe("ascending");
     }
 
     const nullPortfolio = createPortfolio({
       positions: [
         makePosition({
-          isin: "NULL",
-          nombre: "Null value",
-          valor_actual: null,
+          instrument_id: "NULL",
+          name: "Null value",
+          current_value: null,
         }),
-        makePosition({ isin: "BETA", nombre: "Beta", valor_actual: 100 }),
-        makePosition({ isin: "ALPHA", nombre: "Alpha", valor_actual: 100 }),
+        makePosition({
+          instrument_id: "BETA",
+          name: "Beta",
+          current_value: 100,
+        }),
+        makePosition({
+          instrument_id: "ALPHA",
+          name: "Alpha",
+          current_value: 100,
+        }),
       ],
     });
     expect(
-      nullPortfolio.sortedPositions.value.map((item) => item.isin),
+      nullPortfolio.sortedPositions.value.map((item) => item.instrument_id),
     ).toEqual(["ALPHA", "BETA", "NULL"]);
     nullPortfolio.sortPositions("value");
     expect(
-      nullPortfolio.sortedPositions.value.map((item) => item.isin),
+      nullPortfolio.sortedPositions.value.map((item) => item.instrument_id),
     ).toEqual(["ALPHA", "BETA", "NULL"]);
     expect(nullPortfolio.ariaSort("value")).toBe("ascending");
     nullPortfolio.sortPositions("value");
     expect(nullPortfolio.positionSortDirection.value).toBe("desc");
     expect(nullPortfolio.ariaSort("value")).toBe("descending");
-    expect(nullPortfolio.sortedPositions.value.at(-1)?.isin).toBe("NULL");
+    expect(nullPortfolio.sortedPositions.value.at(-1)?.instrument_id).toBe(
+      "NULL",
+    );
   });
 
   it("keeps ticker collation nonnumeric and recomputes names when locale changes", () => {
     const numericPortfolio = createPortfolio({
       positions: [
-        makePosition({ isin: "A2", nombre: "A2" }),
-        makePosition({ isin: "A10", nombre: "A10" }),
+        makePosition({ instrument_id: "A2", name: "A2" }),
+        makePosition({ instrument_id: "A10", name: "A10" }),
       ],
       instruments: [
         makeInstrument({
@@ -519,7 +573,7 @@ describe("useStocksPortfolio", () => {
     });
     numericPortfolio.sortPositions("ticker");
     expect(
-      numericPortfolio.sortedPositions.value.map((item) => item.isin),
+      numericPortfolio.sortedPositions.value.map((item) => item.instrument_id),
     ).toEqual(["A10", "A2"]);
 
     const localeNames = ["ñ", "n"];
@@ -531,17 +585,47 @@ describe("useStocksPortfolio", () => {
 
     const localePortfolio = createPortfolio({
       positions: [
-        makePosition({ isin: "TILDE", nombre: "ñ" }),
-        makePosition({ isin: "PLAIN", nombre: "n" }),
+        makePosition({ instrument_id: "TILDE", name: "ñ" }),
+        makePosition({ instrument_id: "PLAIN", name: "n" }),
       ],
     });
     localePortfolio.sortPositions("asset");
     expect(
-      localePortfolio.sortedPositions.value.map((item) => item.nombre),
+      localePortfolio.sortedPositions.value.map((item) => item.name),
     ).toEqual(englishOrder);
     localePortfolio.locale.value = "es";
     expect(
-      localePortfolio.sortedPositions.value.map((item) => item.nombre),
+      localePortfolio.sortedPositions.value.map((item) => item.name),
     ).toEqual(spanishOrder);
+  });
+
+  it("sorts a missing Yahoo ticker by its canonical ISIN", () => {
+    const firstId = "00000000-0000-0000-0000-000000000701";
+    const secondId = "00000000-0000-0000-0000-000000000702";
+    const portfolio = createPortfolio({
+      positions: [
+        makePosition({ instrument_id: firstId, name: "Zulu" }),
+        makePosition({ instrument_id: secondId, name: "Alpha" }),
+      ],
+      instruments: [
+        makeInstrument({
+          id: firstId,
+          identifiers: [
+            { scheme: "isin", value: "ZZ000", venue: "", is_primary: true },
+          ],
+        }),
+        makeInstrument({
+          id: secondId,
+          identifiers: [
+            { scheme: "isin", value: "AA000", venue: "", is_primary: true },
+          ],
+        }),
+      ],
+    });
+
+    portfolio.sortPositions("ticker");
+    expect(
+      portfolio.sortedPositions.value.map((item) => item.instrument_id),
+    ).toEqual([secondId, firstId]);
   });
 });

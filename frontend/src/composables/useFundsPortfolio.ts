@@ -9,7 +9,7 @@ import {
   adaptFundPosition,
   type NormalizedPosition,
 } from "../domain/investments";
-import { instrumentByIdentity } from "../domain/instruments";
+import { instrumentById, instrumentIdentity } from "../domain/instruments";
 
 export type FundPositionSortKey =
   | "fund"
@@ -74,33 +74,33 @@ export function useFundsPortfolio(
 
   const openPositions = computed(() =>
     [...positions.value]
-      .filter((item) => item.participaciones > 0)
-      .sort((a, b) => (b.valor_actual ?? 0) - (a.valor_actual ?? 0)),
+      .filter((item) => item.quantity > 0)
+      .sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0)),
   );
   const topPositions = computed(() => openPositions.value.slice(0, 5));
   const normalizedPosition = (position: FundPosition): NormalizedPosition =>
     adaptFundPosition(
       position,
-      instrumentByIdentity(instruments.value, position.isin),
+      instrumentById(instruments.value, position.instrument_id),
       { baseCurrency: baseCurrency.value },
     );
   const normalizedTopPositions = computed(() =>
     topPositions.value.map(normalizedPosition),
   );
   const totalInvested = computed(() =>
-    openPositions.value.reduce(
-      (total, item) => total + item.total_invertido,
-      0,
-    ),
+    openPositions.value.reduce((total, item) => total + item.cost, 0),
   );
   const totalValue = computed(() =>
     openPositions.value.reduce(
-      (total, item) => total + (item.valor_actual ?? 0),
+      (total, item) => total + (item.current_value ?? 0),
       0,
     ),
   );
   const unrealizedPnl = computed(() =>
-    openPositions.value.reduce((total, item) => total + (item.pnl ?? 0), 0),
+    openPositions.value.reduce(
+      (total, item) => total + (item.unrealized_pnl ?? 0),
+      0,
+    ),
   );
   const openReturn = computed(() =>
     totalInvested.value ? unrealizedPnl.value / totalInvested.value : 0,
@@ -109,10 +109,15 @@ export function useFundsPortfolio(
   const totalPnl = computed(() => unrealizedPnl.value + realizedPnl.value);
   const selectedFundPosition = computed(
     () =>
-      positions.value.find((item) => item.isin === selectedFund.value) ?? null,
+      positions.value.find(
+        (item) => item.instrument_id === selectedFund.value,
+      ) ?? null,
+  );
+  const selectedFundIdentity = computed(() =>
+    instrumentIdentity(instrumentById(instruments.value, selectedFund.value)),
   );
   const selectedFundOrders = computed(() =>
-    orders.value.filter((item) => item.isin === selectedFund.value),
+    orders.value.filter((item) => item.isin === selectedFundIdentity.value),
   );
   const latestPriceByInstrumentId = computed(
     () => new Map(prices.value.map((item) => [item.instrument_id, item])),
@@ -120,7 +125,10 @@ export function useFundsPortfolio(
   const pricedPositions = computed(
     () =>
       positions.value.filter((item) => {
-        const instrument = instrumentByIdentity(instruments.value, item.isin);
+        const instrument = instrumentById(
+          instruments.value,
+          item.instrument_id,
+        );
         return instrument
           ? latestPriceByInstrumentId.value.has(instrument.id)
           : false;
@@ -134,23 +142,23 @@ export function useFundsPortfolio(
     const valueFor = (position: FundPosition): string | number | null => {
       switch (positionSortKey.value) {
         case "fund":
-          return position.nombre;
+          return position.name;
         case "type":
-          return `${position.tipo} ${position.subtipo}`.trim();
+          return `${position.asset_class} ${position.subtype}`.trim();
         case "contributed":
-          return position.total_invertido;
+          return position.cost;
         case "shares":
-          return position.participaciones;
+          return position.quantity;
         case "averagePrice":
-          return position.precio_medio;
+          return position.average_price;
         case "currentPrice":
-          return position.precio_actual;
+          return position.current_price;
         case "value":
-          return position.valor_actual;
+          return position.current_value;
         case "pnl":
-          return position.pnl;
+          return position.unrealized_pnl;
         case "return":
-          return position.pnl_pct;
+          return position.return_percent;
       }
     };
 
@@ -158,7 +166,7 @@ export function useFundsPortfolio(
       const leftValue = valueFor(left);
       const rightValue = valueFor(right);
       if (leftValue == null && rightValue == null)
-        return collator.compare(left.nombre, right.nombre);
+        return collator.compare(left.name, right.name);
       if (leftValue == null) return 1;
       if (rightValue == null) return -1;
 
@@ -166,7 +174,7 @@ export function useFundsPortfolio(
         typeof leftValue === "string" && typeof rightValue === "string"
           ? collator.compare(leftValue, rightValue)
           : Number(leftValue) - Number(rightValue);
-      if (comparison === 0) return collator.compare(left.nombre, right.nombre);
+      if (comparison === 0) return collator.compare(left.name, right.name);
       return positionSortDirection.value === "asc" ? comparison : -comparison;
     });
   });

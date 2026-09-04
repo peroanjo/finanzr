@@ -8,7 +8,11 @@ import type {
   CryptoOrder,
   CryptoPosition,
 } from "../types/api";
-import { instrumentByIdentity, instrumentTicker } from "../domain/instruments";
+import {
+  instrumentById,
+  instrumentIdentity,
+  instrumentTicker,
+} from "../domain/instruments";
 
 export type CryptoPositionSortKey =
   | "asset"
@@ -28,7 +32,7 @@ export interface UseCryptoPortfolioOptions {
   positions: CryptoPortfolioSource<CryptoPosition[]>;
   orders: CryptoPortfolioSource<CryptoOrder[]>;
   instruments: CryptoPortfolioSource<CryptoInstrument[]>;
-  selectedSymbol: CryptoPortfolioSource<string>;
+  selectedInstrumentId: CryptoPortfolioSource<string>;
   baseCurrency: CryptoPortfolioSource<string>;
   locale: CryptoPortfolioSource<string>;
 }
@@ -65,7 +69,7 @@ export function useCryptoPortfolio(
     positions,
     orders,
     instruments,
-    selectedSymbol,
+    selectedInstrumentId,
     baseCurrency,
     locale,
   } = options;
@@ -74,33 +78,36 @@ export function useCryptoPortfolio(
 
   const openPositions = computed(() =>
     [...positions.value]
-      .filter((item) => item.titulos > 0)
-      .sort((a, b) => (b.valor_actual ?? 0) - (a.valor_actual ?? 0)),
+      .filter((item) => item.quantity > 0)
+      .sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0)),
   );
   const topPositions = computed(() => openPositions.value.slice(0, 5));
   const normalizedTopPositions = computed(() =>
     topPositions.value.map((position) =>
       adaptCryptoPosition(
         position,
-        instrumentByIdentity(instruments.value, position.symbol),
+        instrumentById(instruments.value, position.instrument_id),
         { baseCurrency: baseCurrency.value },
       ),
     ),
   );
   const totalValue = computed(() =>
     openPositions.value.reduce(
-      (sum, item) => sum + (item.valor_actual ?? 0),
+      (sum, item) => sum + (item.current_value ?? 0),
       0,
     ),
   );
   const totalCost = computed(() =>
-    openPositions.value.reduce((sum, item) => sum + item.coste_total, 0),
+    openPositions.value.reduce((sum, item) => sum + item.cost, 0),
   );
   const unrealizedPnl = computed(() =>
-    openPositions.value.reduce((sum, item) => sum + (item.pnl ?? 0), 0),
+    openPositions.value.reduce(
+      (sum, item) => sum + (item.unrealized_pnl ?? 0),
+      0,
+    ),
   );
   const realizedPnl = computed(() =>
-    positions.value.reduce((sum, item) => sum + item.pnl_realizada, 0),
+    positions.value.reduce((sum, item) => sum + (item.realized_pnl ?? 0), 0),
   );
   const totalPnl = computed(() => unrealizedPnl.value + realizedPnl.value);
   const openReturn = computed(() =>
@@ -108,11 +115,17 @@ export function useCryptoPortfolio(
   );
   const selectedPosition = computed(
     () =>
-      positions.value.find((item) => item.symbol === selectedSymbol.value) ??
-      null,
+      positions.value.find(
+        (item) => item.instrument_id === selectedInstrumentId.value,
+      ) ?? null,
+  );
+  const selectedIdentity = computed(() =>
+    instrumentIdentity(
+      instrumentById(instruments.value, selectedInstrumentId.value),
+    ),
   );
   const selectedOrders = computed(() =>
-    orders.value.filter((item) => item.symbol === selectedSymbol.value),
+    orders.value.filter((item) => item.symbol === selectedIdentity.value),
   );
   const selectedChartOrders = computed(() =>
     selectedOrders.value.map((order) => ({
@@ -124,13 +137,13 @@ export function useCryptoPortfolio(
   );
   const averagePrice = computed(() => {
     const position = selectedPosition.value;
-    return position && position.titulos > 0
-      ? position.coste_total / position.titulos
+    return position && position.quantity > 0
+      ? position.cost / position.quantity
       : null;
   });
   const pricedPositions = computed(
     () =>
-      positions.value.filter((position) => position.precio_actual != null)
+      positions.value.filter((position) => position.current_price != null)
         .length,
   );
   const sortedPositions = computed(() => {
@@ -139,30 +152,29 @@ export function useCryptoPortfolio(
       numeric: true,
     });
     const valueFor = (position: CryptoPosition): number | string | null => {
-      if (positionSortKey.value === "asset") return position.nombre;
-      if (positionSortKey.value === "ticker")
-        return (
-          instrumentTicker(
-            instrumentByIdentity(instruments.value, position.symbol),
-          ) || position.symbol
+      if (positionSortKey.value === "asset") return position.name;
+      if (positionSortKey.value === "ticker") {
+        const instrument = instrumentById(
+          instruments.value,
+          position.instrument_id,
         );
-      if (positionSortKey.value === "cost") return position.coste_total;
-      if (positionSortKey.value === "quantity") return position.titulos;
+        return instrumentTicker(instrument) || instrumentIdentity(instrument);
+      }
+      if (positionSortKey.value === "cost") return position.cost;
+      if (positionSortKey.value === "quantity") return position.quantity;
       if (positionSortKey.value === "averagePrice")
-        return position.titulos ? position.coste_total / position.titulos : 0;
+        return position.quantity ? position.cost / position.quantity : 0;
       if (positionSortKey.value === "currentPrice")
-        return position.precio_actual;
-      if (positionSortKey.value === "value") return position.valor_actual;
-      if (positionSortKey.value === "pnl") return position.pnl;
-      return position.coste_total
-        ? (position.pnl ?? 0) / position.coste_total
-        : 0;
+        return position.current_price;
+      if (positionSortKey.value === "value") return position.current_value;
+      if (positionSortKey.value === "pnl") return position.unrealized_pnl;
+      return position.cost ? (position.unrealized_pnl ?? 0) / position.cost : 0;
     };
     return [...positions.value].sort((left, right) => {
       const a = valueFor(left);
       const b = valueFor(right);
       if (a == null && b == null)
-        return collator.compare(left.nombre, right.nombre);
+        return collator.compare(left.name, right.name);
       if (a == null) return 1;
       if (b == null) return -1;
       const comparison =
@@ -170,7 +182,7 @@ export function useCryptoPortfolio(
           ? collator.compare(a, b)
           : Number(a) - Number(b);
       return comparison === 0
-        ? collator.compare(left.nombre, right.nombre)
+        ? collator.compare(left.name, right.name)
         : positionSortDirection.value === "asc"
           ? comparison
           : -comparison;

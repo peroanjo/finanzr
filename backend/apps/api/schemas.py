@@ -672,6 +672,44 @@ class PriceFetchResponseSerializer(serializers.Serializer[dict[str, Any]]):
     results = PriceFetchResultSerializer(many=True)
 
 
+class NativePositionResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    """Common public DTO for a calculated traded position."""
+
+    instrument_id = serializers.UUIDField()
+    kind = serializers.ChoiceField(choices=("fund", "stock", "crypto"))
+    name = serializers.CharField()
+    quantity = serializers.FloatField()
+    cost = serializers.FloatField()
+    current_price = serializers.FloatField(allow_null=True)
+    current_value = serializers.FloatField(allow_null=True)
+    unrealized_pnl = serializers.FloatField(allow_null=True)
+    realized_pnl = serializers.FloatField(allow_null=True)
+    currency = serializers.CharField()
+    base_currency = serializers.CharField()
+
+
+class NativeFundPositionResponseSerializer(NativePositionResponseSerializer):
+    """Fund-only classification and NAV fields."""
+
+    kind = serializers.ChoiceField(choices=("fund",))
+    asset_class = serializers.CharField()
+    subtype = serializers.CharField()
+    average_price = serializers.FloatField()
+    return_percent = serializers.FloatField(allow_null=True)
+
+
+class NativeStockPositionResponseSerializer(NativePositionResponseSerializer):
+    """Stock position response with a literal discriminator."""
+
+    kind = serializers.ChoiceField(choices=("stock",))
+
+
+class NativeCryptoPositionResponseSerializer(NativePositionResponseSerializer):
+    """Crypto position response with a literal discriminator."""
+
+    kind = serializers.ChoiceField(choices=("crypto",))
+
+
 class FundChartPointSerializer(serializers.Serializer[dict[str, Any]]):
     date = serializers.DateField()
     close = serializers.DecimalField(max_digits=24, decimal_places=6, coerce_to_string=False)

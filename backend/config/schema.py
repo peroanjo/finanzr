@@ -46,12 +46,15 @@ from apps.api.schemas import (
     ManualAssetResponseSerializer,
     ManualAssetUpdateRequestSerializer,
     MarketChartResponseSerializer,
+    NativeCryptoPositionResponseSerializer,
+    NativeFundPositionResponseSerializer,
     NativeInvestmentAccountResponseSerializer,
     NativeInvestmentSnapshotRequestSerializer,
     NativeInvestmentSnapshotResponseSerializer,
     NativeSavingsAccountResponseSerializer,
     NativeSavingsSnapshotRequestSerializer,
     NativeSavingsSnapshotResponseSerializer,
+    NativeStockPositionResponseSerializer,
     OkSerializer,
     PasswordRequestSerializer,
     PasswordResetConfirmRequestSerializer,
@@ -447,6 +450,12 @@ class PublicAutoSchema(AutoSchema):
             response = NativeInvestmentSnapshotResponseSerializer(many=self.method == "GET")
         elif path == "/api/investment-performance/{kind}":
             response = InvestmentPerformanceResponseSerializer
+        elif path == "/api/fund-analysis":
+            response = NativeFundPositionResponseSerializer(many=True)
+        elif path == "/api/stock-analysis":
+            response = NativeStockPositionResponseSerializer(many=True)
+        elif path == "/api/crypto-analysis":
+            response = NativeCryptoPositionResponseSerializer(many=True)
         elif path == "/api/portfolio-analysis":
             response = PortfolioAnalysisResponseSerializer
         elif path == "/api/fund-chart/{instrument_id}":
