@@ -13,6 +13,7 @@ import type { ImporterCatalogItem, SummarySourceKey } from "../types/api";
 import NavIcon from "../components/NavIcon.vue";
 import AdminUsersPanel from "../components/settings/AdminUsersPanel.vue";
 import SettingsImporterDocument from "../components/settings/SettingsImporterDocument.vue";
+import SettingsSummarySourcesPanel from "../components/settings/SettingsSummarySourcesPanel.vue";
 import { useSessionStore } from "../stores/session";
 import { useLocalePreference } from "../i18n";
 
@@ -93,12 +94,6 @@ const crowdfundingTaxBusy = ref(false);
 const crowdfundingTaxError = ref("");
 const crowdfundingTaxSuccess = ref("");
 const summarySources = ref<SummarySourceKey[]>([]);
-const selectedAvailableSources = ref<SummarySourceKey[]>([]);
-const selectedIncludedSources = ref<SummarySourceKey[]>([]);
-const summarySourceRefs = {
-  available: {} as Record<string, HTMLButtonElement>,
-  included: {} as Record<string, HTMLButtonElement>,
-};
 const summarySourcesBusy = ref(false);
 const summarySourcesError = ref("");
 const summarySourcesSuccess = ref("");
@@ -111,9 +106,6 @@ const summarySourceKeys: SummarySourceKey[] = [
   "crowdfunding",
   "manual_assets",
 ];
-const summaryAvailableSources = computed(() =>
-  summarySourceKeys.filter((key) => !summarySources.value.includes(key)),
-);
 const summaryScopeLabel = computed(() =>
   session.user?.summary_sources_scope === "personal"
     ? t("settings.summarySourcesScopePersonal")
@@ -226,8 +218,6 @@ watch(
     summarySources.value = summarySourceKeys.filter((key) =>
       next.includes(key),
     );
-    selectedAvailableSources.value = [];
-    selectedIncludedSources.value = [];
   },
   { deep: true, immediate: true },
 );
@@ -373,112 +363,13 @@ async function saveLanguage(value: "es-ES" | "en" | "") {
   }
 }
 
-function toggleSummarySource(
-  side: "available" | "included",
-  key: SummarySourceKey,
-) {
-  const target =
-    side === "available" ? selectedAvailableSources : selectedIncludedSources;
-  target.value = target.value.includes(key)
-    ? target.value.filter((item) => item !== key)
-    : [...target.value, key];
-}
-
-function setSummarySourceRef(
-  side: "available" | "included",
-  key: SummarySourceKey,
-  element: unknown,
-) {
-  if (element && typeof (element as { focus?: unknown }).focus === "function") {
-    summarySourceRefs[side][key] = element as HTMLButtonElement;
-  } else delete summarySourceRefs[side][key];
-}
-
-function summarySourceSideKeys(side: "available" | "included") {
-  return side === "available"
-    ? summaryAvailableSources.value
-    : summarySources.value;
-}
-
-function focusSummarySource(side: "available" | "included", index: number) {
-  const key = summarySourceSideKeys(side)[index];
-  if (!key) return;
-  nextTick(() => {
-    const referenced = summarySourceRefs[side][key];
-    if (referenced) {
-      referenced.focus();
-      return;
-    }
-    const selector =
-      side === "available"
-        ? ".summary-source-column:not(.included) .summary-source-option"
-        : ".summary-source-column.included .summary-source-option";
-    (
-      document.querySelectorAll(selector)[index] as HTMLElement | undefined
-    )?.focus();
-  });
-}
-
-function onSummarySourceKeydown(
-  event: KeyboardEvent,
-  side: "available" | "included",
-  key: SummarySourceKey,
-) {
-  const keys = summarySourceSideKeys(side);
-  const index = keys.indexOf(key);
-  if (index < 0) return;
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    toggleSummarySource(side, key);
-    return;
-  }
-  const nextIndex =
-    event.key === "ArrowDown"
-      ? Math.min(keys.length - 1, index + 1)
-      : event.key === "ArrowUp"
-        ? Math.max(0, index - 1)
-        : event.key === "Home"
-          ? 0
-          : event.key === "End"
-            ? keys.length - 1
-            : -1;
-  if (nextIndex >= 0) {
-    event.preventDefault();
-    focusSummarySource(side, nextIndex);
-  }
-}
-
-function moveSelectedSummarySources(direction: "in" | "out") {
-  const moving =
-    direction === "in"
-      ? [...selectedAvailableSources.value]
-      : [...selectedIncludedSources.value];
-  if (direction === "in") {
-    const movingKeys = new Set(moving);
-    summarySources.value = summarySourceKeys.filter(
-      (key) => summarySources.value.includes(key) || movingKeys.has(key),
-    );
-    selectedAvailableSources.value = [];
-  } else {
-    const movingKeys = new Set(moving);
-    summarySources.value = summarySources.value.filter(
-      (key) => !movingKeys.has(key),
-    );
-    selectedIncludedSources.value = [];
-  }
-  const targetSide = direction === "in" ? "included" : "available";
-  const targetKeys = summarySourceSideKeys(targetSide);
-  const targetIndex = targetKeys.findIndex((key) => key === moving[0]);
-  if (targetIndex >= 0) focusSummarySource(targetSide, targetIndex);
-}
-
-async function saveSummarySources() {
+async function saveSummarySources(nextSources = summarySources.value) {
   if (summarySourcesBusy.value || !canManageAccount.value) return;
   summarySourcesBusy.value = true;
   summarySourcesError.value = "";
   summarySourcesSuccess.value = "";
   try {
-    await session.updateSummarySources(summarySources.value);
+    await session.updateSummarySources(nextSources);
     summarySourcesSuccess.value = t("settings.summarySourcesSaved");
   } catch (reason) {
     summarySourcesError.value =
@@ -488,6 +379,10 @@ async function saveSummarySources() {
   } finally {
     summarySourcesBusy.value = false;
   }
+}
+
+function updateSummarySources(nextSources: SummarySourceKey[]) {
+  summarySources.value = nextSources;
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -735,211 +630,20 @@ onBeforeUnmount(() => {
         </nav>
 
         <main class="settings-content">
-          <article
+          <SettingsSummarySourcesPanel
             v-if="
               activeSection === 'sections' && activeProductSection === 'summary'
             "
-            class="interface-document summary-sources-document"
-          >
-            <header class="interface-document-header">
-              <div>
-                <p>{{ t("settings.summarySources") }}</p>
-                <h3>{{ t("settings.summarySources") }}</h3>
-                <span>{{ t("settings.summarySourcesDescription") }}</span>
-              </div>
-              <div
-                class="effective-language summary-source-status"
-                aria-live="polite"
-              >
-                <span aria-hidden="true">Σ</span>
-                <p>
-                  <small>{{ t("settings.summarySourcesAria") }}</small
-                  ><strong
-                    >{{ summarySources.length }} /
-                    {{ summarySourceKeys.length }}</strong
-                  >
-                </p>
-                <i />
-              </div>
-            </header>
-
-            <section
-              class="summary-sources-panel"
-              :aria-labelledby="'summary-sources-title'"
-            >
-              <header>
-                <div>
-                  <p>{{ summaryScopeLabel }}</p>
-                  <h4 id="summary-sources-title">
-                    {{ t("settings.summarySources") }}
-                  </h4>
-                </div>
-                <span>{{ summarySources.length }}</span>
-              </header>
-              <p class="document-description">
-                {{ t("settings.summarySourcesHint") }}
-              </p>
-              <div
-                class="summary-transfer"
-                :aria-label="t('settings.summarySourcesAria')"
-              >
-                <section class="summary-source-column">
-                  <header>
-                    <strong>{{ t("settings.summarySourcesAvailable") }}</strong
-                    ><small>{{ summaryAvailableSources.length }}</small>
-                  </header>
-                  <div
-                    class="summary-source-list"
-                    role="listbox"
-                    :aria-label="t('settings.summarySourcesAvailableAria')"
-                    aria-multiselectable="true"
-                  >
-                    <button
-                      v-for="key in summaryAvailableSources"
-                      :key="key"
-                      type="button"
-                      role="option"
-                      class="summary-source-option"
-                      :class="{
-                        selected: selectedAvailableSources.includes(key),
-                      }"
-                      :aria-selected="selectedAvailableSources.includes(key)"
-                      @keydown="
-                        onSummarySourceKeydown($event, 'available', key)
-                      "
-                      :ref="
-                        (element) =>
-                          setSummarySourceRef('available', key, element)
-                      "
-                      :disabled="!canManageAccount || summarySourcesBusy"
-                      @click="toggleSummarySource('available', key)"
-                    >
-                      <span class="summary-source-mark" aria-hidden="true">{{
-                        key.slice(0, 1).toUpperCase()
-                      }}</span>
-                      <span>{{ t(`overview.sources.${key}`) }}</span>
-                    </button>
-                    <p
-                      v-if="!summaryAvailableSources.length"
-                      class="summary-source-empty"
-                    >
-                      {{ t("common.noData") }}
-                    </p>
-                  </div>
-                </section>
-                <div class="summary-transfer-rail" aria-hidden="true">
-                  <span /><i /><span />
-                </div>
-                <div class="summary-transfer-actions">
-                  <button
-                    type="button"
-                    class="summary-transfer-button"
-                    :aria-label="t('settings.summarySourcesMoveIn')"
-                    :title="t('settings.summarySourcesMoveIn')"
-                    :disabled="
-                      !selectedAvailableSources.length ||
-                      !canManageAccount ||
-                      summarySourcesBusy
-                    "
-                    @click="moveSelectedSummarySources('in')"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M5 12h13m-5-5 5 5-5 5" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    class="summary-transfer-button"
-                    :aria-label="t('settings.summarySourcesMoveOut')"
-                    :title="t('settings.summarySourcesMoveOut')"
-                    :disabled="
-                      !selectedIncludedSources.length ||
-                      !canManageAccount ||
-                      summarySourcesBusy
-                    "
-                    @click="moveSelectedSummarySources('out')"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M19 12H6m5-5-5 5 5 5" />
-                    </svg>
-                  </button>
-                </div>
-                <section class="summary-source-column included">
-                  <header>
-                    <strong>{{ t("settings.summarySourcesIncluded") }}</strong
-                    ><small>{{ summarySources.length }}</small>
-                  </header>
-                  <div
-                    class="summary-source-list"
-                    role="listbox"
-                    :aria-label="t('settings.summarySourcesIncludedAria')"
-                    aria-multiselectable="true"
-                  >
-                    <button
-                      v-for="key in summarySources"
-                      :key="key"
-                      type="button"
-                      role="option"
-                      class="summary-source-option"
-                      :class="{
-                        selected: selectedIncludedSources.includes(key),
-                      }"
-                      :aria-selected="selectedIncludedSources.includes(key)"
-                      @keydown="onSummarySourceKeydown($event, 'included', key)"
-                      :ref="
-                        (element) =>
-                          setSummarySourceRef('included', key, element)
-                      "
-                      :disabled="!canManageAccount || summarySourcesBusy"
-                      @click="toggleSummarySource('included', key)"
-                    >
-                      <span class="summary-source-mark" aria-hidden="true">{{
-                        key.slice(0, 1).toUpperCase()
-                      }}</span>
-                      <span>{{ t(`overview.sources.${key}`) }}</span>
-                    </button>
-                    <p
-                      v-if="!summarySources.length"
-                      class="summary-source-empty"
-                    >
-                      {{ t("common.noData") }}
-                    </p>
-                  </div>
-                </section>
-              </div>
-              <footer class="summary-sources-footer">
-                <p v-if="!canManageAccount" class="language-feedback muted">
-                  {{ t("settings.demoLanguageNotice") }}
-                </p>
-                <p
-                  v-if="summarySourcesError"
-                  class="language-feedback error"
-                  role="alert"
-                >
-                  {{ summarySourcesError }}
-                </p>
-                <p
-                  v-else-if="summarySourcesSuccess"
-                  class="language-feedback success"
-                  role="status"
-                >
-                  {{ summarySourcesSuccess }}
-                </p>
-                <button
-                  type="button"
-                  class="summary-sources-save"
-                  :disabled="summarySourcesBusy || !canManageAccount"
-                  @click="saveSummarySources"
-                >
-                  {{
-                    summarySourcesBusy
-                      ? t("common.saving")
-                      : t("settings.summarySourcesSave")
-                  }}
-                </button>
-              </footer>
-            </section>
-          </article>
+            :summary-sources="summarySources"
+            :summary-source-keys="summarySourceKeys"
+            :scope-label="summaryScopeLabel"
+            :can-manage="canManageAccount"
+            :busy="summarySourcesBusy"
+            :error="summarySourcesError"
+            :success="summarySourcesSuccess"
+            @update="updateSummarySources"
+            @save="saveSummarySources"
+          />
           <article
             v-else-if="activeSection === 'interface'"
             class="interface-document"
@@ -2484,294 +2188,6 @@ onBeforeUnmount(() => {
   opacity: 0.55;
   cursor: wait;
 }
-.summary-sources-document {
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--fz-accent) 5%, transparent),
-    transparent 46%
-  );
-}
-.summary-source-status strong {
-  font-variant-numeric: tabular-nums;
-}
-.summary-sources-panel {
-  margin-top: 32px;
-  padding: 22px;
-  border: 1px solid var(--fz-line);
-  border-radius: 20px;
-  background: var(--fz-surface);
-  box-shadow: var(--fz-shadow);
-}
-.summary-sources-panel > header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 4px;
-}
-.summary-sources-panel > header p {
-  margin: 0 0 6px;
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.summary-sources-panel > header h4 {
-  margin: 0;
-  font-size: 17px;
-  letter-spacing: -0.025em;
-}
-.summary-sources-panel > header > span {
-  min-width: 30px;
-  padding: 5px 8px;
-  border-radius: 99px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 800;
-  text-align: center;
-}
-.summary-sources-panel > .document-description {
-  max-width: 630px;
-  margin: 14px 0 0;
-  color: var(--fz-muted);
-  line-height: 1.55;
-}
-.summary-transfer {
-  position: relative;
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 54px minmax(0, 1fr);
-  gap: 14px;
-  align-items: stretch;
-}
-.summary-source-column {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--fz-line);
-  border-radius: 16px;
-  background: var(--fz-surface-soft);
-}
-.summary-source-column > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 2px 3px 10px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.summary-source-column > header strong {
-  color: var(--fz-ink);
-  font-size: 10px;
-  font-weight: 800;
-}
-.summary-source-column > header small {
-  min-width: 22px;
-  padding: 3px 6px;
-  border-radius: 99px;
-  background: var(--fz-surface);
-  font-size: 9px;
-  text-align: center;
-}
-.summary-source-column.included {
-  border-color: color-mix(in srgb, var(--fz-accent) 30%, var(--fz-line));
-  background: color-mix(in srgb, var(--fz-accent) 4%, var(--fz-surface));
-}
-.summary-source-list {
-  display: grid;
-  gap: 7px;
-  min-height: 222px;
-  padding-top: 2px;
-}
-.summary-source-option {
-  width: 100%;
-  min-height: 43px;
-  padding: 7px 9px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: var(--fz-surface);
-  color: var(--fz-ink);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 680;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-.summary-source-option:hover:not(:disabled) {
-  transform: translateX(2px);
-  border-color: color-mix(in srgb, var(--fz-accent) 35%, var(--fz-line));
-}
-.summary-source-option:focus-visible {
-  outline: 0;
-  border-color: var(--fz-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 17%, transparent);
-}
-.summary-source-option.selected {
-  border-color: var(--fz-accent);
-  background: var(--fz-accent-soft);
-  box-shadow: inset 3px 0 var(--fz-accent);
-}
-.summary-source-option:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
-}
-.summary-source-mark {
-  flex: 0 0 auto;
-  width: 25px;
-  height: 25px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 850;
-}
-.summary-source-empty {
-  align-self: center;
-  margin: 0;
-  padding: 12px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  text-align: center;
-}
-.summary-transfer-rail {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 28px 0;
-}
-.summary-transfer-rail:before {
-  content: "";
-  position: absolute;
-  top: 31px;
-  bottom: 31px;
-  width: 2px;
-  background: var(--fz-accent-soft);
-}
-.summary-transfer-rail span {
-  z-index: 1;
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--fz-accent);
-  border-radius: 50%;
-  background: var(--fz-surface);
-}
-.summary-transfer-rail i {
-  z-index: 1;
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--fz-accent);
-  border-radius: 50%;
-  background: var(--fz-accent);
-}
-.summary-transfer-actions {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  gap: 8px;
-  transform: translate(-50%, -50%);
-}
-.summary-transfer-button {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--fz-accent);
-  border-radius: 10px;
-  background: var(--fz-accent);
-  color: var(--fz-ink);
-  cursor: pointer;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--fz-accent) 22%, transparent);
-  transition:
-    transform 0.16s ease,
-    opacity 0.16s ease,
-    background 0.16s ease;
-}
-.summary-transfer-button:first-child {
-  transform: translateY(-47px);
-}
-.summary-transfer-button:last-child {
-  transform: translateY(47px);
-}
-.summary-transfer-button:hover:not(:disabled) {
-  background: var(--fz-accent-soft);
-  transform: translateY(-49px);
-}
-.summary-transfer-button:last-child:hover:not(:disabled) {
-  transform: translateY(49px);
-}
-.summary-transfer-button:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 24%, transparent);
-}
-.summary-transfer-button:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-.summary-transfer-button svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-.summary-sources-footer {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.summary-sources-footer .language-feedback {
-  margin: 0;
-  flex: 1 1 220px;
-}
-.summary-sources-save {
-  min-height: 42px;
-  padding: 0 15px;
-  border: 0;
-  border-radius: 11px;
-  background: var(--fz-accent);
-  color: var(--fz-ink);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
-}
-.summary-sources-save:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-.summary-sources-save:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 25%, transparent);
-}
-.summary-sources-save:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-@media (prefers-reduced-motion: reduce) {
   .summary-source-option,
   .summary-transfer-button,
   .summary-sources-save {
