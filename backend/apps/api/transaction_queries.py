@@ -6,7 +6,6 @@ from uuid import UUID
 from django.db.models import QuerySet
 from django.utils.translation import gettext as _
 from rest_framework.request import Request
-from rest_framework.response import Response
 
 from apps.accounts.models import Account
 from apps.api.account_queries import (
@@ -22,18 +21,18 @@ from apps.market_data.models import (
 from apps.transactions.models import Transaction
 
 
-def _selected_traded_account(request: Request, kind: str) -> Account | None | Response:
+def selected_traded_account(request: Request, kind: str) -> Account | None:
     """Validate and resolve an optional native account filter."""
 
     if "cuenta_id" in request.query_params:
-        return Response({"error": _("Use account_id for account filtering")}, status=400)
+        raise ValueError(_("Use account_id for account filtering"))
     value = request.query_params.get("account_id")
     if not value or value == "all":
         return None
     try:
         account_uuid = UUID(value)
     except (TypeError, ValueError):
-        return Response({"error": _("A valid account ID was expected")}, status=400)
+        raise ValueError(_("A valid account ID was expected")) from None
     account_kind = {
         Instrument.Kind.FUND: Account.Kind.FUNDS,
         Instrument.Kind.STOCK: Account.Kind.STOCKS,
@@ -55,7 +54,7 @@ def transaction_queryset(
     return queryset
 
 
-def _transaction_calculation_list(
+def transaction_calculation_rows(
     request: Request, kind: str, selected_account: Account | None = None
 ) -> list[dict[str, Any]]:
     """Return private legacy-shaped rows for pure position calculations."""

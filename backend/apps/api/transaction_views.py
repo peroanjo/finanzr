@@ -30,7 +30,7 @@ from apps.api.transaction_projection import (
     _calculation_operation_label,
     transaction_row,
 )
-from apps.api.transaction_queries import _selected_traded_account, transaction_queryset
+from apps.api.transaction_queries import selected_traded_account, transaction_queryset
 from apps.market_data.fx import (
     CurrencyConversionError,
     normalize_currency,
@@ -52,9 +52,10 @@ TRANSACTION_EXTERNAL_ID_CONSTRAINT = "transaction_external_id_unique"
 
 
 def transaction_list(request: Request, kind: str) -> Response:
-    selected_account = _selected_traded_account(request, kind)
-    if isinstance(selected_account, Response):
-        return selected_account
+    try:
+        selected_account = selected_traded_account(request, kind)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=400)
     queryset = transaction_queryset(request, kind, selected_account)
     return Response([transaction_row(item) for item in queryset.order_by("trade_date")])
 

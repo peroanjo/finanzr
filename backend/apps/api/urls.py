@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import admin_users, auth, fx_views, privacy, uploads, views
+from .analysis_views import crypto_analysis, fund_analysis, portfolio_analysis, stock_analysis
 from .instrument_views import crypto_detail, cryptos, fund_detail, funds, stock_detail, stocks
 from .market_views import (
     crypto_chart,
@@ -17,6 +18,8 @@ from .market_views import (
     stock_split_detail,
     stock_splits,
 )
+from .overview_views import net_worth_history, summary
+from .performance_views import investment_performance_view
 from .transaction_views import (
     crypto_orders,
     crypto_transaction_detail,
@@ -47,8 +50,8 @@ urlpatterns = [
     path("audit-events", privacy.audit_events),
     path("importers", uploads.catalog),
     path("account-imports/<str:kind>/<uuid:account_id>", uploads.upload_for_account),
-    path("summary", views.summary),
-    path("net-worth-history", views.net_worth_history),
+    path("summary", summary),
+    path("net-worth-history", net_worth_history),
     path("savings/accounts", views.savings_accounts),
     path("savings/accounts/<uuid:account_id>", views.savings_account),
     path("savings/history", views.savings_history),
@@ -65,7 +68,7 @@ urlpatterns = [
     ),
     path("portfolio", views.portfolio),
     path("portfolio/<uuid:asset_id>", views.portfolio_detail),
-    path("portfolio-analysis", views.portfolio_analysis),
+    path("portfolio-analysis", portfolio_analysis),
     path("real-estate", views.real_estate),
     path("real-estate/<uuid:investment_id>", views.real_estate_detail),
     path("budget", views.budget),
@@ -99,15 +102,15 @@ urlpatterns = [
     path("stock-prices/<uuid:instrument_id>", stock_price_detail),
     path("crypto-prices/fetch", fetch_crypto_prices),
     path("crypto-prices", crypto_prices),
-    path("fund-analysis", views.fund_analysis),
-    path("stock-analysis", views.stock_analysis),
-    path("crypto-analysis", views.crypto_analysis),
+    path("fund-analysis", fund_analysis),
+    path("stock-analysis", stock_analysis),
+    path("crypto-analysis", crypto_analysis),
     path("stock-splits", stock_splits),
     path("stock-splits/<uuid:split_id>", stock_split_detail),
     path("fund-chart/<uuid:instrument_id>", fund_chart),
     path("stock-chart/<uuid:instrument_id>", stock_chart),
     path("crypto-chart/<uuid:instrument_id>", crypto_chart),
-    path("investment-performance/<str:kind>", views.investment_performance_view),
+    path("investment-performance/<str:kind>", investment_performance_view),
     path("fx-rates", fx_views.fx_rates),
     path("fx-rates/<uuid:rate_id>", fx_views.fx_rate_detail),
     path("fx-rates/fetch", fx_views.fetch_fx_rates),

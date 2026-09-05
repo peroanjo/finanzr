@@ -16,6 +16,7 @@ from apps.api.account_projection import account_row
 from apps.api.auth import user_payload
 from apps.api.context import active_membership, workspace
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
+from apps.api.overview_queries import _overview_calculation
 from apps.api.portfolio_projection import manual_asset_row
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
 from apps.audit.models import AuditEvent
@@ -100,7 +101,7 @@ def export_payload(request: Request) -> dict[str, object]:
         # projections, and native market-price contracts.
         "format": "finanzr-workspace-v4",
         "workspace": user_payload(user, request),
-        "summary": views._overview_calculation(request)[0],
+        "summary": _overview_calculation(request)[0],
         "savings_accounts": savings_accounts,
         "savings_history": savings_history,
         "investment_accounts": investment_accounts,

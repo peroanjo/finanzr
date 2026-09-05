@@ -307,3 +307,34 @@ def test_provider_failure_never_falls_back_to_an_identity_rate(
     ]
     assert not MarketPrice.objects.filter(instrument=instrument).exists()
     assert WorkspaceMarketPriceOverride.objects.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/api/fund-prices",
+        "/api/stock-prices",
+        "/api/crypto-prices",
+        "/api/fund-analysis",
+        "/api/stock-analysis",
+        "/api/crypto-analysis",
+        "/api/portfolio-analysis",
+    ],
+)
+def test_market_conversion_failure_reaches_the_http_boundary(
+    api_context: tuple[APIClient, User],
+    monkeypatch: pytest.MonkeyPatch,
+    endpoint: str,
+) -> None:
+    client, _ = api_context
+
+    def unavailable(*_args: object, **_kwargs: object) -> FxConversion:
+        raise CurrencyConversionError("Synthetic conversion unavailable")
+
+    monkeypatch.setattr(market_queries, "rate_to_base", unavailable)
+
+    response = client.get(endpoint)
+
+    assert response.status_code == 502
+    assert response.json() == {"error": "Synthetic conversion unavailable"}

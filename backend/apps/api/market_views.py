@@ -18,7 +18,7 @@ from rest_framework.response import Response
 
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instruments
-from apps.api.market_queries import price_list, yahoo_ticker
+from apps.api.market_queries import price_rows, yahoo_ticker
 from apps.api.permissions import forbidden_if_readonly
 from apps.api.projection import number
 from apps.api.request_data import payload
@@ -46,6 +46,13 @@ from apps.market_data.yahoo import (
     chart as yahoo_chart,
 )
 from apps.users.models import User
+
+
+def price_list(request: Request, kind: str) -> Response:
+    try:
+        return Response(price_rows(request, kind))
+    except CurrencyConversionError as exc:
+        return Response({"error": str(exc)}, status=502)
 
 
 @api_view(["GET"])

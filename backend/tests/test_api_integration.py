@@ -5,19 +5,13 @@ from uuid import UUID
 import pytest
 from apps.accounts.models import Account, AccountSnapshot, FinancialProvider
 from apps.api import views
-from apps.api.position_projection import PositionProjectionError, native_position_rows
 from apps.common.models import InstallationSettings
 from apps.imports.models import ImportBatch, ImportIssue
 from apps.market_data.fx import FxConversion
-from apps.market_data.models import (
-    Instrument,
-    InstrumentIdentifier,
-)
 from apps.portfolio.models import ManualAsset
 from apps.transactions.models import Transaction
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
-from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -59,93 +53,6 @@ def test_read_endpoints_are_served_from_django_models(api_context: tuple[APIClie
         response = client.get(endpoint)
         assert response.status_code == 200, (endpoint, response.content)
         assert isinstance(response.json(), response_type)
-
-
-@pytest.mark.django_db(transaction=True)
-def test_analysis_endpoints_expose_only_the_native_position_contract(
-    api_context: tuple[APIClient, User],
-) -> None:
-    client, _ = api_context
-    common = {
-        "instrument_id",
-        "kind",
-        "name",
-        "quantity",
-        "cost",
-        "current_price",
-        "current_value",
-        "unrealized_pnl",
-        "realized_pnl",
-        "currency",
-        "base_currency",
-    }
-    expected = {
-        "/api/fund-analysis": common
-        | {"asset_class", "subtype", "average_price", "return_percent"},
-        "/api/stock-analysis": common,
-        "/api/crypto-analysis": common,
-    }
-    for endpoint, keys in expected.items():
-        response = client.get(endpoint)
-        assert response.status_code == 200, (endpoint, response.content)
-        for row in response.json():
-            assert set(row) == keys
-            UUID(row["instrument_id"])
-            assert row["kind"] in {"fund", "stock", "crypto"}
-            assert not {
-                "isin",
-                "symbol",
-                "nombre",
-                "titulos",
-                "participaciones",
-                "precio_actual",
-                "valor_actual",
-                "pnl",
-                "pnl_realizada",
-                "moneda",
-            } & set(row)
-
-
-def test_native_position_projection_fails_loudly_for_an_orphan() -> None:
-    with pytest.raises(PositionProjectionError, match="ORPHAN"):
-        native_position_rows(
-            [{"isin": "ORPHAN", "nombre": "Orphan", "titulos": 1}],
-            [],
-            kind="stock",
-            base_currency="EUR",
-        )
-
-
-@pytest.mark.django_db(transaction=True)
-def test_native_position_projection_uses_visible_instrument_name(
-    api_context: tuple[APIClient, User],
-) -> None:
-    instrument = Instrument.objects.get(name="Synthetic Stock")
-    isin = instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
-
-    rows = native_position_rows(
-        [
-            {
-                "isin": isin,
-                "nombre": "Legacy calculation label",
-                "titulos": Decimal("1"),
-                "coste_total": Decimal("10"),
-                "precio_actual": None,
-                "valor_actual": None,
-                "pnl": None,
-                "pnl_realizada": Decimal("0"),
-                "moneda": "USD",
-            }
-        ],
-        [instrument],
-        kind=Instrument.Kind.STOCK,
-        base_currency="EUR",
-    )
-
-    assert rows[0]["name"] == instrument.name
-    assert rows[0]["name"] != "Legacy calculation label"
-    assert rows[0]["currency"] == "USD"
-    assert rows[0]["base_currency"] == "EUR"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1496,46 +1403,6 @@ def test_traded_account_crud_uses_strict_native_contract(
 
 
 @pytest.mark.django_db(transaction=True)
-def test_portfolio_analysis_consolidates_positions_by_real_account(
-    api_context: tuple[APIClient, User],
-) -> None:
-    client, _ = api_context
-
-    response = client.get("/api/portfolio-analysis")
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["total"] == pytest.approx(
-        sum(item["valor"] for item in payload["items"]),
-        abs=0.01,
-    )
-    assert {"fund", "stock", "crypto", "real_estate"}.issubset(
-        {item["origen"] for item in payload["items"]}
-    )
-    assert all(item["cuenta"] and item["plataforma"] for item in payload["items"])
-    assert all(0 < item["peso"] <= 1 for item in payload["items"])
-    fund_classes = {item["clase"] for item in payload["items"] if item["origen"] == "fund"}
-    assert fund_classes == {"Renta variable"}
-    manual = next(item for item in payload["items"] if item["origen"] == "manual")
-    manual_asset = ManualAsset.objects.get(name="Synthetic cash")
-    assert manual["id"] == f"manual:{manual_asset.id}"
-    assert manual["cuenta_id"] == f"manual:{manual_asset.id}"
-    account_kinds = {
-        "fund": Account.Kind.FUNDS,
-        "stock": Account.Kind.STOCKS,
-        "crypto": Account.Kind.CRYPTO,
-    }
-    for item in payload["items"]:
-        if item["origen"] not in account_kinds:
-            continue
-        prefix = f"{item['origen']}:"
-        account_id = item["cuenta_id"].removeprefix(prefix)
-        UUID(account_id)
-        assert item["id"].startswith(f"{item['cuenta_id']}:")
-        assert Account.objects.filter(pk=account_id, kind=account_kinds[item["origen"]]).exists()
-
-
-@pytest.mark.django_db(transaction=True)
 def test_savings_write_persists_to_database(
     api_context: tuple[APIClient, User],
 ) -> None:
@@ -1905,89 +1772,3 @@ def test_crypto_accounts_can_be_created_and_filter_orders(
     assert orders.json()[0]["platform"] == "Otro exchange"
     assert analysis.status_code == 200
     assert analysis.json()[0]["instrument_id"] == str(source.instrument_id)
-
-
-@pytest.mark.django_db(transaction=True)
-def test_fund_performance_uses_market_history_and_filters_by_account(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    client, _ = api_context
-    cache.clear()
-    created = client.post(
-        "/api/fund-accounts",
-        {
-            "name": "Cuenta de prueba",
-            "platform": "MyInvestor",
-            "importer_slug": "fund_broker",
-        },
-        format="json",
-    )
-    account_id = created.json()["id"]
-    account = Account.objects.get(pk=account_id)
-    source = Transaction.objects.filter(instrument__kind="fund").first()
-    assert source is not None
-    Transaction.objects.create(
-        account=account,
-        instrument=source.instrument,
-        external_id="fund-performance-buy",
-        trade_date="2026-01-01",
-        operation_type=Transaction.OperationType.BUY,
-        cash_flow_type=Transaction.CashFlowType.CONTRIBUTION,
-        quantity=10,
-        unit_price=10,
-        net_amount=100,
-        currency="EUR",
-        provider_operation_type="SUSCRIPCION",
-    )
-    monkeypatch.setattr(
-        views,
-        "yahoo_chart",
-        lambda *_args, **_kwargs: (
-            {"currency": "EUR"},
-            [
-                {"fecha": "2026-01-01", "precio": 10},
-                {"fecha": "2026-02-01", "precio": 12},
-            ],
-        ),
-    )
-
-    response = client.get(f"/api/investment-performance/fund?account_id={account_id}&range=1y")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "range": "1y",
-        "account_id": str(account_id),
-        "base_currency": "EUR",
-        "data": [
-            {
-                "date": "2026-01-01",
-                "value": 100.0,
-                "invested": 100.0,
-                "pnl": 0.0,
-                "pnl_percent": 0.0,
-            },
-            {
-                "date": "2026-02-01",
-                "value": 120.0,
-                "invested": 100.0,
-                "pnl": 20.0,
-                "pnl_percent": 20.0,
-            },
-        ],
-    }
-
-    analysis = client.get(f"/api/fund-analysis?account_id={account_id}")
-    orders = client.get(f"/api/orders?account_id={account_id}")
-    assert analysis.status_code == 200
-    assert len(analysis.json()) == 1
-    assert [row["account_id"] for row in orders.json()] == [account_id]
-
-
-@pytest.mark.django_db(transaction=True)
-def test_fund_performance_rejects_an_incomplete_custom_range(
-    api_context: tuple[APIClient, User],
-) -> None:
-    client, _ = api_context
-    response = client.get("/api/investment-performance/fund?account_id=all&start=2026-01-01")
-    assert response.status_code == 400
-    assert response.json()["error"] == "Debes indicar fecha inicial y final"

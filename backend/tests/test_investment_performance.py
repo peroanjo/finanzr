@@ -1,15 +1,23 @@
-"""Focused coverage for the shared investment performance calculation."""
+"""Domain and API coverage for investment performance."""
 
 from datetime import date
 from decimal import Decimal
 
 import pytest
 from apps.accounts.models import Account
-from apps.api import views
+from apps.api import performance_views
 from apps.market_data.fx import FxConversion
-from apps.market_data.models import Instrument, InstrumentIdentifier, WorkspaceInstrument
-from apps.workspaces.models import Workspace
+from apps.market_data.models import (
+    Instrument,
+    InstrumentIdentifier,
+    WorkspaceInstrument,
+)
+from apps.market_data.yahoo import MarketDataError
+from apps.transactions.models import Transaction
+from apps.users.models import User
+from apps.workspaces.models import Workspace, WorkspaceMembership
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from finanzr.domain.investment_performance import (
@@ -18,10 +26,95 @@ from finanzr.domain.investment_performance import (
 )
 
 
+@pytest.mark.django_db(transaction=True)
+def test_fund_performance_uses_market_history_and_filters_by_account(
+    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = api_context
+    cache.clear()
+    created = client.post(
+        "/api/fund-accounts",
+        {
+            "name": "Cuenta de prueba",
+            "platform": "MyInvestor",
+            "importer_slug": "fund_broker",
+        },
+        format="json",
+    )
+    account_id = created.json()["id"]
+    account = Account.objects.get(pk=account_id)
+    source = Transaction.objects.filter(instrument__kind="fund").first()
+    assert source is not None
+    Transaction.objects.create(
+        account=account,
+        instrument=source.instrument,
+        external_id="fund-performance-buy",
+        trade_date="2026-01-01",
+        operation_type=Transaction.OperationType.BUY,
+        cash_flow_type=Transaction.CashFlowType.CONTRIBUTION,
+        quantity=10,
+        unit_price=10,
+        net_amount=100,
+        currency="EUR",
+        provider_operation_type="SUSCRIPCION",
+    )
+    monkeypatch.setattr(
+        performance_views,
+        "yahoo_chart",
+        lambda *_args, **_kwargs: (
+            {"currency": "EUR"},
+            [
+                {"fecha": "2026-01-01", "precio": 10},
+                {"fecha": "2026-02-01", "precio": 12},
+            ],
+        ),
+    )
+
+    response = client.get(f"/api/investment-performance/fund?account_id={account_id}&range=1y")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "range": "1y",
+        "account_id": str(account_id),
+        "base_currency": "EUR",
+        "data": [
+            {
+                "date": "2026-01-01",
+                "value": 100.0,
+                "invested": 100.0,
+                "pnl": 0.0,
+                "pnl_percent": 0.0,
+            },
+            {
+                "date": "2026-02-01",
+                "value": 120.0,
+                "invested": 100.0,
+                "pnl": 20.0,
+                "pnl_percent": 20.0,
+            },
+        ],
+    }
+
+    analysis = client.get(f"/api/fund-analysis?account_id={account_id}")
+    orders = client.get(f"/api/orders?account_id={account_id}")
+    assert analysis.status_code == 200
+    assert len(analysis.json()) == 1
+    assert [row["account_id"] for row in orders.json()] == [account_id]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_fund_performance_rejects_an_incomplete_custom_range(
+    api_context: tuple[APIClient, User],
+) -> None:
+    client, _ = api_context
+    response = client.get("/api/investment-performance/fund?account_id=all&start=2026-01-01")
+    assert response.status_code == 400
+    assert response.json()["error"] == "Debes indicar fecha inicial y final"
+
+
 def _workspace_client(slug: str) -> tuple[Workspace, APIClient]:
     workspace = Workspace.objects.create(name=slug, slug=slug, base_currency="EUR")
     from apps.users.models import User
-    from apps.workspaces.models import WorkspaceMembership
 
     user = User.objects.create_user(email=f"{slug}@example.com", password="password123")
     WorkspaceMembership.objects.create(workspace=workspace, user=user, role="owner")
@@ -314,12 +407,12 @@ def test_canonical_endpoint_serves_all_kinds_and_removes_legacy_alias(
     kind_names = {"fund": "fund", "stock": "stock", "crypto": "crypto"}
 
     monkeypatch.setattr(
-        views,
-        "_transaction_calculation_list",
+        performance_views,
+        "transaction_calculation_rows",
         lambda _request, kind, _selected_account=None: rows_by_kind[kind_names[str(kind)]],
     )
     monkeypatch.setattr(
-        views,
+        performance_views,
         "workspace_instrument",
         lambda _request, _scheme, asset: type(
             "InstrumentStub",
@@ -327,14 +420,14 @@ def test_canonical_endpoint_serves_all_kinds_and_removes_legacy_alias(
             {"kind": "crypto" if asset == "BTC" else "fund" if asset == "FUND" else "stock"},
         )(),
     )
-    monkeypatch.setattr(views, "yahoo_ticker", lambda instrument: instrument.kind)
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda instrument: instrument.kind)
     monkeypatch.setattr(
-        views,
+        performance_views,
         "yahoo_chart",
         lambda ticker, **_kwargs: ({"currency": "EUR"}, [{"fecha": "2026-01-01", "precio": 110}]),
     )
     monkeypatch.setattr(
-        views,
+        performance_views,
         "rates_to_base",
         lambda _quote, _base, dates, **_kwargs: {
             value: FxConversion(Decimal("1"), value, "test") for value in dates
@@ -397,15 +490,15 @@ def test_custom_bounds_are_inclusive_and_history_uses_point_date_fx(
 ) -> None:
     _workspace, client = _workspace_client("performance-custom")
     rows = [_record(1, "FUND", "2026-01-01", "SUSCRIPCION", 1, 100)]
-    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
+    monkeypatch.setattr(performance_views, "transaction_calculation_rows", lambda *_args: rows)
     monkeypatch.setattr(
-        views,
+        performance_views,
         "workspace_instrument",
         lambda *_args: type("InstrumentStub", (), {"kind": "fund"})(),
     )
-    monkeypatch.setattr(views, "yahoo_ticker", lambda _instrument: "FUND")
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda _instrument: "FUND")
     monkeypatch.setattr(
-        views,
+        performance_views,
         "yahoo_chart",
         lambda *_args, **_kwargs: (
             {"currency": "USD"},
@@ -417,7 +510,7 @@ def test_custom_bounds_are_inclusive_and_history_uses_point_date_fx(
         ),
     )
     monkeypatch.setattr(
-        views,
+        performance_views,
         "rates_to_base",
         lambda _quote, _base, dates, **_kwargs: {
             value: FxConversion(
@@ -461,16 +554,16 @@ def test_named_range_bounds_exclude_old_and_future_transactions_but_keep_termina
         _record(1, "FUND", "2026-08-22", "REEMBOLSO", 1, 130),
         _record(1, "FUND", "2026-08-24", "SUSCRIPCION", 1, 200),
     ]
-    monkeypatch.setattr(views.timezone, "localdate", lambda: date(2026, 8, 23))
-    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
+    monkeypatch.setattr(timezone, "localdate", lambda: date(2026, 8, 23))
+    monkeypatch.setattr(performance_views, "transaction_calculation_rows", lambda *_args: rows)
     monkeypatch.setattr(
-        views,
+        performance_views,
         "workspace_instrument",
         lambda *_args: type("InstrumentStub", (), {"kind": "fund"})(),
     )
-    monkeypatch.setattr(views, "yahoo_ticker", lambda _instrument: "FUND")
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda _instrument: "FUND")
     monkeypatch.setattr(
-        views,
+        performance_views,
         "yahoo_chart",
         lambda *_args, **_kwargs: (
             {"currency": "EUR"},
@@ -478,7 +571,7 @@ def test_named_range_bounds_exclude_old_and_future_transactions_but_keep_termina
         ),
     )
     monkeypatch.setattr(
-        views,
+        performance_views,
         "rates_to_base",
         lambda _quote, _base, dates, **_kwargs: {
             value: FxConversion(Decimal("1"), value, "test") for value in dates
@@ -503,23 +596,23 @@ def test_transient_history_failure_does_not_warm_aggregate_cache(
     _workspace, client = _workspace_client("performance-failure")
     rows = [_record(1, "FUND", "2026-01-01", "SUSCRIPCION", 1, 100)]
     calls: list[int] = []
-    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
+    monkeypatch.setattr(performance_views, "transaction_calculation_rows", lambda *_args: rows)
     monkeypatch.setattr(
-        views,
+        performance_views,
         "workspace_instrument",
         lambda *_args: type("InstrumentStub", (), {"kind": "fund"})(),
     )
-    monkeypatch.setattr(views, "yahoo_ticker", lambda _instrument: "FUND")
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda _instrument: "FUND")
 
     def chart(*_args: object, **_kwargs: object) -> tuple[dict[str, str], list[dict[str, object]]]:
         calls.append(1)
         if len(calls) == 1:
-            raise views.MarketDataError("temporary")
+            raise MarketDataError("temporary")
         return {"currency": "EUR"}, [{"fecha": "2026-01-01", "precio": 110}]
 
-    monkeypatch.setattr(views, "yahoo_chart", chart)
+    monkeypatch.setattr(performance_views, "yahoo_chart", chart)
     monkeypatch.setattr(
-        views,
+        performance_views,
         "rates_to_base",
         lambda _quote, _base, dates, **_kwargs: {
             value: FxConversion(Decimal("1"), value, "test") for value in dates
@@ -541,23 +634,23 @@ def test_transient_ticker_discovery_failure_does_not_warm_aggregate_cache(
     _workspace, client = _workspace_client("performance-ticker-failure")
     rows = [_record(1, "FUND", "2026-01-01", "SUSCRIPCION", 1, 100)]
     discoveries: list[int] = []
-    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
+    monkeypatch.setattr(performance_views, "transaction_calculation_rows", lambda *_args: rows)
 
     def instrument(*_args: object) -> object:
         discoveries.append(1)
         if len(discoveries) == 1:
-            raise views.MarketDataError("temporary ticker failure")
+            raise MarketDataError("temporary ticker failure")
         return type("InstrumentStub", (), {"kind": "fund"})()
 
-    monkeypatch.setattr(views, "workspace_instrument", instrument)
-    monkeypatch.setattr(views, "yahoo_ticker", lambda _instrument: "FUND")
+    monkeypatch.setattr(performance_views, "workspace_instrument", instrument)
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda _instrument: "FUND")
     monkeypatch.setattr(
-        views,
+        performance_views,
         "yahoo_chart",
         lambda *_args, **_kwargs: ({"currency": "EUR"}, [{"fecha": "2026-01-01", "precio": 110}]),
     )
     monkeypatch.setattr(
-        views,
+        performance_views,
         "rates_to_base",
         lambda _quote, _base, dates, **_kwargs: {
             value: FxConversion(Decimal("1"), value, "test") for value in dates

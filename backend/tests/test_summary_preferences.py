@@ -4,7 +4,7 @@ from typing import NoReturn
 
 import pytest
 from apps.accounts.models import Account, AccountSnapshot
-from apps.api import views as api_views
+from apps.api import overview_queries
 from apps.api.transaction_projection import transaction_row
 from apps.common.models import InstallationSettings, SummaryPreference
 from apps.common.summary_preferences import effective_summary_sources
@@ -388,7 +388,7 @@ def test_foreign_transaction_with_resolvable_fx_uses_base_cost(
         base_currency="EUR",
     )
     monkeypatch.setattr(
-        api_views,
+        overview_queries,
         "rate_to_base",
         lambda _quote, _base, requested_date, **_kwargs: FxConversion(
             Decimal("0.9"), requested_date, "test"
@@ -460,7 +460,7 @@ def test_unresolved_foreign_fx_is_not_serialized_or_reported_as_zero_history(
     def unavailable(*_args: object, **_kwargs: object) -> NoReturn:
         raise CurrencyConversionError("No USD/EUR rate")
 
-    monkeypatch.setattr(api_views, "rate_to_base", unavailable)
+    monkeypatch.setattr(overview_queries, "rate_to_base", unavailable)
     client = APIClient()
     client.force_authenticate(user)
     assert (

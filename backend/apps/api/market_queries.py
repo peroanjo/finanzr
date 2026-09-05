@@ -5,7 +5,6 @@ from typing import Any
 from django.db import transaction
 from django.utils.translation import gettext as _
 from rest_framework.request import Request
-from rest_framework.response import Response
 
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instruments
@@ -15,7 +14,6 @@ from apps.api.market_data_projection import (
 )
 from apps.api.projection import select_identifier
 from apps.market_data.fx import (
-    CurrencyConversionError,
     normalize_currency,
     rate_to_base,
 )
@@ -66,60 +64,54 @@ def _selected_market_prices(
     return current_workspace, list(selected.values())
 
 
-def price_list(request: Request, kind: str) -> Response:
+def price_rows(request: Request, kind: str) -> list[dict[str, Any]]:
     current_workspace, selected_prices = _selected_market_prices(request, kind)
     base_currency = normalize_currency(current_workspace.base_currency)
 
     rows = []
-    try:
-        for selected_price in selected_prices:
-            conversion = rate_to_base(
-                selected_price.currency,
-                base_currency,
-                selected_price.quoted_at.date(),
-                workspace=current_workspace,
+    for selected_price in selected_prices:
+        conversion = rate_to_base(
+            selected_price.currency,
+            base_currency,
+            selected_price.quoted_at.date(),
+            workspace=current_workspace,
+        )
+        rows.append(
+            price_row(
+                selected_price,
+                converted_price=selected_price.close * conversion.rate,
+                base_currency=base_currency,
+                fx_rate=conversion.rate,
+                fx_rate_date=conversion.rate_date,
+                fx_source=conversion.source,
             )
-            rows.append(
-                price_row(
-                    selected_price,
-                    converted_price=selected_price.close * conversion.rate,
-                    base_currency=base_currency,
-                    fx_rate=conversion.rate,
-                    fx_rate_date=conversion.rate_date,
-                    fx_source=conversion.source,
-                )
-            )
-    except CurrencyConversionError as exc:
-        return Response({"error": str(exc)}, status=502)
-    return Response(rows)
+        )
+    return rows
 
 
-def _calculation_price_list(request: Request, kind: str) -> Response:
+def calculation_price_rows(request: Request, kind: str) -> list[dict[str, Any]]:
     """Return the private transitional price shape used by domain calculators."""
     current_workspace, selected_prices = _selected_market_prices(request, kind)
     base_currency = normalize_currency(current_workspace.base_currency)
     rows = []
-    try:
-        for selected_price in selected_prices:
-            conversion = rate_to_base(
-                selected_price.currency,
-                base_currency,
-                selected_price.quoted_at.date(),
-                workspace=current_workspace,
+    for selected_price in selected_prices:
+        conversion = rate_to_base(
+            selected_price.currency,
+            base_currency,
+            selected_price.quoted_at.date(),
+            workspace=current_workspace,
+        )
+        rows.append(
+            price_calculation_row(
+                selected_price,
+                converted_price=selected_price.close * conversion.rate,
+                base_currency=base_currency,
+                fx_rate=conversion.rate,
+                fx_rate_date=conversion.rate_date,
+                fx_source=conversion.source,
             )
-            rows.append(
-                price_calculation_row(
-                    selected_price,
-                    converted_price=selected_price.close * conversion.rate,
-                    base_currency=base_currency,
-                    fx_rate=conversion.rate,
-                    fx_rate_date=conversion.rate_date,
-                    fx_source=conversion.source,
-                )
-            )
-    except CurrencyConversionError as exc:
-        return Response({"error": str(exc)}, status=502)
-    return Response(rows)
+        )
+    return rows
 
 
 def yahoo_ticker(instrument: Instrument) -> str:
