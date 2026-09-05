@@ -758,6 +758,47 @@ describe("CryptoView canonical migration", () => {
     );
   });
 
+  it("preserves movement filters and pagination through a same-account dashboard refresh", async () => {
+    mockOrders = [
+      ...orders,
+      ...Array.from({ length: 15 }, (_, index) => ({
+        ...orders[0],
+        id: `refresh-page-${index}`,
+        trade_date: `2026-02-${String(index + 1).padStart(2, "0")}`,
+      })),
+    ];
+    const wrapper = mount(CryptoView);
+    await flushPromises();
+
+    const movementType = wrapper.get(
+      'select[aria-label="Filtrar movimientos por tipo"]',
+    );
+    await movementType.setValue("out");
+    expect(movementType.element).toHaveProperty("value", "out");
+    expect(wrapper.findAll(".movement-table tbody tr")).toHaveLength(1);
+
+    await movementType.setValue("in");
+    await wrapper
+      .get(".movement-pagination button:last-child")
+      .trigger("click");
+    expect(wrapper.get(".movement-pagination").text()).toContain(
+      "Página 2 de 2",
+    );
+
+    // Make the refresh return a new API array, as a real response would.
+    mockOrders = mockOrders.map((item) => ({ ...item }));
+
+    await wrapper.get(".fund-action-button").trigger("click");
+    await flushPromises();
+
+    expect(
+      wrapper.get('select[aria-label="Filtrar movimientos por tipo"]').element,
+    ).toHaveProperty("value", "in");
+    expect(wrapper.get(".movement-pagination").text()).toContain(
+      "Página 2 de 2",
+    );
+  });
+
   it("clamps movement pagination after deleting the only item on the last page", async () => {
     mockOrders = [
       ...orders,

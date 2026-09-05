@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
 import type { AssetReturnMode } from "../components/AssetReturnToggle.vue";
@@ -8,13 +8,11 @@ import FundPerformancePanel, {
   type PerformanceMode,
   type PerformanceRange,
 } from "../components/funds/FundPerformancePanel.vue";
-import FundPriceChart from "../components/FundPriceChart.vue";
+import FundMovementsPanel from "../components/funds/FundMovementsPanel.vue";
+import FundPositionsPanel from "../components/funds/FundPositionsPanel.vue";
 import InvestmentAccountBar from "../components/investments/InvestmentAccountBar.vue";
-import InvestmentAllocationStrip from "../components/investments/InvestmentAllocationStrip.vue";
 import type { InvestmentAllocationItem } from "../components/investments/InvestmentAllocationStrip.vue";
-import InvestmentCollapseButton from "../components/investments/InvestmentCollapseButton.vue";
 import InvestmentOverview from "../components/investments/InvestmentOverview.vue";
-import InvestmentMovementActions from "../components/investments/InvestmentMovementActions.vue";
 import type {
   InvestmentAccountBarLabels,
   InvestmentImportConfig,
@@ -82,7 +80,6 @@ const accountDialog = ref<HTMLDialogElement>();
 const calendarDialog = ref<HTMLDialogElement>();
 const fundPriceCalendarDialog = ref<HTMLDialogElement>();
 const fundEditDialog = ref<HTMLDialogElement>();
-const movementCalendarDialog = ref<HTMLDialogElement>();
 const movementEditor = ref<MovementEditorHandle>();
 const movementDelete = ref<MovementDeleteHandle>();
 const accountDialogMode = ref<"create" | "edit">("create");
@@ -106,19 +103,6 @@ const editFundPrice = ref("");
 const editFundPriceCurrency = ref("EUR");
 const fundEditBusy = ref(false);
 const fundEditError = ref("");
-const movementFund = ref("all");
-const movementType = ref("all");
-const movementStart = ref("");
-const movementEnd = ref("");
-const movementPage = ref(1);
-const movementDraftStart = ref("");
-const movementDraftEnd = ref("");
-const positionsCollapsed = ref(
-  localStorage.getItem("finanzr-funds-positions-collapsed") === "true",
-);
-const movementsCollapsed = ref(
-  localStorage.getItem("finanzr-funds-movements-collapsed") === "true",
-);
 const fundBaseCurrency = computed(() => reportingCurrency.value);
 
 const {
@@ -137,7 +121,6 @@ const {
   positionSortKey,
   positionSortDirection,
   sortedPositions,
-  baseAmount,
   sortPositions,
   positionAriaSort,
 } = useFundsPortfolio({
@@ -400,47 +383,6 @@ const positionSortColumns = computed<
   { key: "pnl", label: "P&L" },
   { key: "return", label: t("funds.positions.return") },
 ]);
-const movementRangeValid = computed(() =>
-  Boolean(
-    movementDraftStart.value &&
-    movementDraftEnd.value &&
-    Date.parse(movementDraftStart.value) <= Date.parse(movementDraftEnd.value),
-  ),
-);
-const filteredOrders = computed(() =>
-  [...orders.value]
-    .filter(
-      (item) =>
-        movementFund.value === "all" || item.isin === movementFund.value,
-    )
-    .filter(
-      (item) =>
-        movementType.value === "all" ||
-        operationGroup(item) === movementType.value,
-    )
-    .filter(
-      (item) => !movementStart.value || item.trade_date >= movementStart.value,
-    )
-    .filter(
-      (item) => !movementEnd.value || item.trade_date <= movementEnd.value,
-    )
-    .sort((a, b) => b.trade_date.localeCompare(a.trade_date, locale.value)),
-);
-const movementPageSize = 15;
-const movementPages = computed(() =>
-  Math.max(1, Math.ceil(filteredOrders.value.length / movementPageSize)),
-);
-const displayedOrders = computed(() =>
-  filteredOrders.value.slice(
-    (movementPage.value - 1) * movementPageSize,
-    movementPage.value * movementPageSize,
-  ),
-);
-const movementRangeLabel = computed(() =>
-  movementStart.value && movementEnd.value
-    ? `${displayDate(movementStart.value)} → ${displayDate(movementEnd.value)}`
-    : t("funds.movements.allHistory"),
-);
 const movementAssets = computed(() =>
   instruments.value.map((item) => ({
     id: instrumentIdentity(item),
@@ -460,19 +402,6 @@ function money(value: number) {
   return n(value, "currency");
 }
 
-function originalMoney(value: number, currency?: string) {
-  const code = currency || "EUR";
-  return n(value, {
-    style: "currency",
-    currency: code,
-    maximumFractionDigits: 2,
-  });
-}
-
-function baseUnitPrice(item: FundOrder) {
-  return item.base_unit_price ?? item.unit_price;
-}
-
 function percentage(value: number) {
   return n(value, "percent");
 }
@@ -490,28 +419,6 @@ function quantity(value: number, maximumFractionDigits: number) {
 
 function signedMoney(value: number) {
   return `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
-}
-
-function operationGroup(item: FundOrder) {
-  return ["buy", "transfer_in"].includes(item.operation_type) ? "in" : "out";
-}
-
-function operationLabel(item: FundOrder) {
-  const operation = item.provider_operation_type || item.operation_type;
-  return (
-    {
-      buy: t("funds.movements.contribution"),
-      SUSCRIPCION: t("funds.movements.contribution"),
-      transfer_in: t("funds.movements.transferIn"),
-      "SUSCR.POR TRASPASO I": t("funds.movements.transferIn"),
-      transfer_out: t("funds.movements.transferOut"),
-      "REEMB.POR TRASPASO I": t("funds.movements.transferOut"),
-      sell: t("funds.movements.redemption"),
-      REEMBOLSO: t("funds.movements.redemption"),
-      Compra: t("funds.movements.contribution"),
-      Venta: t("funds.movements.redemption"),
-    }[operation] ?? operation
-  );
 }
 
 function accountQuery() {
@@ -569,11 +476,6 @@ async function loadDashboard(showLoading = true) {
     const available = positions.value.map((item) => item.instrument_id);
     if (selectedFund.value && !available.includes(selectedFund.value))
       closeFundDetail();
-    if (!movementStart.value && orders.value.length) {
-      const dates = orders.value.map((item) => item.trade_date).sort();
-      movementStart.value = dates[0];
-      movementEnd.value = dates.at(-1) ?? dates[0];
-    }
   } catch (reason) {
     if (generation !== dashboardGeneration) return;
     error.value =
@@ -745,8 +647,6 @@ function syncAccountUrl() {
 
 async function changeAccount(account: string) {
   selectedAccount.value = account;
-  movementStart.value = "";
-  movementEnd.value = "";
   closeFundDetail();
   syncAccountUrl();
   await loadDashboard(false);
@@ -851,8 +751,6 @@ async function deleteAccount() {
   try {
     await api(`/fund-accounts/${selectedAccount.value}`, { method: "DELETE" });
     selectedAccount.value = "all";
-    movementStart.value = "";
-    movementEnd.value = "";
     syncAccountUrl();
     accountDialog.value?.close();
     await loadDashboard();
@@ -973,39 +871,6 @@ async function saveFundEditor() {
   }
 }
 
-function openMovementCalendar() {
-  movementDraftStart.value = movementStart.value;
-  movementDraftEnd.value = movementEnd.value;
-  movementCalendarDialog.value?.showModal();
-}
-
-function applyMovementRange() {
-  if (!movementRangeValid.value) return;
-  movementStart.value = movementDraftStart.value;
-  movementEnd.value = movementDraftEnd.value;
-  movementCalendarDialog.value?.close();
-}
-
-watch([movementFund, movementType, movementStart, movementEnd], () => {
-  movementPage.value = 1;
-});
-
-function togglePositions() {
-  positionsCollapsed.value = !positionsCollapsed.value;
-  localStorage.setItem(
-    "finanzr-funds-positions-collapsed",
-    String(positionsCollapsed.value),
-  );
-}
-
-function toggleMovements() {
-  movementsCollapsed.value = !movementsCollapsed.value;
-  localStorage.setItem(
-    "finanzr-funds-movements-collapsed",
-    String(movementsCollapsed.value),
-  );
-}
-
 function positionSortAria(key: FundPositionSortKey, label: string) {
   const nextDirection =
     positionSortKey.value === key && positionSortDirection.value === "asc"
@@ -1092,487 +957,71 @@ onMounted(loadDashboard);
         @retry="loadPerformance()"
       />
 
-      <article
-        class="fund-performance-panel positions-panel"
-        :class="{ collapsed: positionsCollapsed }"
-      >
-        <header class="fund-secondary-header">
-          <div>
-            <p class="section-label">{{ t("funds.positions.section") }}</p>
-            <h2>{{ t("funds.positions.title") }}</h2>
-            <p class="fund-range-label">
-              {{
-                t(
-                  positions.length === 1
-                    ? "funds.positions.pricedOne"
-                    : "funds.positions.pricedMany",
-                  { priced: pricedPositions, total: positions.length },
-                )
-              }}
-              ·
-              {{ priceMessage || t("funds.positions.pricesInEuros") }}
-            </p>
-          </div>
-          <InvestmentCollapseButton
-            :collapsed="positionsCollapsed"
-            controls="fund-positions-content"
-            :label="
-              t(
-                positionsCollapsed
-                  ? 'funds.positions.expandAria'
-                  : 'funds.positions.collapseAria',
-              )
-            "
-            @toggle="togglePositions"
-          />
-        </header>
-        <div
-          v-show="!positionsCollapsed"
-          id="fund-positions-content"
-          class="fund-positions-content"
-        >
-          <InvestmentAllocationStrip
-            :items="marketValueAllocationItems"
-            :total="marketValueAllocationTotal"
-            :account-label="selectedAccountLabel"
-            :title="t('funds.positions.marketValueDistribution')"
-            :bar-label="t('funds.positions.marketValueDistributionBarAria')"
-            :empty-label="t('funds.positions.noMarketValueDistribution')"
-            :format-value="money"
-            :format-share="percentage"
-            :segment-aria="marketValueSegmentAria"
-          />
-          <div class="fund-table-scroll position-table-scroll">
-            <table class="fund-table">
-              <colgroup>
-                <col class="fund-col-name" />
-                <col class="fund-col-type" />
-                <col class="fund-col-contributed" />
-                <col class="fund-col-shares" />
-                <col class="fund-col-average" />
-                <col class="fund-col-current" />
-                <col class="fund-col-value" />
-                <col class="fund-col-pnl" />
-                <col class="fund-col-return" />
-                <col class="fund-col-actions" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th
-                    v-for="column in positionSortColumns"
-                    :key="column.key"
-                    :aria-sort="positionAriaSort(column.key)"
-                  >
-                    <button
-                      type="button"
-                      class="fund-sort-button"
-                      :data-sort-key="column.key"
-                      :aria-label="positionSortAria(column.key, column.label)"
-                      @click="sortPositions(column.key)"
-                    >
-                      <span>{{ column.label }}</span>
-                      <span
-                        class="fund-sort-indicator"
-                        :class="{ active: positionSortKey === column.key }"
-                        aria-hidden="true"
-                        >{{
-                          positionSortKey === column.key
-                            ? positionSortDirection === "asc"
-                              ? "↑"
-                              : "↓"
-                            : ""
-                        }}</span
-                      >
-                    </button>
-                  </th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <template
-                  v-for="position in sortedPositions"
-                  :key="position.instrument_id"
-                >
-                  <tr
-                    class="fund-position-row"
-                    :class="{ active: selectedFund === position.instrument_id }"
-                    @click="toggleFund(position.instrument_id)"
-                  >
-                    <td>
-                      <button
-                        type="button"
-                        class="fund-position-disclosure"
-                        :aria-expanded="selectedFund === position.instrument_id"
-                        :aria-controls="fundDetailId(position.instrument_id)"
-                        :aria-label="
-                          t(
-                            selectedFund === position.instrument_id
-                              ? 'funds.positions.collapseChartAria'
-                              : 'funds.positions.expandChartAria',
-                            { asset: position.name },
-                          )
-                        "
-                        @click.stop="toggleFund(position.instrument_id)"
-                        @keydown.enter.prevent.stop="
-                          toggleFund(position.instrument_id)
-                        "
-                        @keydown.space.prevent.stop="
-                          toggleFund(position.instrument_id)
-                        "
-                      >
-                        <span class="fund-position-disclosure-copy">
-                          <strong>{{ position.name }}</strong
-                          ><small>{{ positionIdentity(position) }}</small>
-                        </span>
-                        <span
-                          class="fund-position-disclosure-icon"
-                          :class="{
-                            active: selectedFund === position.instrument_id,
-                          }"
-                          aria-hidden="true"
-                          >⌄</span
-                        >
-                      </button>
-                    </td>
-                    <td :data-label="t('funds.positions.type')">
-                      {{ position.asset_class
-                      }}<small>{{ position.subtype }}</small>
-                    </td>
-                    <td :data-label="t('funds.positions.contributed')">
-                      {{ money(position.cost) }}
-                    </td>
-                    <td :data-label="t('funds.positions.shares')">
-                      {{ quantity(position.quantity, 5) }}
-                    </td>
-                    <td :data-label="t('funds.positions.averagePrice')">
-                      {{ money(position.average_price) }}
-                    </td>
-                    <td :data-label="t('funds.positions.currentPrice')">
-                      {{
-                        position.current_price == null
-                          ? t("funds.positions.pending")
-                          : money(position.current_price)
-                      }}
-                    </td>
-                    <td :data-label="t('funds.positions.value')">
-                      {{
-                        position.current_value == null
-                          ? "—"
-                          : money(position.current_value)
-                      }}
-                    </td>
-                    <td
-                      :data-label="'P&L'"
-                      :class="{
-                        positive: (position.unrealized_pnl ?? 0) >= 0,
-                        negative: (position.unrealized_pnl ?? 0) < 0,
-                      }"
-                    >
-                      <strong>{{
-                        position.unrealized_pnl == null
-                          ? "—"
-                          : signedMoney(position.unrealized_pnl)
-                      }}</strong>
-                    </td>
-                    <td
-                      :data-label="t('funds.positions.return')"
-                      :class="{
-                        positive: (position.return_percent ?? 0) >= 0,
-                        negative: (position.return_percent ?? 0) < 0,
-                      }"
-                    >
-                      <strong>{{
-                        position.return_percent == null
-                          ? "—"
-                          : percentage(position.return_percent)
-                      }}</strong>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        class="fund-edit-icon-button"
-                        :aria-label="t('funds.positions.editAria')"
-                        @click.stop="openFundEditor(position)"
-                        @keydown.stop
-                      >
-                        <svg viewBox="0 0 20 20" aria-hidden="true">
-                          <path d="M4 16l3.3-.7L16 6.6 13.4 4 4.7 12.7 4 16Z" />
-                          <path d="m11.9 5.5 2.6 2.6" />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                  <tr
-                    v-if="selectedFund === position.instrument_id"
-                    class="fund-inline-detail-row"
-                  >
-                    <td :colspan="positionSortColumns.length + 1">
-                      <div
-                        :id="fundDetailId(position.instrument_id)"
-                        class="fund-inline-price-panel"
-                        role="region"
-                        :aria-label="
-                          t('funds.positions.priceDetailAria', {
-                            fund: position.name,
-                          })
-                        "
-                      >
-                        <div class="fund-inline-chart-toolbar">
-                          <div class="fund-chart-legend">
-                            <span
-                              ><i class="line price" />{{
-                                t("funds.priceChart.price")
-                              }}</span
-                            >
-                            <span
-                              ><i class="line average" />{{
-                                t("funds.priceChart.averagePrice")
-                              }}</span
-                            >
-                            <span
-                              ><i class="marker buy" />{{
-                                t("funds.priceChart.contributionEntry")
-                              }}</span
-                            >
-                            <span
-                              ><i class="marker sell" />{{
-                                t("funds.priceChart.redemptionExit")
-                              }}</span
-                            >
-                          </div>
-                          <div class="fund-inline-range">
-                            <p class="fund-range-label">
-                              {{ fundChartRangeLabel }}
-                            </p>
-                            <div
-                              class="fund-range-control"
-                              :aria-label="t('funds.priceChart.rangeAria')"
-                            >
-                              <button
-                                v-for="item in ranges"
-                                :key="item.key"
-                                type="button"
-                                :class="{ active: fundRange === item.key }"
-                                :aria-pressed="fundRange === item.key"
-                                @click="selectFundRange(item.key)"
-                              >
-                                {{ item.label }}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <div v-if="fundChartLoading" class="fund-chart-state">
-                          {{ t("funds.priceChart.loading") }}
-                        </div>
-                        <div
-                          v-else-if="fundChartError"
-                          class="fund-chart-state error-state"
-                        >
-                          <strong>{{
-                            t("funds.priceChart.unavailable")
-                          }}</strong>
-                          <p>{{ fundChartError }}</p>
-                          <button type="button" @click="loadFundChart()">
-                            {{ t("funds.actions.retry") }}
-                          </button>
-                        </div>
-                        <FundPriceChart
-                          v-else-if="fundChartPoints.length"
-                          :points="fundChartPoints"
-                          :orders="selectedFundOrders"
-                          :average-price="
-                            selectedFundPosition?.average_price ?? null
-                          "
-                        />
-                        <div v-else class="fund-chart-state">
-                          {{ t("funds.priceChart.noHistory") }}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </article>
-
-      <article
-        class="fund-performance-panel movements-panel"
-        :class="{ collapsed: movementsCollapsed }"
-      >
-        <header class="fund-secondary-header">
-          <div>
-            <p class="section-label">{{ t("funds.movements.section") }}</p>
-            <h2>{{ t("funds.movements.title") }}</h2>
-            <p class="fund-range-label">
-              {{
-                t(
-                  filteredOrders.length === 1
-                    ? "funds.movements.operation"
-                    : "funds.movements.operations",
-                  { count: filteredOrders.length },
-                )
-              }}
-              · {{ movementRangeLabel }}
-            </p>
-          </div>
-          <div class="fund-collapsible-actions">
-            <div v-show="!movementsCollapsed" class="movement-filters">
-              <button
-                type="button"
-                class="add-movement"
-                @click="openNewMovement"
-              >
-                <span aria-hidden="true">+</span> {{ t("funds.movements.add") }}
-              </button>
-              <select
-                v-model="movementFund"
-                :aria-label="t('funds.movements.filterFundAria')"
-              >
-                <option value="all">{{ t("funds.movements.allFunds") }}</option>
-                <option
-                  v-for="position in positions"
-                  :key="position.instrument_id"
-                  :value="positionIdentity(position)"
-                >
-                  {{ position.name }}
-                </option>
-              </select>
-              <select
-                v-model="movementType"
-                :aria-label="t('funds.movements.filterTypeAria')"
-              >
-                <option value="all">
-                  {{ t("funds.movements.allMovements") }}
-                </option>
-                <option value="in">{{ t("funds.movements.entries") }}</option>
-                <option value="out">{{ t("funds.movements.exits") }}</option>
-              </select>
-              <button type="button" @click="openMovementCalendar">
-                {{ movementRangeLabel }}
-              </button>
-            </div>
-            <InvestmentCollapseButton
-              :collapsed="movementsCollapsed"
-              controls="fund-movements-content"
-              :label="
-                t(
-                  movementsCollapsed
-                    ? 'funds.movements.expandAria'
-                    : 'funds.movements.collapseAria',
-                )
-              "
-              @toggle="toggleMovements"
-            />
-          </div>
-        </header>
-        <div v-show="!movementsCollapsed" id="fund-movements-content">
-          <div class="fund-table-scroll">
-            <table class="fund-table movement-table">
-              <thead>
-                <tr>
-                  <th>{{ t("funds.movements.date") }}</th>
-                  <th>{{ t("funds.movements.movement") }}</th>
-                  <th>{{ t("funds.movements.fund") }}</th>
-                  <th>{{ t("funds.movements.account") }}</th>
-                  <th>{{ t("funds.movements.shares") }}</th>
-                  <th>{{ t("funds.movements.price") }}</th>
-                  <th>{{ t("funds.movements.amount") }}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="order in displayedOrders" :key="order.id">
-                  <td>{{ displayDate(order.trade_date) }}</td>
-                  <td>
-                    <span
-                      class="operation-pill"
-                      :class="operationGroup(order)"
-                      >{{ operationLabel(order) }}</span
-                    >
-                  </td>
-                  <td>
-                    <strong>{{ order.asset_name }}</strong
-                    ><small>{{ order.isin }}</small>
-                  </td>
-                  <td>
-                    {{ order.account_name ?? selectedAccountLabel
-                    }}<small>{{ order.platform }}</small>
-                  </td>
-                  <td>{{ quantity(order.quantity, 6) }}</td>
-                  <td>
-                    {{ money(baseUnitPrice(order)) }}
-                    <small v-if="order.currency && order.currency !== 'EUR'">{{
-                      originalMoney(order.unit_price, order.currency)
-                    }}</small>
-                  </td>
-                  <td>
-                    <strong>{{ money(baseAmount(order)) }}</strong>
-                    <small v-if="order.currency && order.currency !== 'EUR'">{{
-                      originalMoney(order.net_amount, order.currency)
-                    }}</small>
-                  </td>
-                  <td>
-                    <InvestmentMovementActions
-                      :edit-label="t('funds.movements.edit')"
-                      :delete-label="t('funds.movements.delete')"
-                      @edit="openEditMovement(order)"
-                      @delete="askDeleteOrder(order)"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div v-if="!filteredOrders.length" class="fund-empty-compact">
-            {{ t("funds.movements.noResults") }}
-          </div>
-          <nav
-            v-else-if="movementPages > 1"
-            class="movement-pagination"
-            :aria-label="t('funds.movements.paginationAria')"
-          >
-            <span>{{
-              t("funds.movements.page", {
-                page: movementPage,
-                pages: movementPages,
-              })
-            }}</span>
-            <div>
-              <button
-                type="button"
-                :disabled="movementPage === 1"
-                @click="movementPage--"
-              >
-                {{ t("funds.movements.previous") }}
-              </button>
-              <button
-                type="button"
-                :disabled="movementPage === movementPages"
-                @click="movementPage++"
-              >
-                {{ t("funds.movements.next") }}
-              </button>
-            </div>
-          </nav>
-        </div>
-      </article>
-
-      <MovementEditorDialog
-        ref="movementEditor"
-        kind="fund"
-        :accounts="accounts"
-        :assets="movementAssets"
-        :selected-account="selectedAccount"
-        @saved="loadDashboard"
+      <FundPositionsPanel
+        :positions="positions"
+        :priced-positions="pricedPositions"
+        :price-message="priceMessage"
+        :selected-account-label="selectedAccountLabel"
+        :allocation-items="marketValueAllocationItems"
+        :allocation-total="marketValueAllocationTotal"
+        :sorted-positions="sortedPositions"
+        :position-sort-columns="positionSortColumns"
+        :position-sort-key="positionSortKey"
+        :position-sort-direction="positionSortDirection"
+        :selected-fund="selectedFund"
+        :selected-fund-position="selectedFundPosition"
+        :selected-fund-orders="selectedFundOrders"
+        :fund-chart-points="fundChartPoints"
+        :fund-chart-loading="fundChartLoading"
+        :fund-chart-error="fundChartError"
+        :fund-chart-range-label="fundChartRangeLabel"
+        :ranges="ranges"
+        :fund-range="fundRange"
+        :format-money="money"
+        :format-percentage="percentage"
+        :format-quantity="quantity"
+        :format-signed-money="signedMoney"
+        :position-identity="positionIdentity"
+        :market-value-segment-aria="marketValueSegmentAria"
+        :position-aria-sort="positionAriaSort"
+        :position-sort-aria="positionSortAria"
+        :fund-detail-id="fundDetailId"
+        @toggle-fund="toggleFund"
+        @select-range="selectFundRange"
+        @retry-chart="loadFundChart()"
+        @edit-fund="openFundEditor"
+        @sort="sortPositions"
       />
-      <MovementDeleteDialog
-        ref="movementDelete"
-        kind="fund"
-        @deleted="loadDashboard"
-      />
+    </template>
+    <FundMovementsPanel
+      v-show="!loading && !error"
+      :orders="orders"
+      :positions="positions"
+      :selected-account-label="selectedAccountLabel"
+      :account-key="selectedAccount"
+      :format-money="money"
+      :format-quantity="quantity"
+      :display-date="displayDate"
+      :position-identity="positionIdentity"
+      @add="openNewMovement"
+      @edit="openEditMovement"
+      @delete="askDeleteOrder"
+    />
+    <MovementEditorDialog
+      ref="movementEditor"
+      kind="fund"
+      :accounts="accounts"
+      :assets="movementAssets"
+      :selected-account="selectedAccount"
+      @saved="loadDashboard"
+    />
+    <MovementDeleteDialog
+      ref="movementDelete"
+      kind="fund"
+      @deleted="loadDashboard"
+    />
 
+    <template v-if="!loading && !error">
       <dialog
         ref="calendarDialog"
         class="fund-dialog"
@@ -1668,56 +1117,6 @@ onMounted(loadDashboard);
               :disabled="!fundCustomRangeValid"
             >
               {{ t("funds.calendar.applyPeriod") }}
-            </button>
-          </footer>
-        </form>
-      </dialog>
-
-      <dialog
-        ref="movementCalendarDialog"
-        class="fund-dialog"
-        aria-labelledby="movement-calendar-title"
-      >
-        <form @submit.prevent="applyMovementRange">
-          <header>
-            <div>
-              <p class="section-label">
-                {{ t("funds.movements.filterSection") }}
-              </p>
-              <h2 id="movement-calendar-title">
-                {{ t("funds.calendar.selectDates") }}
-              </h2>
-            </div>
-          </header>
-          <div class="fund-calendar-fields">
-            <label
-              ><span>{{ t("funds.calendar.from") }}</span
-              ><input
-                v-model="movementDraftStart"
-                type="date"
-                :max="movementDraftEnd"
-                required
-            /></label>
-            <span aria-hidden="true">→</span>
-            <label
-              ><span>{{ t("funds.calendar.to") }}</span
-              ><input
-                v-model="movementDraftEnd"
-                type="date"
-                :min="movementDraftStart"
-                required
-            /></label>
-          </div>
-          <footer>
-            <button type="button" @click="movementCalendarDialog?.close()">
-              {{ t("funds.actions.cancel") }}
-            </button>
-            <button
-              class="primary"
-              type="submit"
-              :disabled="!movementRangeValid"
-            >
-              {{ t("funds.calendar.applyFilter") }}
             </button>
           </footer>
         </form>
@@ -2055,542 +1454,6 @@ onMounted(loadDashboard);
   background: var(--fz-surface);
   box-shadow: var(--fz-shadow);
 }
-.fund-secondary-header,
-.fund-price-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-}
-.fund-secondary-header h2,
-.fund-price-header h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 750;
-  letter-spacing: -0.03em;
-}
-.fund-empty-compact {
-  min-height: 180px;
-  display: grid;
-  place-items: center;
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-.fund-price-header {
-  align-items: center;
-}
-.fund-price-controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-}
-.fund-price-controls label {
-  display: grid;
-  gap: 5px;
-}
-.fund-price-controls label span {
-  color: var(--fz-muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-.fund-price-controls select,
-.movement-filters select,
-.movement-filters button {
-  min-height: 36px;
-  padding: 8px 28px 8px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-ink);
-  font-size: 11px;
-  font-weight: 680;
-}
-.fund-price-controls select {
-  max-width: 260px;
-}
-.fund-chart-legend {
-  margin: 16px 0 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  font-weight: 650;
-}
-.fund-chart-legend span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.fund-chart-legend i {
-  display: inline-block;
-}
-.fund-chart-legend .line {
-  width: 18px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--fz-accent);
-}
-.fund-chart-legend .average {
-  background: transparent;
-  border-top: 2px dashed var(--fz-chart-average);
-}
-.fund-chart-legend .marker {
-  width: 18px;
-  height: 16px;
-  display: grid;
-  place-items: center;
-  border: 1.5px solid var(--fz-surface);
-  border-radius: 5px;
-  background: var(--fz-trade-buy);
-  color: #fff;
-  font-style: normal;
-  font-weight: 780;
-  line-height: 1;
-  box-shadow: 0 1px 3px var(--fz-chart-tooltip-shadow);
-}
-.fund-chart-legend .marker::before {
-  content: "+";
-}
-.fund-chart-legend .marker.buy {
-  border-color: var(--fz-trade-buy-outline);
-}
-.fund-chart-legend .sell {
-  border-color: var(--fz-trade-sell-outline);
-  background: var(--fz-trade-sell);
-}
-.fund-chart-legend .sell::before {
-  content: "−";
-}
-.positions-panel,
-.movements-panel {
-  padding-bottom: 18px;
-}
-.positions-panel.collapsed,
-.movements-panel.collapsed {
-  padding-bottom: 24px;
-}
-.fund-collapsible-actions {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 10px;
-}
-.fund-table-scroll {
-  margin-top: 17px;
-  overflow-x: auto;
-}
-.fund-positions-content {
-  margin-top: 17px;
-}
-.position-table-scroll {
-  --fund-inline-width: 100%;
-  margin-top: 0;
-  overflow-x: visible;
-}
-.fund-table {
-  width: 100%;
-  min-width: 0;
-  table-layout: fixed;
-  border-collapse: collapse;
-  font-size: 10px;
-}
-.fund-col-name {
-  width: 21%;
-}
-.fund-col-type {
-  width: 11%;
-}
-.fund-col-contributed {
-  width: 10%;
-}
-.fund-col-shares {
-  width: 9%;
-}
-.fund-col-average,
-.fund-col-current,
-.fund-col-value {
-  width: 10%;
-}
-.fund-col-pnl {
-  width: 8%;
-}
-.fund-col-return {
-  width: 6%;
-}
-.fund-col-actions {
-  width: 5%;
-}
-.fund-table th {
-  padding: 8px 5px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  font-weight: 700;
-  text-align: right;
-  line-height: 1.2;
-  white-space: normal;
-  border-bottom: 1px solid var(--fz-line);
-}
-.fund-table th:first-child,
-.fund-table th:nth-child(2),
-.fund-table td:first-child,
-.fund-table td:nth-child(2) {
-  text-align: left;
-}
-.position-table-scroll .fund-table th:first-child,
-.position-table-scroll .fund-table .fund-position-row > td:first-child {
-  padding-left: 12px;
-}
-.fund-sort-button {
-  width: 100%;
-  padding: 3px 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: inherit;
-  line-height: inherit;
-  white-space: normal;
-  cursor: pointer;
-}
-.fund-table th:first-child .fund-sort-button,
-.fund-table th:nth-child(2) .fund-sort-button {
-  justify-content: flex-start;
-}
-.fund-sort-button:hover {
-  color: var(--fz-ink);
-}
-.fund-sort-button:focus-visible {
-  outline: 2px solid var(--fz-accent);
-  outline-offset: 3px;
-  border-radius: 3px;
-}
-.fund-sort-indicator {
-  width: 7px;
-  flex: 0 0 7px;
-  color: transparent;
-  font-size: 11px;
-  line-height: 1;
-  text-align: center;
-}
-.fund-sort-indicator.active {
-  color: var(--fz-accent);
-}
-.fund-table td {
-  min-width: 0;
-  padding: 11px 5px;
-  overflow: hidden;
-  text-align: right;
-  text-overflow: ellipsis;
-  font-variant-numeric: tabular-nums;
-  border-bottom: 1px solid var(--fz-line);
-  white-space: nowrap;
-}
-.fund-position-row {
-  cursor: pointer;
-  outline: none;
-  transition:
-    background-color 0.14s ease,
-    box-shadow 0.14s ease;
-}
-.fund-position-row:hover,
-.fund-position-row.active {
-  background: color-mix(in srgb, var(--fz-accent) 7%, transparent);
-}
-.fund-position-row.active {
-  box-shadow: inset 3px 0 var(--fz-accent);
-}
-.fund-inline-detail-row td {
-  position: static;
-  width: var(--fund-inline-width, 100%);
-  max-width: var(--fund-inline-width, 100%);
-  padding: 12px 10px 16px;
-  text-align: left;
-  white-space: normal;
-  border-bottom: 0;
-  background: transparent;
-}
-.fund-inline-price-panel {
-  position: relative;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: 18px 20px 20px;
-  overflow: hidden;
-  border: 1px solid var(--fz-line);
-  border-radius: 18px;
-  background: var(--fz-surface);
-}
-.fund-inline-chart-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 18px;
-  flex-wrap: wrap;
-}
-.fund-inline-price-panel .fund-chart-legend {
-  width: fit-content;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-.fund-inline-range {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-left: auto;
-}
-.fund-inline-range .fund-range-label {
-  margin: 0;
-  white-space: nowrap;
-}
-.fund-inline-price-panel .fund-chart-state {
-  min-height: 250px;
-  margin-top: 14px;
-  border: 0;
-  background: transparent;
-}
-.fund-inline-price-panel :deep(.fund-price-chart) {
-  height: 325px;
-  margin-top: 14px;
-}
-.fund-inline-price-panel .fund-range-control {
-  max-width: 100%;
-  flex-wrap: wrap;
-}
-.fund-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.fund-table td strong,
-.fund-table td small {
-  display: block;
-}
-.fund-table td small {
-  margin-top: 3px;
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-.fund-table td button {
-  padding: 6px 8px;
-  border: 1px solid var(--fz-line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fz-muted);
-  font-size: 11px;
-  cursor: pointer;
-}
-.fund-table td button:hover {
-  border-color: var(--fz-accent);
-  color: var(--fz-ink);
-}
-.fund-table td .fund-edit-icon-button {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--fz-surface-soft) 72%, transparent);
-}
-.fund-edit-icon-button svg {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.fund-table td .fund-edit-icon-button:hover {
-  background: color-mix(in srgb, var(--fz-accent) 9%, var(--fz-surface));
-  color: var(--fz-accent);
-}
-.fund-edit-icon-button:focus-visible {
-  outline: 2px solid var(--fz-accent);
-  outline-offset: 2px;
-}
-.fund-table td .fund-position-disclosure {
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--fz-ink);
-  font: inherit;
-  text-align: left;
-}
-.fund-position-disclosure:focus-visible {
-  outline: 2px solid var(--fz-accent);
-  outline-offset: 3px;
-}
-.fund-position-disclosure-copy {
-  min-width: 0;
-}
-.fund-position-disclosure-copy strong,
-.fund-position-disclosure-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fund-position-disclosure-icon {
-  flex: 0 0 auto;
-  color: var(--fz-muted);
-  font-size: 15px;
-  line-height: 1;
-  transform: translateY(-2px);
-  transition:
-    color 0.14s ease,
-    transform 0.14s ease;
-}
-.fund-position-disclosure:hover .fund-position-disclosure-icon,
-.fund-position-disclosure-icon.active {
-  color: var(--fz-accent);
-}
-.fund-position-disclosure-icon.active {
-  transform: rotate(180deg) translateY(2px);
-}
-.movement-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.movement-filters button {
-  padding-right: 10px;
-  cursor: pointer;
-}
-.movement-filters .add-movement {
-  border-color: var(--fz-accent);
-  background: var(--fz-accent);
-  color: #f4fff9;
-}
-.movement-filters .add-movement span {
-  margin-right: 3px;
-  font-size: 12px;
-}
-.movement-table th:nth-child(3),
-.movement-table th:nth-child(4),
-.movement-table td:nth-child(3),
-.movement-table td:nth-child(4) {
-  text-align: left;
-}
-.operation-pill {
-  display: inline-flex;
-  padding: 5px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 730;
-}
-.operation-pill.in {
-  background: color-mix(in srgb, var(--fz-accent) 13%, transparent);
-  color: var(--fz-accent);
-}
-.operation-pill.out {
-  background: color-mix(in srgb, var(--fz-negative) 10%, transparent);
-  color: var(--fz-negative);
-}
-.fund-table td .delete-order {
-  color: var(--fz-negative);
-}
-.movement-row-actions {
-  display: inline-flex;
-  gap: 5px;
-}
-.movement-pagination {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  font-weight: 680;
-}
-.movement-pagination div {
-  display: flex;
-  gap: 7px;
-}
-.movement-pagination button {
-  padding: 7px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fz-muted);
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.movement-pagination button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.fund-range-label {
-  margin: 7px 0 0;
-  color: var(--fz-muted);
-  font-size: 11px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-.fund-range-control {
-  display: flex;
-  padding: 4px;
-  border-radius: 12px;
-  background: var(--fz-surface-soft);
-}
-.fund-range-control button {
-  padding: 7px 10px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--fz-muted);
-  font-size: 11px;
-  font-weight: 720;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.fund-range-control button.active {
-  background: var(--fz-surface);
-  color: var(--fz-ink);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-}
-.fund-chart-state {
-  min-height: 330px;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  color: var(--fz-muted);
-  font-size: 11px;
-}
-.fund-chart-state strong {
-  color: var(--fz-ink);
-  font-size: 13px;
-}
-.fund-chart-state p {
-  margin: 5px 0 12px;
-}
-.fund-chart-state button {
-  justify-self: center;
-  padding: 8px 11px;
-  border: 1px solid var(--fz-line);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--fz-muted);
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
 .fund-dialog {
   width: min(520px, calc(100vw - 32px));
   padding: 0;
@@ -2761,25 +1624,6 @@ onMounted(loadDashboard);
   .fund-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .fund-price-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .fund-price-controls {
-    justify-content: space-between;
-  }
-  .fund-secondary-header {
-    align-items: stretch;
-  }
-  .movements-panel .fund-secondary-header {
-    flex-direction: column;
-  }
-  .fund-collapsible-actions {
-    width: 100%;
-  }
-  .fund-collapsible-actions .movement-filters {
-    flex: 1;
-  }
 }
 @media (max-width: 720px) {
   .funds-page {
@@ -2812,108 +1656,6 @@ onMounted(loadDashboard);
     padding: 19px 17px;
     border-radius: 18px;
   }
-  .fund-price-controls,
-  .movement-filters {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .fund-collapsible-actions {
-    align-items: flex-start;
-  }
-  .fund-price-controls select,
-  .movement-filters select,
-  .movement-filters button {
-    width: 100%;
-    max-width: none;
-  }
-  .fund-price-controls .fund-range-control {
-    width: 100%;
-    overflow-x: auto;
-  }
-  .position-table-scroll {
-    --fund-inline-width: 100%;
-  }
-  .position-table-scroll .fund-table,
-  .position-table-scroll .fund-table tbody {
-    display: block;
-  }
-  .position-table-scroll .fund-table colgroup,
-  .position-table-scroll .fund-table thead {
-    display: none;
-  }
-  .position-table-scroll .fund-table tbody {
-    display: grid;
-    gap: 10px;
-  }
-  .position-table-scroll .fund-position-row {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 3px 12px;
-    padding: 11px 10px;
-    border: 1px solid var(--fz-line);
-    border-radius: 14px;
-    background: color-mix(in srgb, var(--fz-surface-soft) 42%, transparent);
-  }
-  .position-table-scroll .fund-position-row.active {
-    border-color: color-mix(in srgb, var(--fz-accent) 32%, var(--fz-line));
-    box-shadow: inset 3px 0 var(--fz-accent);
-  }
-  .position-table-scroll .fund-table .fund-position-row > td {
-    min-width: 0;
-    padding: 7px 6px;
-    display: grid;
-    gap: 3px;
-    border: 0;
-    text-align: left;
-    white-space: normal;
-  }
-  .position-table-scroll .fund-table .fund-position-row > td:first-child {
-    grid-column: 1 / -1;
-    padding-left: 12px;
-    padding-right: 40px;
-  }
-  .position-table-scroll
-    .fund-table
-    .fund-position-row
-    > td:not(:first-child):not(:last-child)::before {
-    content: attr(data-label);
-    color: var(--fz-muted);
-    font-size: 10px;
-    font-weight: 680;
-  }
-  .position-table-scroll .fund-table .fund-position-row > td:last-child {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    padding: 0;
-  }
-  .position-table-scroll .fund-inline-detail-row {
-    display: block;
-  }
-  .position-table-scroll .fund-table .fund-inline-detail-row td {
-    width: 100%;
-    display: block;
-    padding: 0;
-    overflow: visible;
-    border: 0;
-  }
-  .fund-inline-price-panel {
-    padding: 16px 14px 15px;
-    border-radius: 16px;
-  }
-  .fund-inline-chart-toolbar {
-    align-items: stretch;
-  }
-  .fund-inline-range {
-    width: 100%;
-    justify-content: space-between;
-    margin-left: 0;
-  }
-  .fund-inline-range .fund-range-control {
-    overflow: visible;
-    flex-wrap: wrap;
-  }
   .fund-calendar-fields,
   .fund-account-fields {
     grid-template-columns: minmax(0, 1fr);
@@ -2932,13 +1674,6 @@ onMounted(loadDashboard);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .fund-position-row,
-  .fund-position-disclosure-icon {
-    transition: none;
-  }
-}
-
 /* Type hierarchy shared with the rest of the dashboard. */
 .section-label {
   font-size: 10px;
@@ -2953,11 +1688,6 @@ onMounted(loadDashboard);
 .fund-kpi span,
 .fund-utility small,
 .fund-utility span,
-.fund-price-controls label span,
-.fund-chart-legend,
-.fund-table td small,
-.operation-pill,
-.movement-pagination,
 .fund-account-fields em {
   font-size: 10px;
 }
@@ -2967,25 +1697,14 @@ onMounted(loadDashboard);
 :deep(.import-compact select),
 :deep(.import-compact input),
 :deep(.import-compact button),
-.fund-price-controls select,
-.movement-filters select,
-.movement-filters button,
 .fund-asset-head,
 .fund-action-button,
 .fund-live,
-.fund-table,
-.fund-table td button,
-.movement-pagination button,
-.fund-range-label,
-.fund-range-control button,
-.fund-chart-state button,
 .fund-calendar-fields label span,
 .fund-account-fields label span,
 .fund-dialog-error {
   font-size: 11px;
 }
-.fund-secondary-header h2,
-.fund-price-header h2,
 .fund-panel-header h2 {
   font-size: 20px;
 }
@@ -2998,24 +1717,6 @@ onMounted(loadDashboard);
 }
 .fund-kpi.primary strong {
   font-size: 27px;
-}
-.fund-table th {
-  font-size: 10px;
-}
-.fund-table td {
-  padding-block: 14px;
-}
-.position-table-scroll .fund-table {
-  font-size: 10px;
-}
-.position-table-scroll .fund-table th {
-  font-size: 10px;
-}
-.position-table-scroll .fund-table td {
-  padding-block: 10px;
-}
-.position-table-scroll .fund-table td small {
-  font-size: 10px;
 }
 .fund-calendar-fields input,
 .fund-account-fields input,

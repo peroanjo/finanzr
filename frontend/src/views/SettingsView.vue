@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
   computed,
+  defineComponent,
+  h,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -12,10 +14,30 @@ import { api, json } from "../api/client";
 import type { ImporterCatalogItem, SummarySourceKey } from "../types/api";
 import NavIcon from "../components/NavIcon.vue";
 import AdminUsersPanel from "../components/settings/AdminUsersPanel.vue";
+import SettingsAccountPanel from "../components/settings/SettingsAccountPanel.vue";
+import SettingsImporterDocument from "../components/settings/SettingsImporterDocument.vue";
+import SettingsInstallationPreferencesPanel from "../components/settings/SettingsInstallationPreferencesPanel.vue";
+import SettingsLanguagePanel from "../components/settings/SettingsLanguagePanel.vue";
+import SettingsSummarySourcesPanel from "../components/settings/SettingsSummarySourcesPanel.vue";
 import { useSessionStore } from "../stores/session";
 import { useLocalePreference } from "../i18n";
 
 const emit = defineEmits<{ close: [] }>();
+const settingsPanelPlaceholder = defineComponent({
+  name: "SettingsPanelPlaceholder",
+  emits: [
+    "update",
+    "save",
+    "save-language",
+    "save-installation-language",
+    "save-crowdfunding-tax",
+    "save-identity",
+    "save-password",
+  ],
+  setup() {
+    return () => h("span", { "aria-hidden": "true" });
+  },
+});
 const session = useSessionStore();
 const { t } = useI18n();
 const { locale, supportedLocales } = useLocalePreference();
@@ -59,6 +81,71 @@ const activeImporterLabel = computed(() =>
     ? t("settings.importerActive")
     : t("settings.importersActive", { count: importers.value.length }),
 );
+const activeSettingsPanel = computed(() => {
+  if (activeSection.value === "sections") {
+    return activeProductSection.value === "summary"
+      ? SettingsSummarySourcesPanel
+      : SettingsInstallationPreferencesPanel;
+  }
+  if (activeSection.value === "interface") return SettingsLanguagePanel;
+  if (activeSection.value === "account") return SettingsAccountPanel;
+  return null;
+});
+const activeSettingsPanelProps = computed(() => {
+  if (activeSettingsPanel.value === SettingsSummarySourcesPanel) {
+    return {
+      summarySources: summarySources.value,
+      summarySourceKeys,
+      scopeLabel: summaryScopeLabel.value,
+      canManage: canManageAccount.value,
+      busy: summarySourcesBusy.value,
+      error: summarySourcesError.value,
+      success: summarySourcesSuccess.value,
+    };
+  }
+  if (activeSettingsPanel.value === SettingsLanguagePanel) {
+    return {
+      effectiveLanguage: effectiveLanguage.value,
+      effectiveLanguageName: effectiveLanguageName.value,
+      effectiveLanguageFlag: effectiveLanguageFlag.value,
+      preferredLanguage: session.user?.preferred_language ?? null,
+      canManage: canManageAccount.value,
+      canAdminister: canAdminister.value,
+      languageBusy: languageBusy.value,
+      languageError: languageError.value,
+      languageSuccess: languageSuccess.value,
+      installationLanguage: sessionDefaultLanguage.value,
+      supportedLocales,
+      installationBusy: installationLanguageBusy.value,
+      installationError: installationLanguageError.value,
+      installationSuccess: installationLanguageSuccess.value,
+    };
+  }
+  if (activeSettingsPanel.value === SettingsInstallationPreferencesPanel) {
+    return {
+      mode: "crowdfunding" as const,
+      canAdminister: canAdminister.value,
+      defaultCrowdfundingTaxRate: sessionDefaultCrowdfundingTaxRate.value ?? 19,
+      crowdfundingBusy: crowdfundingTaxBusy.value,
+      crowdfundingError: crowdfundingTaxError.value,
+      crowdfundingSuccess: crowdfundingTaxSuccess.value,
+    };
+  }
+  if (activeSettingsPanel.value === SettingsAccountPanel) {
+    return {
+      initialDisplayName: session.user?.display_name ?? "",
+      initialEmail: session.user?.email ?? "",
+      roleLabel: accountRoleLabel.value,
+      identityBusy: identityBusy.value,
+      identityError: identityError.value,
+      identitySuccess: identitySuccess.value,
+      passwordBusy: passwordBusy.value,
+      passwordError: passwordError.value,
+      passwordSuccess: passwordSuccess.value,
+    };
+  }
+  return {};
+});
 const canManageAccount = computed(() =>
   Boolean(session.user && session.user.role !== "demo"),
 );
@@ -68,36 +155,22 @@ const accountRoleLabel = computed(() =>
     ? t("settings.administrator")
     : t("settings.user"),
 );
-const accountDisplayName = ref("");
-const accountEmail = ref("");
-const identityPassword = ref("");
 const identityBusy = ref(false);
 const identityError = ref("");
 const identitySuccess = ref("");
-const currentPassword = ref("");
-const newPassword = ref("");
-const passwordConfirmation = ref("");
 const passwordBusy = ref(false);
 const passwordError = ref("");
 const passwordSuccess = ref("");
 const languageBusy = ref(false);
 const languageError = ref("");
 const languageSuccess = ref("");
-const installationLanguage = ref<"es-ES" | "en">("es-ES");
 const installationLanguageBusy = ref(false);
 const installationLanguageError = ref("");
 const installationLanguageSuccess = ref("");
-const defaultCrowdfundingTaxRate = ref(19);
 const crowdfundingTaxBusy = ref(false);
 const crowdfundingTaxError = ref("");
 const crowdfundingTaxSuccess = ref("");
 const summarySources = ref<SummarySourceKey[]>([]);
-const selectedAvailableSources = ref<SummarySourceKey[]>([]);
-const selectedIncludedSources = ref<SummarySourceKey[]>([]);
-const summarySourceRefs = {
-  available: {} as Record<string, HTMLButtonElement>,
-  included: {} as Record<string, HTMLButtonElement>,
-};
 const summarySourcesBusy = ref(false);
 const summarySourcesError = ref("");
 const summarySourcesSuccess = ref("");
@@ -110,9 +183,6 @@ const summarySourceKeys: SummarySourceKey[] = [
   "crowdfunding",
   "manual_assets",
 ];
-const summaryAvailableSources = computed(() =>
-  summarySourceKeys.filter((key) => !summarySources.value.includes(key)),
-);
 const summaryScopeLabel = computed(() =>
   session.user?.summary_sources_scope === "personal"
     ? t("settings.summarySourcesScopePersonal")
@@ -147,72 +217,12 @@ const effectiveLanguageName = computed(() =>
 const effectiveLanguageFlag = computed(() =>
   effectiveLanguage.value === "en" ? "🇬🇧" : "🇪🇸",
 );
-const installationLanguageName = computed(() =>
-  installationLanguage.value === "en"
-    ? t("locales.english")
-    : t("locales.spanish"),
-);
-const personalLanguageOptions = computed(() => [
-  {
-    code: "" as const,
-    flag: "🌐",
-    title: t("settings.inheritInstallationLanguage"),
-    native: t("settings.automaticLanguage"),
-    description: t("settings.inheritLanguageDescription", {
-      language: installationLanguageName.value,
-    }),
-  },
-  {
-    code: "es-ES" as const,
-    flag: "🇪🇸",
-    title: t("locales.spanish"),
-    native: t("locales.spanish"),
-    description: t("settings.spanishLanguageDescription"),
-  },
-  {
-    code: "en" as const,
-    flag: "🇬🇧",
-    title: t("locales.english"),
-    native: "English",
-    description: t("settings.englishLanguageDescription"),
-  },
-]);
 
 watch(importers, (items) => {
   if (!items.some((item) => item.slug === selectedSlug.value)) {
     selectedSlug.value = items[0]?.slug ?? "";
   }
 });
-watch(
-  () => session.user?.email,
-  (email) => {
-    accountEmail.value = email ?? "";
-  },
-  { immediate: true },
-);
-watch(
-  () => session.user?.display_name,
-  (name) => {
-    accountDisplayName.value = name ?? "";
-  },
-  { immediate: true },
-);
-watch(
-  sessionDefaultLanguage,
-  (language) => {
-    installationLanguage.value = language === "en" ? "en" : "es-ES";
-  },
-  { immediate: true },
-);
-watch(
-  sessionDefaultCrowdfundingTaxRate,
-  (rate) => {
-    if (rate !== undefined && rate !== null) {
-      defaultCrowdfundingTaxRate.value = rate;
-    }
-  },
-  { immediate: true },
-);
 watch(
   () => [session.user?.active_workspace_id, session.user?.summary_sources],
   () => {
@@ -225,8 +235,6 @@ watch(
     summarySources.value = summarySourceKeys.filter((key) =>
       next.includes(key),
     );
-    selectedAvailableSources.value = [];
-    selectedIncludedSources.value = [];
   },
   { deep: true, immediate: true },
 );
@@ -244,17 +252,20 @@ async function load() {
   }
 }
 
-async function saveIdentity() {
+async function saveIdentity(payload: {
+  displayName: string;
+  email: string;
+  password: string;
+}) {
   identityError.value = "";
   identitySuccess.value = "";
   identityBusy.value = true;
   try {
     await session.updateAccount(
-      accountDisplayName.value,
-      accountEmail.value,
-      identityPassword.value,
+      payload.displayName,
+      payload.email,
+      payload.password,
     );
-    identityPassword.value = "";
     identitySuccess.value = t("settings.profileUpdated");
   } catch (reason) {
     identityError.value =
@@ -266,23 +277,24 @@ async function saveIdentity() {
   }
 }
 
-async function savePassword() {
+async function savePassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+  confirmation: string;
+}) {
   passwordError.value = "";
   passwordSuccess.value = "";
-  if (newPassword.value !== passwordConfirmation.value) {
+  if (payload.newPassword !== payload.confirmation) {
     passwordError.value = t("settings.passwordMismatch");
     return;
   }
   passwordBusy.value = true;
   try {
     await session.changePassword(
-      currentPassword.value,
-      newPassword.value,
-      passwordConfirmation.value,
+      payload.currentPassword,
+      payload.newPassword,
+      payload.confirmation,
     );
-    currentPassword.value = "";
-    newPassword.value = "";
-    passwordConfirmation.value = "";
     passwordSuccess.value = t("settings.passwordUpdated");
   } catch (reason) {
     passwordError.value =
@@ -294,7 +306,7 @@ async function savePassword() {
   }
 }
 
-async function saveInstallationLanguage() {
+async function saveInstallationLanguage(language: "es-ES" | "en") {
   installationLanguageError.value = "";
   installationLanguageSuccess.value = "";
   installationLanguageBusy.value = true;
@@ -304,7 +316,7 @@ async function saveInstallationLanguage() {
       language: "es-ES" | "en";
     }>(
       "/installation/preferences",
-      json("PATCH", { default_language: installationLanguage.value }),
+      json("PATCH", { default_language: language }),
     );
     if (session.user) {
       Object.assign(session.user, {
@@ -326,7 +338,7 @@ async function saveInstallationLanguage() {
   }
 }
 
-async function saveCrowdfundingTax() {
+async function saveCrowdfundingTax(rate: number) {
   crowdfundingTaxError.value = "";
   crowdfundingTaxSuccess.value = "";
   crowdfundingTaxBusy.value = true;
@@ -338,7 +350,7 @@ async function saveCrowdfundingTax() {
     }>(
       "/installation/preferences",
       json("PATCH", {
-        default_crowdfunding_tax_rate: Number(defaultCrowdfundingTaxRate.value),
+        default_crowdfunding_tax_rate: Number(rate),
       }),
     );
     if (session.user) {
@@ -372,112 +384,13 @@ async function saveLanguage(value: "es-ES" | "en" | "") {
   }
 }
 
-function toggleSummarySource(
-  side: "available" | "included",
-  key: SummarySourceKey,
-) {
-  const target =
-    side === "available" ? selectedAvailableSources : selectedIncludedSources;
-  target.value = target.value.includes(key)
-    ? target.value.filter((item) => item !== key)
-    : [...target.value, key];
-}
-
-function setSummarySourceRef(
-  side: "available" | "included",
-  key: SummarySourceKey,
-  element: unknown,
-) {
-  if (element && typeof (element as { focus?: unknown }).focus === "function") {
-    summarySourceRefs[side][key] = element as HTMLButtonElement;
-  } else delete summarySourceRefs[side][key];
-}
-
-function summarySourceSideKeys(side: "available" | "included") {
-  return side === "available"
-    ? summaryAvailableSources.value
-    : summarySources.value;
-}
-
-function focusSummarySource(side: "available" | "included", index: number) {
-  const key = summarySourceSideKeys(side)[index];
-  if (!key) return;
-  nextTick(() => {
-    const referenced = summarySourceRefs[side][key];
-    if (referenced) {
-      referenced.focus();
-      return;
-    }
-    const selector =
-      side === "available"
-        ? ".summary-source-column:not(.included) .summary-source-option"
-        : ".summary-source-column.included .summary-source-option";
-    (
-      document.querySelectorAll(selector)[index] as HTMLElement | undefined
-    )?.focus();
-  });
-}
-
-function onSummarySourceKeydown(
-  event: KeyboardEvent,
-  side: "available" | "included",
-  key: SummarySourceKey,
-) {
-  const keys = summarySourceSideKeys(side);
-  const index = keys.indexOf(key);
-  if (index < 0) return;
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    toggleSummarySource(side, key);
-    return;
-  }
-  const nextIndex =
-    event.key === "ArrowDown"
-      ? Math.min(keys.length - 1, index + 1)
-      : event.key === "ArrowUp"
-        ? Math.max(0, index - 1)
-        : event.key === "Home"
-          ? 0
-          : event.key === "End"
-            ? keys.length - 1
-            : -1;
-  if (nextIndex >= 0) {
-    event.preventDefault();
-    focusSummarySource(side, nextIndex);
-  }
-}
-
-function moveSelectedSummarySources(direction: "in" | "out") {
-  const moving =
-    direction === "in"
-      ? [...selectedAvailableSources.value]
-      : [...selectedIncludedSources.value];
-  if (direction === "in") {
-    const movingKeys = new Set(moving);
-    summarySources.value = summarySourceKeys.filter(
-      (key) => summarySources.value.includes(key) || movingKeys.has(key),
-    );
-    selectedAvailableSources.value = [];
-  } else {
-    const movingKeys = new Set(moving);
-    summarySources.value = summarySources.value.filter(
-      (key) => !movingKeys.has(key),
-    );
-    selectedIncludedSources.value = [];
-  }
-  const targetSide = direction === "in" ? "included" : "available";
-  const targetKeys = summarySourceSideKeys(targetSide);
-  const targetIndex = targetKeys.findIndex((key) => key === moving[0]);
-  if (targetIndex >= 0) focusSummarySource(targetSide, targetIndex);
-}
-
-async function saveSummarySources() {
+async function saveSummarySources(nextSources = summarySources.value) {
   if (summarySourcesBusy.value || !canManageAccount.value) return;
   summarySourcesBusy.value = true;
   summarySourcesError.value = "";
   summarySourcesSuccess.value = "";
   try {
-    await session.updateSummarySources(summarySources.value);
+    await session.updateSummarySources(nextSources);
     summarySourcesSuccess.value = t("settings.summarySourcesSaved");
   } catch (reason) {
     summarySourcesError.value =
@@ -487,6 +400,10 @@ async function saveSummarySources() {
   } finally {
     summarySourcesBusy.value = false;
   }
+}
+
+function updateSummarySources(nextSources: SummarySourceKey[]) {
+  summarySources.value = nextSources;
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -734,706 +651,47 @@ onBeforeUnmount(() => {
         </nav>
 
         <main class="settings-content">
-          <article
-            v-if="
-              activeSection === 'sections' && activeProductSection === 'summary'
-            "
-            class="interface-document summary-sources-document"
-          >
-            <header class="interface-document-header">
-              <div>
-                <p>{{ t("settings.summarySources") }}</p>
-                <h3>{{ t("settings.summarySources") }}</h3>
-                <span>{{ t("settings.summarySourcesDescription") }}</span>
-              </div>
-              <div
-                class="effective-language summary-source-status"
-                aria-live="polite"
-              >
-                <span aria-hidden="true">Σ</span>
-                <p>
-                  <small>{{ t("settings.summarySourcesAria") }}</small
-                  ><strong
-                    >{{ summarySources.length }} /
-                    {{ summarySourceKeys.length }}</strong
-                  >
-                </p>
-                <i />
-              </div>
-            </header>
-
-            <section
-              class="summary-sources-panel"
-              :aria-labelledby="'summary-sources-title'"
-            >
-              <header>
-                <div>
-                  <p>{{ summaryScopeLabel }}</p>
-                  <h4 id="summary-sources-title">
-                    {{ t("settings.summarySources") }}
-                  </h4>
-                </div>
-                <span>{{ summarySources.length }}</span>
-              </header>
-              <p class="document-description">
-                {{ t("settings.summarySourcesHint") }}
-              </p>
-              <div
-                class="summary-transfer"
-                :aria-label="t('settings.summarySourcesAria')"
-              >
-                <section class="summary-source-column">
-                  <header>
-                    <strong>{{ t("settings.summarySourcesAvailable") }}</strong
-                    ><small>{{ summaryAvailableSources.length }}</small>
-                  </header>
-                  <div
-                    class="summary-source-list"
-                    role="listbox"
-                    :aria-label="t('settings.summarySourcesAvailableAria')"
-                    aria-multiselectable="true"
-                  >
-                    <button
-                      v-for="key in summaryAvailableSources"
-                      :key="key"
-                      type="button"
-                      role="option"
-                      class="summary-source-option"
-                      :class="{
-                        selected: selectedAvailableSources.includes(key),
-                      }"
-                      :aria-selected="selectedAvailableSources.includes(key)"
-                      @keydown="
-                        onSummarySourceKeydown($event, 'available', key)
-                      "
-                      :ref="
-                        (element) =>
-                          setSummarySourceRef('available', key, element)
-                      "
-                      :disabled="!canManageAccount || summarySourcesBusy"
-                      @click="toggleSummarySource('available', key)"
-                    >
-                      <span class="summary-source-mark" aria-hidden="true">{{
-                        key.slice(0, 1).toUpperCase()
-                      }}</span>
-                      <span>{{ t(`overview.sources.${key}`) }}</span>
-                    </button>
-                    <p
-                      v-if="!summaryAvailableSources.length"
-                      class="summary-source-empty"
-                    >
-                      {{ t("common.noData") }}
-                    </p>
-                  </div>
-                </section>
-                <div class="summary-transfer-rail" aria-hidden="true">
-                  <span /><i /><span />
-                </div>
-                <div class="summary-transfer-actions">
-                  <button
-                    type="button"
-                    class="summary-transfer-button"
-                    :aria-label="t('settings.summarySourcesMoveIn')"
-                    :title="t('settings.summarySourcesMoveIn')"
-                    :disabled="
-                      !selectedAvailableSources.length ||
-                      !canManageAccount ||
-                      summarySourcesBusy
-                    "
-                    @click="moveSelectedSummarySources('in')"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M5 12h13m-5-5 5 5-5 5" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    class="summary-transfer-button"
-                    :aria-label="t('settings.summarySourcesMoveOut')"
-                    :title="t('settings.summarySourcesMoveOut')"
-                    :disabled="
-                      !selectedIncludedSources.length ||
-                      !canManageAccount ||
-                      summarySourcesBusy
-                    "
-                    @click="moveSelectedSummarySources('out')"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M19 12H6m5-5-5 5 5 5" />
-                    </svg>
-                  </button>
-                </div>
-                <section class="summary-source-column included">
-                  <header>
-                    <strong>{{ t("settings.summarySourcesIncluded") }}</strong
-                    ><small>{{ summarySources.length }}</small>
-                  </header>
-                  <div
-                    class="summary-source-list"
-                    role="listbox"
-                    :aria-label="t('settings.summarySourcesIncludedAria')"
-                    aria-multiselectable="true"
-                  >
-                    <button
-                      v-for="key in summarySources"
-                      :key="key"
-                      type="button"
-                      role="option"
-                      class="summary-source-option"
-                      :class="{
-                        selected: selectedIncludedSources.includes(key),
-                      }"
-                      :aria-selected="selectedIncludedSources.includes(key)"
-                      @keydown="onSummarySourceKeydown($event, 'included', key)"
-                      :ref="
-                        (element) =>
-                          setSummarySourceRef('included', key, element)
-                      "
-                      :disabled="!canManageAccount || summarySourcesBusy"
-                      @click="toggleSummarySource('included', key)"
-                    >
-                      <span class="summary-source-mark" aria-hidden="true">{{
-                        key.slice(0, 1).toUpperCase()
-                      }}</span>
-                      <span>{{ t(`overview.sources.${key}`) }}</span>
-                    </button>
-                    <p
-                      v-if="!summarySources.length"
-                      class="summary-source-empty"
-                    >
-                      {{ t("common.noData") }}
-                    </p>
-                  </div>
-                </section>
-              </div>
-              <footer class="summary-sources-footer">
-                <p v-if="!canManageAccount" class="language-feedback muted">
-                  {{ t("settings.demoLanguageNotice") }}
-                </p>
-                <p
-                  v-if="summarySourcesError"
-                  class="language-feedback error"
-                  role="alert"
-                >
-                  {{ summarySourcesError }}
-                </p>
-                <p
-                  v-else-if="summarySourcesSuccess"
-                  class="language-feedback success"
-                  role="status"
-                >
-                  {{ summarySourcesSuccess }}
-                </p>
-                <button
-                  type="button"
-                  class="summary-sources-save"
-                  :disabled="summarySourcesBusy || !canManageAccount"
-                  @click="saveSummarySources"
-                >
-                  {{
-                    summarySourcesBusy
-                      ? t("common.saving")
-                      : t("settings.summarySourcesSave")
-                  }}
-                </button>
-              </footer>
-            </section>
-          </article>
-          <article
-            v-else-if="activeSection === 'interface'"
-            class="interface-document"
-          >
-            <header class="interface-document-header">
-              <div>
-                <p>{{ t("settings.interfaceEyebrow") }}</p>
-                <h3>{{ t("settings.interfaceLanguageTitle") }}</h3>
-                <span>{{ t("settings.interfaceLanguageIntro") }}</span>
-              </div>
-              <div class="effective-language" aria-live="polite">
-                <span aria-hidden="true">{{ effectiveLanguageFlag }}</span>
-                <p>
-                  <small>{{ t("settings.effectiveLanguage") }}</small
-                  ><strong>{{ effectiveLanguageName }}</strong>
-                </p>
-                <i />
-              </div>
-            </header>
-
-            <section
-              class="language-preference-panel"
-              :aria-labelledby="'personal-language-title'"
-            >
-              <header>
-                <div>
-                  <p>{{ t("settings.personalPreference") }}</p>
-                  <h4 id="personal-language-title">
-                    {{ t("settings.chooseLanguage") }}
-                  </h4>
-                </div>
-                <span>{{
-                  session.user?.preferred_language
-                    ? t("settings.personalOverride")
-                    : t("settings.followingInstallation")
-                }}</span>
-              </header>
-              <div
-                class="language-choice-grid"
-                role="radiogroup"
-                :aria-label="t('settings.languageTitle')"
-              >
-                <button
-                  v-for="option in personalLanguageOptions"
-                  :key="option.code || 'automatic'"
-                  type="button"
-                  class="language-choice"
-                  :class="{
-                    selected:
-                      (session.user?.preferred_language ?? '') === option.code,
-                  }"
-                  :aria-checked="
-                    (session.user?.preferred_language ?? '') === option.code
-                  "
-                  :disabled="languageBusy || !canManageAccount"
-                  role="radio"
-                  @click="saveLanguage(option.code)"
-                >
-                  <span class="language-flag" aria-hidden="true">{{
-                    option.flag
-                  }}</span>
-                  <span class="language-copy"
-                    ><strong>{{ option.title }}</strong
-                    ><small>{{ option.native }}</small></span
-                  >
-                  <i class="language-check" aria-hidden="true">✓</i>
-                  <em>{{ option.description }}</em>
-                </button>
-              </div>
-              <p
-                v-if="languageError"
-                class="language-feedback error"
-                role="alert"
-              >
-                {{ languageError }}
-              </p>
-              <p
-                v-else-if="languageSuccess"
-                class="language-feedback success"
-                role="status"
-              >
-                {{ languageSuccess }}
-              </p>
-              <p v-if="!canManageAccount" class="language-feedback muted">
-                {{ t("settings.demoLanguageNotice") }}
-              </p>
-            </section>
-
-            <form
-              v-if="canAdminister"
-              class="installation-language-panel"
-              @submit.prevent="saveInstallationLanguage"
-            >
-              <div class="installation-language-copy">
-                <span aria-hidden="true">⌂</span>
-                <div>
-                  <p>{{ t("settings.installationPreference") }}</p>
-                  <h4>{{ t("settings.installationLanguageTitle") }}</h4>
-                  <small>{{ t("settings.installationLanguageHelp") }}</small>
-                </div>
-              </div>
-              <div class="installation-language-actions">
-                <label
-                  v-for="option in supportedLocales"
-                  :key="option.code"
-                  :class="{ selected: installationLanguage === option.code }"
-                >
-                  <input
-                    v-model="installationLanguage"
-                    type="radio"
-                    name="installation-language"
-                    :value="option.code"
-                  />
-                  <span aria-hidden="true">{{
-                    option.code === "en" ? "🇬🇧" : "🇪🇸"
-                  }}</span>
-                  <strong>{{ option.label }}</strong>
-                </label>
-                <button type="submit" :disabled="installationLanguageBusy">
-                  {{
-                    installationLanguageBusy
-                      ? t("common.saving")
-                      : t("settings.saveInstallationLanguage")
-                  }}
-                </button>
-              </div>
-              <p
-                v-if="installationLanguageError"
-                class="language-feedback error"
-                role="alert"
-              >
-                {{ installationLanguageError }}
-              </p>
-              <p
-                v-else-if="installationLanguageSuccess"
-                class="language-feedback success"
-                role="status"
-              >
-                {{ installationLanguageSuccess }}
-              </p>
-            </form>
-          </article>
-
-          <article
-            v-else-if="
-              activeSection === 'sections' &&
-              activeProductSection === 'crowdfunding'
-            "
-            class="interface-document"
-          >
-            <header class="interface-document-header">
-              <div>
-                <p>{{ t("settings.crowdfunding") }}</p>
-                <h3>{{ t("settings.crowdfundingTaxTitle") }}</h3>
-                <span>{{ t("settings.crowdfundingTaxIntro") }}</span>
-              </div>
-              <div class="effective-language" aria-live="polite">
-                <span aria-hidden="true">%</span>
-                <p>
-                  <small>{{ t("settings.defaultRateBadge") }}</small
-                  ><strong>{{ defaultCrowdfundingTaxRate }} %</strong>
-                </p>
-                <i aria-hidden="true" />
-              </div>
-            </header>
-
-            <form
-              class="language-preference-panel"
-              @submit.prevent="saveCrowdfundingTax"
-            >
-              <header>
-                <div>
-                  <p>{{ t("settings.crowdfunding") }}</p>
-                  <h4>{{ t("settings.crowdfundingTaxTitle") }}</h4>
-                </div>
-                <span>{{ t("settings.installationPreference") }}</span>
-              </header>
-              <p class="document-description">
-                {{ t("settings.crowdfundingTaxHelp") }}
-              </p>
-
-              <div class="withholding-form-row">
-                <label class="tax-rate-field">
-                  <span>{{ t("settings.defaultCrowdfundingTaxRate") }}</span>
-                  <div class="tax-rate-input-wrap">
-                    <input
-                      v-model.number="defaultCrowdfundingTaxRate"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      :disabled="!canAdminister || crowdfundingTaxBusy"
-                      required
-                    />
-                    <strong>%</strong>
-                  </div>
-                </label>
-                <button
-                  v-if="canAdminister"
-                  type="submit"
-                  :disabled="crowdfundingTaxBusy"
-                >
-                  {{
-                    crowdfundingTaxBusy
-                      ? t("common.saving")
-                      : t("settings.saveCrowdfundingTax")
-                  }}
-                </button>
-              </div>
-
-              <p v-if="!canAdminister" class="language-feedback muted">
-                {{ t("settings.adminsOnlyWithholdingNotice") }}
-              </p>
-              <p
-                v-if="crowdfundingTaxError"
-                class="language-feedback error"
-                role="alert"
-              >
-                {{ crowdfundingTaxError }}
-              </p>
-              <p
-                v-else-if="crowdfundingTaxSuccess"
-                class="language-feedback success"
-                role="status"
-              >
-                {{ crowdfundingTaxSuccess }}
-              </p>
-            </form>
-          </article>
+          <KeepAlive>
+            <component
+              :is="activeSettingsPanel ?? settingsPanelPlaceholder"
+              v-bind="activeSettingsPanelProps"
+              @update="updateSummarySources"
+              @save="saveSummarySources"
+              @save-language="saveLanguage"
+              @save-installation-language="saveInstallationLanguage"
+              @save-crowdfunding-tax="saveCrowdfundingTax"
+              @save-identity="saveIdentity"
+              @save-password="savePassword"
+            />
+          </KeepAlive>
           <div
-            v-else-if="activeSection === 'administration'"
+            v-if="!activeSettingsPanel && activeSection === 'administration'"
             class="administration-document"
           >
             <AdminUsersPanel />
           </div>
-          <article
-            v-else-if="activeSection === 'account'"
-            class="account-document"
-          >
-            <header class="account-document-header">
-              <div>
-                <p>{{ t("settings.identityAndAccess") }}</p>
-                <h3>{{ t("settings.yourAccount") }}</h3>
-              </div>
-              <span>{{ accountRoleLabel }}</span>
-            </header>
-            <p class="account-intro">{{ t("settings.accountIntro") }}</p>
-
-            <div class="account-form-grid">
-              <form class="account-form-card" @submit.prevent="saveIdentity">
-                <header>
-                  <span aria-hidden="true">@</span>
-                  <div>
-                    <p>{{ t("settings.identification") }}</p>
-                    <h4>{{ t("settings.profileAndEmail") }}</h4>
-                  </div>
-                </header>
-                <p>{{ t("settings.identityHelp") }}</p>
-                <label>
-                  <span>{{ t("settings.displayName") }}</span>
-                  <input
-                    v-model.trim="accountDisplayName"
-                    type="text"
-                    autocomplete="name"
-                    maxlength="120"
-                  />
-                </label>
-                <label>
-                  <span>{{ t("settings.email") }}</span>
-                  <input
-                    v-model.trim="accountEmail"
-                    type="email"
-                    autocomplete="email"
-                    required
-                  />
-                </label>
-                <label>
-                  <span>{{ t("settings.currentPassword") }}</span>
-                  <input
-                    v-model="identityPassword"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                  />
-                </label>
-                <p
-                  v-if="identityError"
-                  class="account-form-message error"
-                  role="alert"
-                >
-                  {{ identityError }}
-                </p>
-                <p
-                  v-else-if="identitySuccess"
-                  class="account-form-message success"
-                  role="status"
-                >
-                  {{ identitySuccess }}
-                </p>
-                <button type="submit" :disabled="identityBusy">
-                  {{
-                    identityBusy
-                      ? t("common.saving")
-                      : t("settings.saveProfile")
-                  }}
-                </button>
-              </form>
-
-              <form class="account-form-card" @submit.prevent="savePassword">
-                <header>
-                  <span aria-hidden="true">••</span>
-                  <div>
-                    <p>{{ t("settings.security") }}</p>
-                    <h4>{{ t("settings.password") }}</h4>
-                  </div>
-                </header>
-                <p>{{ t("settings.passwordHelp") }}</p>
-                <label>
-                  <span>{{ t("settings.currentPassword") }}</span>
-                  <input
-                    v-model="currentPassword"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                  />
-                </label>
-                <label>
-                  <span>{{ t("settings.newPassword") }}</span>
-                  <input
-                    v-model="newPassword"
-                    type="password"
-                    autocomplete="new-password"
-                    minlength="12"
-                    required
-                  />
-                </label>
-                <label>
-                  <span>{{ t("settings.repeatNewPassword") }}</span>
-                  <input
-                    v-model="passwordConfirmation"
-                    type="password"
-                    autocomplete="new-password"
-                    minlength="12"
-                    required
-                  />
-                </label>
-                <p
-                  v-if="passwordError"
-                  class="account-form-message error"
-                  role="alert"
-                >
-                  {{ passwordError }}
-                </p>
-                <p
-                  v-else-if="passwordSuccess"
-                  class="account-form-message success"
-                  role="status"
-                >
-                  {{ passwordSuccess }}
-                </p>
-                <button type="submit" :disabled="passwordBusy">
-                  {{
-                    passwordBusy
-                      ? t("settings.updating")
-                      : t("settings.changePassword")
-                  }}
-                </button>
-              </form>
-            </div>
-          </article>
           <div
-            v-else-if="loading"
+            v-else-if="!activeSettingsPanel && loading"
             class="content-loading"
             :aria-label="t('settings.loadingImportersAria')"
           >
             <i /><i /><i />
           </div>
-          <article v-else-if="error" class="settings-error" role="alert">
+          <article
+            v-else-if="!activeSettingsPanel && error"
+            class="settings-error"
+            role="alert"
+          >
             <div>
               <strong>{{ t("settings.catalogLoadError") }}</strong>
               <p>{{ error }}</p>
             </div>
             <button type="button" @click="load">{{ t("common.retry") }}</button>
           </article>
-          <article v-else-if="selectedImporter" class="importer-document">
-            <header class="document-header">
-              <div>
-                <p>
-                  {{
-                    t("settings.importContract", {
-                      target: selectedImporter.target_label,
-                    })
-                  }}
-                </p>
-                <h3>{{ selectedImporter.display_name }}</h3>
-                <span><i /> {{ t("common.configured") }}</span>
-              </div>
-              <code>{{ selectedImporter.slug }}</code>
-            </header>
-
-            <p class="document-description">
-              {{ selectedImporter.description }}
-            </p>
-            <div class="source-note">
-              <span aria-hidden="true">↓</span>
-              <p>
-                <strong>{{ t("settings.howToGetIt") }}</strong
-                >{{ selectedImporter.source_instructions }}
-              </p>
-            </div>
-
-            <section class="document-section">
-              <header>
-                <div>
-                  <p>01</p>
-                  <h4>{{ t("settings.supportedFormats") }}</h4>
-                </div>
-                <span>{{ selectedImporter.formats.length }}</span>
-              </header>
-              <div class="format-grid">
-                <div
-                  v-for="format in selectedImporter.formats"
-                  :key="format.extension"
-                >
-                  <span>{{
-                    format.extension.replace(".", "").toUpperCase()
-                  }}</span>
-                  <p>
-                    <strong>{{ format.label }}</strong
-                    ><small>{{ format.description }}</small>
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section class="document-section fields-section">
-              <header>
-                <div>
-                  <p>02</p>
-                  <h4>{{ t("settings.expectedStructure") }}</h4>
-                </div>
-                <span>{{
-                  t("settings.fieldsSummary", {
-                    fields: selectedImporter.fields.length,
-                    required: selectedImporter.required_fields.length,
-                  })
-                }}</span>
-              </header>
-              <div class="field-table">
-                <div class="field-head">
-                  <span>{{ t("settings.field") }}</span
-                  ><span>{{ t("settings.expectedContent") }}</span
-                  ><span>{{ t("settings.example") }}</span>
-                </div>
-                <div
-                  v-for="field in selectedImporter.fields"
-                  :key="field.name"
-                  class="field-row"
-                >
-                  <div>
-                    <b v-if="field.position">{{
-                      String(field.position).padStart(2, "0")
-                    }}</b>
-                    <span
-                      ><strong>{{ field.label }}</strong
-                      ><code>{{ field.name }}</code></span
-                    >
-                  </div>
-                  <p>
-                    {{ field.description }}
-                    <em>{{
-                      field.required
-                        ? t("common.required")
-                        : t("common.optional")
-                    }}</em>
-                  </p>
-                  <code>{{ field.example }}</code>
-                </div>
-              </div>
-            </section>
-
-            <section class="document-section rules-section">
-              <header>
-                <div>
-                  <p>03</p>
-                  <h4>{{ t("settings.importerRules") }}</h4>
-                </div>
-              </header>
-              <ul>
-                <li v-for="rule in selectedImporter.rules" :key="rule">
-                  {{ rule }}
-                </li>
-              </ul>
-            </section>
-          </article>
+          <SettingsImporterDocument
+            v-else-if="!activeSettingsPanel && selectedImporter"
+            :selected-importer="selectedImporter"
+          />
         </main>
       </div>
     </section>
@@ -1663,232 +921,6 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.importer-document {
-  padding: 29px 34px 42px;
-}
-.document-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 22px;
-}
-.document-header p {
-  margin: 0 0 6px;
-  color: var(--fz-muted);
-  font-size: 7px;
-  font-weight: 760;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.document-header h3 {
-  display: inline;
-  margin: 0;
-  font-size: 25px;
-  letter-spacing: -0.045em;
-}
-.document-header > div > span {
-  margin-left: 10px;
-  padding: 5px 8px;
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--fz-accent) 9%, transparent);
-  color: var(--fz-accent);
-  font-size: 6px;
-  font-weight: 780;
-  vertical-align: 4px;
-}
-.document-header > div > span i {
-  width: 5px;
-  height: 5px;
-  display: inline-block;
-  margin-right: 4px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.document-header > code {
-  padding: 6px 8px;
-  border-radius: 7px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-muted);
-  font-size: 7px;
-}
-.document-description {
-  max-width: 720px;
-  margin: 13px 0 0;
-  font-size: 10px;
-  line-height: 1.6;
-}
-.source-note {
-  margin-top: 16px;
-  padding: 12px 14px;
-  display: flex;
-  gap: 10px;
-  border-left: 3px solid var(--fz-accent);
-  background: color-mix(in srgb, var(--fz-accent) 5%, transparent);
-}
-.source-note > span {
-  color: var(--fz-accent);
-  font-size: 15px;
-}
-.source-note p {
-  margin: 0;
-  display: grid;
-  gap: 3px;
-  color: var(--fz-muted);
-  font-size: 8px;
-  line-height: 1.5;
-}
-.source-note strong {
-  color: var(--fz-ink);
-  font-size: 7px;
-  text-transform: uppercase;
-}
-.document-section {
-  margin-top: 27px;
-}
-.document-section > header {
-  margin-bottom: 11px;
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 18px;
-}
-.document-section > header > div {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.document-section > header p {
-  margin: 0;
-  color: var(--fz-accent);
-  font:
-    750 8px ui-monospace,
-    monospace;
-}
-.document-section h4 {
-  margin: 0;
-  font-size: 12px;
-}
-.document-section > header > span {
-  color: var(--fz-muted);
-  font-size: 7px;
-}
-.format-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-.format-grid > div {
-  padding: 11px;
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  background: var(--fz-surface-soft);
-}
-.format-grid > div > span {
-  padding: 4px 6px;
-  border-radius: 6px;
-  background: var(--fz-surface);
-  color: var(--fz-accent);
-  font-size: 6px;
-  font-weight: 820;
-}
-.format-grid p {
-  margin: 0;
-  display: grid;
-  gap: 3px;
-}
-.format-grid strong {
-  font-size: 8px;
-}
-.format-grid small {
-  color: var(--fz-muted);
-  font-size: 7px;
-  line-height: 1.4;
-}
-.field-table {
-  overflow-x: auto;
-  border-top: 1px solid var(--fz-line);
-}
-.field-head,
-.field-row {
-  min-width: 700px;
-  display: grid;
-  grid-template-columns: minmax(190px, 0.8fr) minmax(280px, 1.25fr) minmax(
-      135px,
-      0.6fr
-    );
-  gap: 12px;
-  align-items: center;
-}
-.field-head {
-  padding: 8px;
-  color: var(--fz-muted);
-  font-size: 6px;
-  text-transform: uppercase;
-}
-.field-row {
-  min-height: 55px;
-  padding: 8px;
-  border-top: 1px solid var(--fz-line);
-}
-.field-row > div {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.field-row b {
-  width: 20px;
-  color: var(--fz-muted);
-  font-size: 6px;
-}
-.field-row > div span {
-  display: grid;
-  gap: 2px;
-}
-.field-row strong {
-  font-size: 8px;
-}
-.field-row code {
-  color: var(--fz-muted);
-  font:
-    600 7px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-}
-.field-row > p {
-  margin: 0;
-  color: var(--fz-muted);
-  font-size: 7px;
-  line-height: 1.45;
-}
-.field-row em {
-  margin-left: 4px;
-  color: var(--fz-accent);
-  font-size: 6px;
-  font-style: normal;
-  font-weight: 760;
-  text-transform: uppercase;
-}
-.field-row > code {
-  padding: 6px 7px;
-  border-radius: 6px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-ink);
-  font-size: 7px;
-}
-.rules-section ul {
-  margin: 0;
-  padding: 13px 17px 13px 31px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-muted);
-  font-size: 8px;
-  line-height: 1.7;
-}
 .settings-error {
   margin: 30px;
   padding: 18px;
@@ -1966,12 +998,6 @@ onBeforeUnmount(() => {
   .settings-primary {
     padding-inline: 9px;
   }
-  .importer-document {
-    padding-inline: 24px;
-  }
-  .format-grid {
-    grid-template-columns: 1fr;
-  }
 }
 @media (max-width: 720px) {
   .settings-overlay {
@@ -2014,23 +1040,6 @@ onBeforeUnmount(() => {
   .settings-secondary > button {
     min-width: 190px;
     margin: 0 !important;
-  }
-  .importer-document {
-    padding: 22px 17px 34px;
-  }
-  .document-header {
-    display: block;
-  }
-  .document-header > code {
-    display: inline-block;
-    margin-top: 10px;
-  }
-  .document-header h3 {
-    font-size: 21px;
-  }
-  .field-head,
-  .field-row {
-    min-width: 650px;
   }
 }
 .settings-secondary {
@@ -2187,200 +1196,6 @@ onBeforeUnmount(() => {
   background: var(--fz-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 12%, transparent);
 }
-.account-document {
-  padding: 34px 38px 48px;
-}
-.account-document-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-}
-.account-document-header p {
-  margin: 0 0 6px;
-  color: var(--fz-muted);
-  font-size: 7px;
-  font-weight: 760;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.account-document-header h3 {
-  margin: 0;
-  font-size: 27px;
-  letter-spacing: -0.045em;
-}
-.account-document-header > span {
-  padding: 6px 9px;
-  border: 1px solid color-mix(in srgb, var(--fz-accent) 24%, var(--fz-line));
-  border-radius: 99px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 7px;
-  font-weight: 780;
-}
-.account-intro {
-  max-width: 650px;
-  margin: 12px 0 0;
-  color: var(--fz-muted);
-  font-size: 9px;
-  line-height: 1.6;
-}
-.account-form-grid {
-  margin-top: 27px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  align-items: start;
-}
-.account-form-card {
-  min-width: 0;
-  padding: 19px;
-  display: grid;
-  gap: 13px;
-  border: 1px solid var(--fz-line);
-  border-radius: 16px;
-  background: var(--fz-surface-soft);
-}
-.account-form-card > header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-bottom: 13px;
-  border-bottom: 1px solid var(--fz-line);
-}
-.account-form-card > header > span {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 820;
-}
-.account-form-card > header div {
-  display: grid;
-  gap: 2px;
-}
-.account-form-card > header p {
-  margin: 0;
-  color: var(--fz-accent);
-  font-size: 6px;
-  font-weight: 780;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.account-form-card h4 {
-  margin: 0;
-  font-size: 13px;
-  letter-spacing: -0.025em;
-}
-.account-form-card > p {
-  min-height: 29px;
-  margin: 0;
-  color: var(--fz-muted);
-  font-size: 8px;
-  line-height: 1.55;
-}
-.account-form-card label {
-  display: grid;
-  gap: 6px;
-}
-.account-form-card label > span {
-  color: var(--fz-muted);
-  font-size: 7px;
-  font-weight: 700;
-}
-.account-form-card input {
-  width: 100%;
-  height: 39px;
-  padding: 0 11px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  outline: 0;
-  background: var(--fz-surface);
-  color: var(--fz-ink);
-  font: 600 9px inherit;
-  transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
-}
-.account-form-card input:focus {
-  border-color: color-mix(in srgb, var(--fz-accent) 58%, var(--fz-line));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 10%, transparent);
-}
-.account-form-card > button {
-  justify-self: start;
-  min-width: 130px;
-  margin-top: 2px;
-  padding: 10px 13px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--fz-accent);
-  color: #092418;
-  font-size: 8px;
-  font-weight: 780;
-  cursor: pointer;
-}
-.account-form-card > button:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-.account-form-message {
-  min-height: 0 !important;
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-weight: 680;
-}
-.account-form-message.error {
-  background: color-mix(in srgb, var(--fz-negative) 9%, transparent);
-  color: var(--fz-negative);
-}
-.account-form-message.success {
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-}
-.account-form-card input {
-  font-family: inherit;
-  font-size: 9px;
-  font-weight: 600;
-}
-@media (max-width: 1060px) {
-  .account-form-grid {
-    grid-template-columns: 1fr;
-  }
-  .account-document {
-    padding-inline: 28px;
-  }
-}
-@media (max-width: 720px) {
-  .settings-primary {
-    display: flex;
-    gap: 5px;
-    overflow-x: auto;
-  }
-  .settings-primary > button {
-    min-width: 170px;
-    margin: 0;
-  }
-  .account-access-state {
-    display: none;
-  }
-  .account-document {
-    padding: 22px 17px 34px;
-  }
-  .account-document-header h3 {
-    font-size: 22px;
-  }
-  .account-form-grid {
-    margin-top: 20px;
-  }
-  .account-form-card {
-    padding: 16px;
-  }
-}
-
 /* Settings type scale: dense data without dropping below 10 px. */
 .settings-layout {
   grid-template-columns: 220px 290px minmax(0, 1fr);
@@ -2393,43 +1208,18 @@ onBeforeUnmount(() => {
 .settings-secondary > header span,
 .settings-secondary > button > span,
 .settings-secondary > button small,
-.document-header p,
-.document-header > div > span,
-.document-header > code,
-.source-note strong,
-.document-section > header p,
-.document-section > header > span,
-.format-grid > div > span,
-.format-grid small,
-.field-head,
-.field-row b,
-.field-row code,
-.field-row em,
-.field-row > code,
 .importer-group > header h3,
 .importer-group > header span,
 .importer-group > button > span,
 .importer-group > button small,
 .importer-count,
-.account-access-state,
-.account-document-header p,
-.account-document-header > span,
-.account-form-card > header p {
+.account-access-state {
   font-size: 10px;
 }
 .settings-primary > button strong,
 .settings-secondary > button strong,
-.source-note p,
-.format-grid strong,
-.field-row strong,
-.field-row > p,
-.rules-section ul,
 .settings-error p,
-.importer-group > button strong,
-.account-form-card > p,
-.account-form-card label > span,
-.account-form-card > button,
-.account-form-message {
+.importer-group > button strong {
   font-size: 11px;
 }
 .settings-primary footer > span {
@@ -2437,37 +1227,6 @@ onBeforeUnmount(() => {
 }
 .settings-modal-header h2 {
   font-size: 22px;
-}
-.document-header h3 {
-  font-size: 28px;
-}
-.document-description,
-.account-intro {
-  font-size: 12px;
-}
-.document-section h4 {
-  font-size: 15px;
-}
-.field-row {
-  min-height: 64px;
-}
-.field-head,
-.field-row {
-  min-width: 780px;
-  grid-template-columns: minmax(210px, 0.8fr) minmax(330px, 1.25fr) minmax(
-      160px,
-      0.6fr
-    );
-}
-.account-document-header h3 {
-  font-size: 29px;
-}
-.account-form-card h4 {
-  font-size: 15px;
-}
-.account-form-card input {
-  height: 43px;
-  font-size: 12px;
 }
 @media (max-width: 1100px) {
   .settings-layout {
@@ -2485,791 +1244,8 @@ onBeforeUnmount(() => {
   .importer-group > button {
     min-width: 210px;
   }
-  .document-header h3 {
-    font-size: 23px;
-  }
-  .account-document-header h3 {
-    font-size: 24px;
-  }
-  .field-head,
-  .field-row {
-    min-width: 720px;
-  }
 }
 .administration-document {
   min-height: 100%;
-}
-.interface-document {
-  min-height: 100%;
-  padding: 36px 40px 48px;
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--fz-accent) 3%, transparent),
-    transparent 38%
-  );
-}
-.interface-document-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-}
-.interface-document-header > div:first-child {
-  max-width: 600px;
-}
-.interface-document-header p,
-.language-preference-panel > header p,
-.installation-language-copy p {
-  margin: 0 0 6px;
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.interface-document-header h3 {
-  margin: 0;
-  font-size: 30px;
-  letter-spacing: -0.05em;
-}
-.interface-document-header > div:first-child > span {
-  display: block;
-  max-width: 590px;
-  margin-top: 11px;
-  color: var(--fz-muted);
-  font-size: 12px;
-  line-height: 1.6;
-}
-.effective-language {
-  min-width: 178px;
-  padding: 12px 14px;
-  display: grid;
-  grid-template-columns: 40px 1fr 7px;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--fz-accent) 24%, var(--fz-line));
-  border-radius: 15px;
-  background: var(--fz-surface);
-  box-shadow: 0 12px 32px rgba(16, 44, 29, 0.07);
-}
-.effective-language > span {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: var(--fz-surface-soft);
-  font-size: 24px;
-  box-shadow: inset 0 0 0 1px var(--fz-line);
-}
-.effective-language p {
-  margin: 0;
-  display: grid;
-  gap: 2px;
-}
-.effective-language small {
-  color: var(--fz-muted);
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.effective-language strong {
-  font-size: 12px;
-}
-.effective-language > i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--fz-accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fz-accent) 12%, transparent);
-}
-.language-preference-panel {
-  margin-top: 32px;
-  padding: 22px;
-  border: 1px solid var(--fz-line);
-  border-radius: 20px;
-  background: var(--fz-surface);
-}
-.language-preference-panel > header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 17px;
-}
-.language-preference-panel h4,
-.installation-language-copy h4 {
-  margin: 0;
-  font-size: 16px;
-  letter-spacing: -0.025em;
-}
-.language-preference-panel > header > span {
-  padding: 5px 8px;
-  border-radius: 99px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 750;
-}
-.language-choice-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 11px;
-}
-.language-choice {
-  position: relative;
-  min-height: 158px;
-  padding: 16px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 24px;
-  grid-template-rows: auto 1fr;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 16px;
-  outline: 0;
-  background: var(--fz-surface-soft);
-  color: var(--fz-ink);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    box-shadow 0.16s ease,
-    background 0.16s ease;
-}
-.language-choice:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--fz-accent) 32%, var(--fz-line));
-  box-shadow: 0 12px 28px rgba(13, 42, 26, 0.08);
-}
-.language-choice:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 18%, transparent);
-}
-.language-choice.selected {
-  border-color: color-mix(in srgb, var(--fz-accent) 58%, var(--fz-line));
-  background: color-mix(in srgb, var(--fz-accent) 7%, var(--fz-surface));
-  box-shadow:
-    inset 0 -3px var(--fz-accent),
-    0 14px 30px rgba(13, 42, 26, 0.08);
-}
-.language-choice:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
-}
-.language-flag {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--fz-line);
-  border-radius: 14px;
-  background: var(--fz-surface);
-  font-size: 27px;
-  box-shadow: 0 5px 12px rgba(13, 42, 26, 0.06);
-}
-.language-copy {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-.language-copy strong {
-  font-size: 12px;
-  line-height: 1.2;
-}
-.language-copy small {
-  overflow: hidden;
-  color: var(--fz-muted);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.language-check {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--fz-line);
-  border-radius: 50%;
-  color: transparent;
-  font-size: 11px;
-  font-style: normal;
-}
-.language-choice.selected .language-check {
-  border-color: var(--fz-accent);
-  background: var(--fz-accent);
-  color: #092418;
-}
-.language-choice em {
-  grid-column: 1/-1;
-  align-self: end;
-  margin-top: 8px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  font-style: normal;
-  line-height: 1.5;
-}
-.language-feedback {
-  margin: 13px 0 0;
-  padding: 9px 11px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 680;
-}
-.language-feedback.error {
-  background: color-mix(in srgb, var(--fz-negative) 9%, transparent);
-  color: var(--fz-negative);
-}
-.language-feedback.success {
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-}
-.language-feedback.muted {
-  background: var(--fz-surface-soft);
-  color: var(--fz-muted);
-}
-.installation-language-panel {
-  margin-top: 16px;
-  padding: 18px 20px;
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto;
-  align-items: center;
-  gap: 16px;
-  border: 1px dashed color-mix(in srgb, var(--fz-accent) 32%, var(--fz-line));
-  border-radius: 17px;
-  background: color-mix(in srgb, var(--fz-accent) 3%, var(--fz-surface));
-}
-.installation-language-copy {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.installation-language-copy > span {
-  width: 39px;
-  height: 39px;
-  display: grid;
-  place-items: center;
-  border-radius: 11px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 18px;
-}
-.installation-language-copy small {
-  display: block;
-  max-width: 500px;
-  margin-top: 4px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  line-height: 1.45;
-}
-.installation-language-actions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.installation-language-actions label {
-  height: 42px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  background: var(--fz-surface);
-  cursor: pointer;
-}
-.installation-language-actions > button {
-  height: 42px;
-  padding: 0 13px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--fz-accent);
-  color: #092418;
-  font-size: 10px;
-  font-weight: 800;
-  cursor: pointer;
-}
-.installation-language-actions > button:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-.installation-language-panel > .language-feedback {
-  grid-column: 1/-1;
-  margin: 0;
-}
-.withholding-form-row {
-  margin-top: 20px;
-  display: flex;
-  align-items: flex-end;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.withholding-form-row label {
-  display: grid;
-  gap: 6px;
-}
-.withholding-form-row label > span {
-  color: var(--fz-muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-.tax-rate-input-wrap {
-  height: 44px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--fz-line);
-  border-radius: 12px;
-  background: var(--fz-surface-soft);
-  transition: border-color 0.15s ease;
-}
-.tax-rate-input-wrap:focus-within {
-  border-color: var(--fz-accent);
-}
-.tax-rate-input-wrap input {
-  width: 80px;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--fz-ink);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 750;
-  text-align: right;
-}
-.tax-rate-input-wrap strong {
-  color: var(--fz-muted);
-  font-size: 12px;
-}
-.withholding-form-row button {
-  height: 44px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--fz-accent);
-  color: #092418;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-.withholding-form-row button:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-.summary-sources-document {
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--fz-accent) 5%, transparent),
-    transparent 46%
-  );
-}
-.summary-source-status strong {
-  font-variant-numeric: tabular-nums;
-}
-.summary-sources-panel {
-  margin-top: 32px;
-  padding: 22px;
-  border: 1px solid var(--fz-line);
-  border-radius: 20px;
-  background: var(--fz-surface);
-  box-shadow: var(--fz-shadow);
-}
-.summary-sources-panel > header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 4px;
-}
-.summary-sources-panel > header p {
-  margin: 0 0 6px;
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.summary-sources-panel > header h4 {
-  margin: 0;
-  font-size: 17px;
-  letter-spacing: -0.025em;
-}
-.summary-sources-panel > header > span {
-  min-width: 30px;
-  padding: 5px 8px;
-  border-radius: 99px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 800;
-  text-align: center;
-}
-.summary-sources-panel > .document-description {
-  max-width: 630px;
-  margin: 14px 0 0;
-  color: var(--fz-muted);
-  line-height: 1.55;
-}
-.summary-transfer {
-  position: relative;
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 54px minmax(0, 1fr);
-  gap: 14px;
-  align-items: stretch;
-}
-.summary-source-column {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--fz-line);
-  border-radius: 16px;
-  background: var(--fz-surface-soft);
-}
-.summary-source-column > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 2px 3px 10px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.summary-source-column > header strong {
-  color: var(--fz-ink);
-  font-size: 10px;
-  font-weight: 800;
-}
-.summary-source-column > header small {
-  min-width: 22px;
-  padding: 3px 6px;
-  border-radius: 99px;
-  background: var(--fz-surface);
-  font-size: 9px;
-  text-align: center;
-}
-.summary-source-column.included {
-  border-color: color-mix(in srgb, var(--fz-accent) 30%, var(--fz-line));
-  background: color-mix(in srgb, var(--fz-accent) 4%, var(--fz-surface));
-}
-.summary-source-list {
-  display: grid;
-  gap: 7px;
-  min-height: 222px;
-  padding-top: 2px;
-}
-.summary-source-option {
-  width: 100%;
-  min-height: 43px;
-  padding: 7px 9px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: var(--fz-surface);
-  color: var(--fz-ink);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 680;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-.summary-source-option:hover:not(:disabled) {
-  transform: translateX(2px);
-  border-color: color-mix(in srgb, var(--fz-accent) 35%, var(--fz-line));
-}
-.summary-source-option:focus-visible {
-  outline: 0;
-  border-color: var(--fz-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 17%, transparent);
-}
-.summary-source-option.selected {
-  border-color: var(--fz-accent);
-  background: var(--fz-accent-soft);
-  box-shadow: inset 3px 0 var(--fz-accent);
-}
-.summary-source-option:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
-}
-.summary-source-mark {
-  flex: 0 0 auto;
-  width: 25px;
-  height: 25px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 850;
-}
-.summary-source-empty {
-  align-self: center;
-  margin: 0;
-  padding: 12px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  text-align: center;
-}
-.summary-transfer-rail {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 28px 0;
-}
-.summary-transfer-rail:before {
-  content: "";
-  position: absolute;
-  top: 31px;
-  bottom: 31px;
-  width: 2px;
-  background: var(--fz-accent-soft);
-}
-.summary-transfer-rail span {
-  z-index: 1;
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--fz-accent);
-  border-radius: 50%;
-  background: var(--fz-surface);
-}
-.summary-transfer-rail i {
-  z-index: 1;
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--fz-accent);
-  border-radius: 50%;
-  background: var(--fz-accent);
-}
-.summary-transfer-actions {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  gap: 8px;
-  transform: translate(-50%, -50%);
-}
-.summary-transfer-button {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--fz-accent);
-  border-radius: 10px;
-  background: var(--fz-accent);
-  color: var(--fz-ink);
-  cursor: pointer;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--fz-accent) 22%, transparent);
-  transition:
-    transform 0.16s ease,
-    opacity 0.16s ease,
-    background 0.16s ease;
-}
-.summary-transfer-button:first-child {
-  transform: translateY(-47px);
-}
-.summary-transfer-button:last-child {
-  transform: translateY(47px);
-}
-.summary-transfer-button:hover:not(:disabled) {
-  background: var(--fz-accent-soft);
-  transform: translateY(-49px);
-}
-.summary-transfer-button:last-child:hover:not(:disabled) {
-  transform: translateY(49px);
-}
-.summary-transfer-button:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 24%, transparent);
-}
-.summary-transfer-button:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-.summary-transfer-button svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-.summary-sources-footer {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.summary-sources-footer .language-feedback {
-  margin: 0;
-  flex: 1 1 220px;
-}
-.summary-sources-save {
-  min-height: 42px;
-  padding: 0 15px;
-  border: 0;
-  border-radius: 11px;
-  background: var(--fz-accent);
-  color: var(--fz-ink);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
-}
-.summary-sources-save:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-.summary-sources-save:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 25%, transparent);
-}
-.summary-sources-save:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-@media (prefers-reduced-motion: reduce) {
-  .summary-source-option,
-  .summary-transfer-button,
-  .summary-sources-save {
-    transition: none;
-  }
-  .summary-source-option:hover:not(:disabled),
-  .summary-transfer-button:hover:not(:disabled),
-  .summary-transfer-button:last-child:hover:not(:disabled),
-  .summary-sources-save:hover:not(:disabled) {
-    transform: none;
-  }
-}
-@media (max-width: 900px) {
-  .summary-transfer {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .summary-transfer-rail {
-    display: none;
-  }
-  .summary-transfer-actions {
-    position: static;
-    display: flex;
-    justify-content: center;
-    transform: none;
-    order: 2;
-  }
-  .summary-transfer-button:first-child,
-  .summary-transfer-button:last-child {
-    transform: none;
-  }
-  .summary-transfer-button:first-child svg {
-    transform: rotate(90deg);
-  }
-  .summary-transfer-button:last-child svg {
-    transform: rotate(-90deg);
-  }
-  .summary-source-column.included {
-    order: 3;
-  }
-}
-@media (max-width: 720px) {
-  .summary-sources-panel {
-    margin-top: 20px;
-    padding: 15px;
-  }
-  .summary-sources-panel > header {
-    align-items: start;
-  }
-  .summary-sources-panel > header h4 {
-    font-size: 15px;
-  }
-  .summary-source-list {
-    min-height: 150px;
-  }
-  .summary-sources-footer {
-    align-items: stretch;
-    display: grid;
-  }
-  .summary-sources-save {
-    width: 100%;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .language-choice {
-    transition: none;
-  }
-  .language-choice:hover:not(:disabled) {
-    transform: none;
-  }
-}
-@media (max-width: 1100px) {
-  .interface-document {
-    padding-inline: 28px;
-  }
-  .language-choice-grid {
-    grid-template-columns: 1fr;
-  }
-  .language-choice {
-    min-height: 108px;
-  }
-  .installation-language-panel {
-    grid-template-columns: 1fr;
-  }
-  .installation-language-actions {
-    justify-content: flex-start;
-  }
-}
-@media (max-width: 720px) {
-  .interface-document {
-    padding: 22px 17px 34px;
-  }
-  .interface-document-header {
-    display: block;
-  }
-  .interface-document-header h3 {
-    font-size: 24px;
-  }
-  .effective-language {
-    margin-top: 18px;
-  }
-  .language-preference-panel {
-    margin-top: 20px;
-    padding: 15px;
-  }
-  .language-preference-panel > header {
-    display: block;
-  }
-  .language-preference-panel > header > span {
-    display: inline-block;
-    margin-top: 9px;
-  }
-  .language-choice {
-    min-height: 120px;
-  }
-  .installation-language-panel {
-    padding: 15px;
-  }
-  .installation-language-actions {
-    flex-wrap: wrap;
-  }
-  .installation-language-actions > button {
-    width: 100%;
-  }
 }
 </style>

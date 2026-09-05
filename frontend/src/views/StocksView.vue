@@ -1,18 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
 import AssetEditorDialog from "../components/AssetEditorDialog.vue";
 import type { AssetReturnMode } from "../components/AssetReturnToggle.vue";
-import CryptoCandlestickChart from "../components/CryptoCandlestickChart.vue";
 import FundPerformanceChart from "../components/FundPerformanceChart.vue";
 import InvestmentAccountBar from "../components/investments/InvestmentAccountBar.vue";
-import InvestmentAllocationStrip from "../components/investments/InvestmentAllocationStrip.vue";
 import type { InvestmentAllocationItem } from "../components/investments/InvestmentAllocationStrip.vue";
-import InvestmentAddAssetButton from "../components/investments/InvestmentAddAssetButton.vue";
-import InvestmentCollapseButton from "../components/investments/InvestmentCollapseButton.vue";
 import InvestmentOverview from "../components/investments/InvestmentOverview.vue";
-import InvestmentMovementActions from "../components/investments/InvestmentMovementActions.vue";
 import type {
   InvestmentAccountBarLabels,
   InvestmentImportConfig,
@@ -20,6 +15,10 @@ import type {
 import type { InvestmentOverviewLabels } from "../components/investments/InvestmentOverview.vue";
 import MovementDeleteDialog from "../components/MovementDeleteDialog.vue";
 import MovementEditorDialog from "../components/MovementEditorDialog.vue";
+import StockPositionsPanel, {
+  type StockPerformanceRange,
+} from "../components/stocks/StockPositionsPanel.vue";
+import StockMovementsPanel from "../components/stocks/StockMovementsPanel.vue";
 import type {
   MovementDeleteHandle,
   MovementEditorHandle,
@@ -53,7 +52,7 @@ import {
   instrumentTicker,
 } from "../domain/instruments";
 
-type Range = "6m" | "1y" | "2y" | "custom";
+type Range = StockPerformanceRange;
 const { t, n, d, locale } = useI18n();
 const accounts = ref<StockAccount[]>([]);
 const importerCatalog = ref<ImporterCatalogItem[]>([]);
@@ -82,23 +81,9 @@ const assetReturnMode = ref<AssetReturnMode>("percent");
 const cashbackAsBenefit = ref(
   localStorage.getItem("finanzr_ignore_savebacks") !== "false",
 );
-const positionsCollapsed = ref(
-  localStorage.getItem("finanzr-stocks-positions-collapsed") === "true",
-);
-const movementsCollapsed = ref(
-  localStorage.getItem("finanzr-stocks-movements-collapsed") === "true",
-);
-const movementIsin = ref("all");
-const movementType = ref("all");
-const movementStart = ref("");
-const movementEnd = ref("");
-const movementDraftStart = ref("");
-const movementDraftEnd = ref("");
-const movementPage = ref(1);
 const accountDialog = ref<HTMLDialogElement>();
 const calendarDialog = ref<HTMLDialogElement>();
 const chartCalendarDialog = ref<HTMLDialogElement>();
-const movementCalendarDialog = ref<HTMLDialogElement>();
 const accountDialogMode = ref<"create" | "edit">("create");
 const accountName = ref("");
 const accountProvider = ref("");
@@ -150,9 +135,6 @@ const {
   positionSortKey,
   positionSortDirection,
   sortedPositions,
-  baseAmount,
-  basePrice,
-  baseFee,
   sortPositions,
   ariaSort,
 } = useStocksPortfolio({
@@ -235,40 +217,6 @@ const operationAssets = computed(() =>
     currency: instrumentCurrency(instrument),
   })),
 );
-const filteredOrders = computed(() =>
-  [...orders.value]
-    .filter(
-      (order) =>
-        movementIsin.value === "all" || order.isin === movementIsin.value,
-    )
-    .filter(
-      (order) =>
-        movementType.value === "all" ||
-        operationGroup(order) === movementType.value,
-    )
-    .filter(
-      (order) =>
-        !movementStart.value || order.trade_date >= movementStart.value,
-    )
-    .filter(
-      (order) => !movementEnd.value || order.trade_date <= movementEnd.value,
-    )
-    .sort((a, b) => b.trade_date.localeCompare(a.trade_date, locale.value)),
-);
-const movementPages = computed(() =>
-  Math.max(1, Math.ceil(filteredOrders.value.length / 15)),
-);
-const displayedOrders = computed(() =>
-  filteredOrders.value.slice(
-    (movementPage.value - 1) * 15,
-    movementPage.value * 15,
-  ),
-);
-const movementRangeLabel = computed(() =>
-  movementStart.value && movementEnd.value
-    ? `${displayDate(movementStart.value)} → ${displayDate(movementEnd.value)}`
-    : t("stocks.movements.allHistory"),
-);
 const customRangeValid = computed(() =>
   Boolean(
     draftStart.value &&
@@ -281,13 +229,6 @@ const chartCustomRangeValid = computed(() =>
     chartDraftStart.value &&
     chartDraftEnd.value &&
     Date.parse(chartDraftStart.value) <= Date.parse(chartDraftEnd.value),
-  ),
-);
-const movementRangeValid = computed(() =>
-  Boolean(
-    movementDraftStart.value &&
-    movementDraftEnd.value &&
-    Date.parse(movementDraftStart.value) <= Date.parse(movementDraftEnd.value),
   ),
 );
 const positionSortColumns = computed(() => [
@@ -410,13 +351,6 @@ function displayDate(value: string) {
 function money(value: number) {
   return n(value, "currency");
 }
-function originalMoney(value: number, currency?: string) {
-  return n(value, {
-    style: "currency",
-    currency: currency || "EUR",
-    maximumFractionDigits: 2,
-  });
-}
 function percentage(value: number) {
   return n(value, "percent");
 }
@@ -425,21 +359,6 @@ function quantity(value: number) {
 }
 function signedMoney(value: number) {
   return `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
-}
-function hasOriginalCurrency(order: StockOrder) {
-  return Boolean(order.currency && order.currency !== stockBaseCurrency.value);
-}
-function isBuy(order: StockOrder) {
-  return order.operation_type === "buy";
-}
-function operationGroup(order: StockOrder) {
-  return isBuy(order) ? "in" : "out";
-}
-function operationLabel(order: StockOrder) {
-  return isBuy(order) ? t("stocks.movements.buy") : t("stocks.movements.sell");
-}
-function positionReturn(position: StockPosition) {
-  return position.cost ? (position.unrealized_pnl ?? 0) / position.cost : 0;
 }
 function assetTicker(position: StockPosition) {
   const instrument = instrumentById(instruments.value, position.instrument_id);
@@ -509,12 +428,6 @@ function chartQuery() {
   }
   return `range=${chartRange.value}&interval=${chartRange.value === "2y" ? "1wk" : "1d"}`;
 }
-function initializeMovementRange() {
-  if (!orders.value.length || movementStart.value) return;
-  const dates = orders.value.map((order) => order.trade_date).sort();
-  movementStart.value = dates[0];
-  movementEnd.value = dates.at(-1) ?? dates[0];
-}
 async function loadDashboard(showLoading = true, loadSelectedChart = true) {
   const generation = ++dashboardGeneration;
   performanceRequestGeneration += 1;
@@ -559,7 +472,6 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
     orders.value = nextOrders;
     instruments.value = nextInstruments;
     prices.value = nextPrices;
-    initializeMovementRange();
     const available = openPositions.value.map(
       (position) => position.instrument_id,
     );
@@ -713,11 +625,6 @@ async function applyChartCustomRange() {
 }
 async function changeAccount(account: string) {
   selectedAccount.value = account;
-  movementIsin.value = "all";
-  movementType.value = "all";
-  movementStart.value = "";
-  movementEnd.value = "";
-  movementPage.value = 1;
   closePosition();
   syncAccountUrl();
   await loadDashboard(false);
@@ -823,31 +730,6 @@ async function toggleCashback() {
   );
   await loadDashboard(false);
 }
-function openMovementCalendar() {
-  movementDraftStart.value = movementStart.value;
-  movementDraftEnd.value = movementEnd.value;
-  movementCalendarDialog.value?.showModal();
-}
-function applyMovementRange() {
-  if (!movementRangeValid.value) return;
-  movementStart.value = movementDraftStart.value;
-  movementEnd.value = movementDraftEnd.value;
-  movementCalendarDialog.value?.close();
-}
-function togglePositions() {
-  positionsCollapsed.value = !positionsCollapsed.value;
-  localStorage.setItem(
-    "finanzr-stocks-positions-collapsed",
-    String(positionsCollapsed.value),
-  );
-}
-function toggleMovements() {
-  movementsCollapsed.value = !movementsCollapsed.value;
-  localStorage.setItem(
-    "finanzr-stocks-movements-collapsed",
-    String(movementsCollapsed.value),
-  );
-}
 function openNewMovement() {
   movementEditor.value?.openCreate();
 }
@@ -866,9 +748,6 @@ async function handleAssetSaved(asset: EditableAsset) {
   selectedInstrumentId.value = targetInstrumentId;
   await loadChart();
 }
-watch([movementIsin, movementType, movementStart, movementEnd], () => {
-  movementPage.value = 1;
-});
 onMounted(loadDashboard);
 </script>
 
@@ -1041,467 +920,48 @@ onMounted(loadDashboard);
         </div>
       </article>
 
-      <article
-        class="fund-performance-panel positions-panel"
-        :class="{ collapsed: positionsCollapsed }"
-      >
-        <header class="fund-secondary-header">
-          <div>
-            <p class="section-label">{{ t("stocks.positions.section") }}</p>
-            <h2>{{ t("stocks.positions.title") }}</h2>
-            <p class="fund-range-label">
-              {{
-                t(
-                  positions.length === 1
-                    ? "stocks.positions.pricedOne"
-                    : "stocks.positions.pricedMany",
-                  { priced: pricedPositions, total: positions.length },
-                )
-              }}
-              ·
-              {{
-                t("stocks.positions.pricesInCurrency", {
-                  currency: stockBaseCurrency,
-                })
-              }}
-            </p>
-          </div>
-          <div class="stock-secondary-actions">
-            <InvestmentAddAssetButton
-              class="stock-add-asset-button"
-              :label="t('stocks.assets.add')"
-              @add="assetEditor?.openCreate()"
-            />
-            <InvestmentCollapseButton
-              :collapsed="positionsCollapsed"
-              controls="stock-positions-content"
-              :label="
-                t(
-                  positionsCollapsed
-                    ? 'stocks.positions.expandAria'
-                    : 'stocks.positions.collapseAria',
-                )
-              "
-              @toggle="togglePositions"
-            />
-          </div>
-        </header>
-        <div
-          v-show="!positionsCollapsed"
-          id="stock-positions-content"
-          class="fund-positions-content"
-        >
-          <InvestmentAllocationStrip
-            :items="allocationItems"
-            :total="allocationTotal"
-            :account-label="selectedAccountLabel"
-            :title="t('stocks.positions.marketValueDistribution')"
-            :bar-label="t('stocks.positions.marketValueDistributionBarAria')"
-            :empty-label="t('stocks.positions.noMarketValueDistribution')"
-            :format-value="money"
-            :format-share="percentage"
-            :segment-aria="segmentAria"
-          />
-          <div class="fund-table-scroll position-table-scroll">
-            <table class="fund-table position-table">
-              <thead>
-                <tr>
-                  <th
-                    v-for="column in positionSortColumns"
-                    :key="column.key"
-                    :aria-sort="ariaSort(column.key)"
-                  >
-                    <button
-                      type="button"
-                      class="fund-sort-button"
-                      :aria-label="sortAria(column.key, column.label)"
-                      @click="sortPositions(column.key)"
-                    >
-                      {{ column.label }}
-                      <span>{{
-                        positionSortKey === column.key
-                          ? positionSortDirection === "asc"
-                            ? "↑"
-                            : "↓"
-                          : ""
-                      }}</span>
-                    </button>
-                  </th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <template
-                  v-for="position in sortedPositions"
-                  :key="position.instrument_id"
-                  ><tr
-                    class="fund-position-row"
-                    :class="{
-                      active: selectedInstrumentId === position.instrument_id,
-                    }"
-                    @click="togglePosition(position.instrument_id)"
-                  >
-                    <td>
-                      <button
-                        type="button"
-                        class="fund-position-disclosure"
-                        :aria-expanded="
-                          selectedInstrumentId === position.instrument_id
-                        "
-                        :aria-controls="detailId(position.instrument_id)"
-                        :aria-label="
-                          t(
-                            selectedInstrumentId === position.instrument_id
-                              ? 'stocks.positions.collapseChartAria'
-                              : 'stocks.positions.expandChartAria',
-                            { asset: position.name },
-                          )
-                        "
-                        @click.stop="togglePosition(position.instrument_id)"
-                        @keydown.enter.prevent.stop="
-                          togglePosition(position.instrument_id)
-                        "
-                        @keydown.space.prevent.stop="
-                          togglePosition(position.instrument_id)
-                        "
-                      >
-                        <span class="fund-position-disclosure-copy"
-                          ><strong>{{ position.name }}</strong
-                          ><small>{{ positionIdentity(position) }}</small></span
-                        ><span aria-hidden="true">⌄</span>
-                      </button>
-                    </td>
-                    <td>{{ assetTicker(position) }}</td>
-                    <td>{{ money(position.cost) }}</td>
-                    <td>{{ quantity(position.quantity) }}</td>
-                    <td>
-                      {{
-                        money(
-                          position.quantity
-                            ? position.cost / position.quantity
-                            : 0,
-                        )
-                      }}
-                    </td>
-                    <td>
-                      {{
-                        position.current_price == null
-                          ? t("stocks.positions.pending")
-                          : money(position.current_price)
-                      }}
-                    </td>
-                    <td>
-                      {{
-                        position.current_value == null
-                          ? "—"
-                          : money(position.current_value)
-                      }}
-                    </td>
-                    <td
-                      :class="{
-                        positive: (position.unrealized_pnl ?? 0) >= 0,
-                        negative: (position.unrealized_pnl ?? 0) < 0,
-                      }"
-                    >
-                      <strong>{{
-                        position.unrealized_pnl == null
-                          ? "—"
-                          : signedMoney(position.unrealized_pnl)
-                      }}</strong>
-                    </td>
-                    <td
-                      :class="{
-                        positive: positionReturn(position) >= 0,
-                        negative: positionReturn(position) < 0,
-                      }"
-                    >
-                      <strong>{{
-                        percentage(positionReturn(position))
-                      }}</strong>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        class="fund-edit-icon-button"
-                        :aria-label="t('stocks.positions.editAria')"
-                        @click.stop="
-                          assetEditor?.openEdit(
-                            instrumentById(instruments, position.instrument_id),
-                          )
-                        "
-                      >
-                        ✎
-                      </button>
-                    </td>
-                  </tr>
-                  <tr
-                    v-if="selectedInstrumentId === position.instrument_id"
-                    class="fund-inline-detail-row"
-                  >
-                    <td :colspan="positionSortColumns.length + 1">
-                      <div
-                        :id="detailId(position.instrument_id)"
-                        class="fund-inline-price-panel"
-                        role="region"
-                        :aria-label="
-                          t('stocks.positions.priceDetailAria', {
-                            asset: position.name,
-                          })
-                        "
-                      >
-                        <div class="fund-inline-chart-toolbar">
-                          <div class="fund-chart-legend">
-                            <span
-                              >▌ {{ t("stocks.chart.risingCandle") }} /
-                              {{ t("stocks.chart.fallingCandle") }}</span
-                            ><span>╍ {{ t("stocks.chart.averagePrice") }}</span
-                            ><span>+ {{ t("stocks.movements.buy") }}</span
-                            ><span>− {{ t("stocks.movements.sell") }}</span>
-                          </div>
-                          <div class="fund-inline-range">
-                            <p class="fund-range-label">
-                              {{ chartRangeLabel }}
-                            </p>
-                            <div
-                              class="fund-range-control"
-                              :aria-label="t('stocks.chart.rangeAria')"
-                            >
-                              <button
-                                v-for="item in ranges"
-                                :key="item.key"
-                                type="button"
-                                :class="{ active: chartRange === item.key }"
-                                :aria-pressed="chartRange === item.key"
-                                @click="selectChartRange(item.key)"
-                              >
-                                {{ item.label }}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <div v-if="chartLoading" class="fund-chart-state">
-                          {{ t("stocks.chart.loading") }}
-                        </div>
-                        <div
-                          v-else-if="chartError"
-                          class="fund-chart-state error-state"
-                        >
-                          <strong>{{ t("stocks.chart.unavailable") }}</strong>
-                          <p>{{ chartError }}</p>
-                          <button type="button" @click="loadChart()">
-                            {{ t("stocks.retry") }}
-                          </button>
-                        </div>
-                        <CryptoCandlestickChart
-                          v-else-if="chartPoints.length"
-                          :points="chartPoints"
-                          :operations="selectedChartOrders"
-                          :average-price="averagePrice"
-                          operation-marker-shape="pin"
-                        />
-                        <div v-else class="fund-chart-state">
-                          {{ t("stocks.chart.empty") }}
-                        </div>
-                      </div>
-                    </td>
-                  </tr></template
-                >
-              </tbody>
-            </table>
-          </div>
-          <div v-if="!sortedPositions.length" class="fund-empty-compact">
-            {{ t("stocks.assets.emptyDescription") }}
-          </div>
-        </div>
-      </article>
-
-      <article
-        class="fund-performance-panel movements-panel"
-        :class="{ collapsed: movementsCollapsed }"
-      >
-        <header class="fund-secondary-header">
-          <div>
-            <p class="section-label">{{ t("stocks.movements.section") }}</p>
-            <h2>{{ t("stocks.movements.title") }}</h2>
-            <p class="fund-range-label">
-              {{
-                t(
-                  filteredOrders.length === 1
-                    ? "stocks.movements.operation"
-                    : "stocks.movements.operations",
-                  { count: filteredOrders.length },
-                )
-              }}
-              · {{ movementRangeLabel }}
-            </p>
-          </div>
-          <div class="fund-collapsible-actions">
-            <div v-show="!movementsCollapsed" class="movement-filters">
-              <button
-                type="button"
-                class="add-movement"
-                @click="openNewMovement"
-              >
-                + {{ t("stocks.movements.add") }}</button
-              ><select
-                v-model="movementIsin"
-                :aria-label="t('stocks.movements.assetFilterAria')"
-              >
-                <option value="all">
-                  {{ t("stocks.movements.allAssets") }}
-                </option>
-                <option
-                  v-for="position in positions"
-                  :key="position.instrument_id"
-                  :value="positionIdentity(position)"
-                >
-                  {{ position.name }}
-                </option></select
-              ><select
-                v-model="movementType"
-                :aria-label="t('stocks.movements.filterTypeAria')"
-              >
-                <option value="all">
-                  {{ t("stocks.movements.allMovements") }}
-                </option>
-                <option value="in">{{ t("stocks.movements.entries") }}</option>
-                <option value="out">
-                  {{ t("stocks.movements.exits") }}
-                </option></select
-              ><button
-                type="button"
-                :aria-label="t('stocks.movements.dateFilterAria')"
-                @click="openMovementCalendar"
-              >
-                {{ movementRangeLabel }}
-              </button>
-            </div>
-            <InvestmentCollapseButton
-              :collapsed="movementsCollapsed"
-              controls="stock-movements-content"
-              :label="
-                t(
-                  movementsCollapsed
-                    ? 'stocks.movements.expandAria'
-                    : 'stocks.movements.collapseAria',
-                )
-              "
-              @toggle="toggleMovements"
-            />
-          </div>
-        </header>
-        <div v-show="!movementsCollapsed" id="stock-movements-content">
-          <div class="fund-table-scroll">
-            <table class="fund-table movement-table">
-              <thead>
-                <tr>
-                  <th>{{ t("stocks.movements.date") }}</th>
-                  <th>{{ t("stocks.movements.movement") }}</th>
-                  <th>{{ t("stocks.movements.asset") }}</th>
-                  <th>{{ t("stocks.movements.account") }}</th>
-                  <th>{{ t("stocks.movements.quantity") }}</th>
-                  <th>{{ t("stocks.movements.price") }}</th>
-                  <th>{{ t("stocks.movements.amount") }}</th>
-                  <th>{{ t("stocks.movements.fee") }}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="order in displayedOrders" :key="order.id">
-                  <td>{{ displayDate(order.trade_date) }}</td>
-                  <td>
-                    <span class="operation-pill" :class="operationGroup(order)"
-                      >{{ operationLabel(order)
-                      }}<small v-if="order.is_saveback">{{
-                        t("stocks.movements.cashback")
-                      }}</small></span
-                    >
-                  </td>
-                  <td>
-                    <strong>{{ order.asset_name }}</strong
-                    ><small>{{ order.isin }}</small>
-                  </td>
-                  <td>
-                    {{ order.account_name ?? selectedAccountLabel
-                    }}<small>{{ order.platform }}</small>
-                  </td>
-                  <td>{{ quantity(order.quantity) }}</td>
-                  <td>
-                    {{ money(basePrice(order))
-                    }}<small v-if="hasOriginalCurrency(order)">{{
-                      t("stocks.movements.originalValue", {
-                        value: originalMoney(order.unit_price, order.currency),
-                      })
-                    }}</small>
-                  </td>
-                  <td>
-                    <strong>{{ money(baseAmount(order)) }}</strong
-                    ><small v-if="hasOriginalCurrency(order)">{{
-                      t("stocks.movements.originalValue", {
-                        value: originalMoney(order.net_amount, order.currency),
-                      })
-                    }}</small>
-                  </td>
-                  <td>
-                    {{ money(baseFee(order)) }}
-                    <small v-if="hasOriginalCurrency(order)">{{
-                      t("stocks.movements.originalFee", {
-                        value: originalMoney(order.fee, order.currency),
-                      })
-                    }}</small>
-                  </td>
-                  <td>
-                    <InvestmentMovementActions
-                      :edit-label="
-                        t('stocks.movements.editAria', {
-                          asset: order.asset_name,
-                        })
-                      "
-                      :delete-label="
-                        t('stocks.movements.deleteAria', {
-                          asset: order.asset_name,
-                        })
-                      "
-                      @edit="openEditMovement(order)"
-                      @delete="askDeleteOrder(order)"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div v-if="!filteredOrders.length" class="fund-empty-compact">
-            {{ t("stocks.movements.noResults") }}
-          </div>
-          <nav
-            v-else-if="movementPages > 1"
-            class="movement-pagination"
-            :aria-label="t('stocks.movements.paginationAria')"
-          >
-            <span>{{
-              t("stocks.movements.page", {
-                page: movementPage,
-                pages: movementPages,
-              })
-            }}</span>
-            <div>
-              <button
-                type="button"
-                :disabled="movementPage === 1"
-                @click="movementPage--"
-              >
-                {{ t("stocks.movements.previous") }}</button
-              ><button
-                type="button"
-                :disabled="movementPage === movementPages"
-                @click="movementPage++"
-              >
-                {{ t("stocks.movements.next") }}
-              </button>
-            </div>
-          </nav>
-        </div>
-      </article>
+      <StockPositionsPanel
+        :positions="positions"
+        :priced-positions="pricedPositions"
+        :selected-account-label="selectedAccountLabel"
+        :base-currency="stockBaseCurrency"
+        :allocation-items="allocationItems"
+        :allocation-total="allocationTotal"
+        :sorted-positions="sortedPositions"
+        :position-sort-columns="positionSortColumns"
+        :position-sort-key="positionSortKey"
+        :position-sort-direction="positionSortDirection"
+        :selected-instrument-id="selectedInstrumentId"
+        :selected-chart-orders="selectedChartOrders"
+        :average-price="averagePrice"
+        :chart-points="chartPoints"
+        :chart-loading="chartLoading"
+        :chart-error="chartError"
+        :chart-range-label="chartRangeLabel"
+        :ranges="ranges"
+        :chart-range="chartRange"
+        :format-money="money"
+        :format-percentage="percentage"
+        :format-quantity="quantity"
+        :format-signed-money="signedMoney"
+        :position-identity="positionIdentity"
+        :asset-ticker="assetTicker"
+        :market-value-segment-aria="segmentAria"
+        :position-aria-sort="ariaSort"
+        :position-sort-aria="sortAria"
+        :detail-id="detailId"
+        @toggle-position="togglePosition"
+        @select-chart-range="selectChartRange"
+        @retry-chart="loadChart"
+        @edit-position="
+          (position) =>
+            assetEditor?.openEdit(
+              instrumentById(instruments, position.instrument_id),
+            )
+        "
+        @add-asset="assetEditor?.openCreate()"
+        @sort="sortPositions"
+      />
 
       <MovementEditorDialog
         ref="movementEditor"
@@ -1603,47 +1063,6 @@ onMounted(loadDashboard);
         </form>
       </dialog>
       <dialog
-        ref="movementCalendarDialog"
-        class="stock-dialog"
-        aria-labelledby="stocks-movement-calendar-title"
-      >
-        <form @submit.prevent="applyMovementRange">
-          <header>
-            <h2 id="stocks-movement-calendar-title">
-              {{ t("stocks.calendar.selectDates") }}
-            </h2>
-          </header>
-          <div class="stock-calendar-fields">
-            <label
-              ><span>{{ t("stocks.calendar.from") }}</span
-              ><input
-                v-model="movementDraftStart"
-                type="date"
-                :max="movementDraftEnd"
-                required /></label
-            ><label
-              ><span>{{ t("stocks.calendar.to") }}</span
-              ><input
-                v-model="movementDraftEnd"
-                type="date"
-                :min="movementDraftStart"
-                required
-            /></label>
-          </div>
-          <footer>
-            <button type="button" @click="movementCalendarDialog?.close()">
-              {{ t("stocks.calendar.cancel") }}</button
-            ><button
-              class="primary"
-              type="submit"
-              :disabled="!movementRangeValid"
-            >
-              {{ t("stocks.calendar.applyFilter") }}
-            </button>
-          </footer>
-        </form>
-      </dialog>
-      <dialog
         ref="accountDialog"
         class="stock-dialog"
         aria-labelledby="stocks-account-dialog-title"
@@ -1729,6 +1148,21 @@ onMounted(loadDashboard);
         </form>
       </dialog>
     </template>
+    <StockMovementsPanel
+      v-show="!loading && !error"
+      :orders="orders"
+      :positions="positions"
+      :selected-account-label="selectedAccountLabel"
+      :account-key="selectedAccount"
+      :base-currency="stockBaseCurrency"
+      :format-money="money"
+      :format-quantity="quantity"
+      :display-date="displayDate"
+      :position-identity="positionIdentity"
+      @add="openNewMovement"
+      @edit="openEditMovement"
+      @delete="askDeleteOrder"
+    />
   </section>
 </template>
 
@@ -1748,9 +1182,7 @@ onMounted(loadDashboard);
   border-radius: 22px;
   background: var(--fz-surface-soft);
 }
-.stock-performance-panel,
-.positions-panel,
-.movements-panel {
+.stock-performance-panel {
   margin-top: 20px;
   padding: 24px;
   border: 1px solid var(--fz-line);
@@ -1758,15 +1190,13 @@ onMounted(loadDashboard);
   background: var(--fz-surface);
   box-shadow: var(--fz-shadow);
 }
-.fund-performance-header,
-.fund-secondary-header {
+.fund-performance-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
 }
-.fund-performance-header h2,
-.fund-secondary-header h2 {
+.fund-performance-header h2 {
   margin: 0;
   font-size: 20px;
 }
@@ -1775,8 +1205,7 @@ onMounted(loadDashboard);
   color: var(--fz-muted);
   font-size: 11px;
 }
-.stock-performance-controls,
-.fund-collapsible-actions {
+.stock-performance-controls {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1850,121 +1279,7 @@ onMounted(loadDashboard);
 .cashback-control input {
   accent-color: var(--fz-accent);
 }
-.stock-secondary-actions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.stock-secondary-actions
-  > button:not(.fund-collapse-button):not(.stock-add-asset-button) {
-  min-height: 32px;
-  padding: 7px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--fz-muted);
-  cursor: pointer;
-}
-.fund-positions-content {
-  margin-top: 17px;
-}
-.fund-table-scroll {
-  overflow-x: auto;
-}
-.fund-table {
-  width: 100%;
-  min-width: 980px;
-  margin-top: 18px;
-  border-collapse: collapse;
-  font-size: 11px;
-}
-.position-table-scroll .fund-table {
-  margin-top: 0;
-}
-.fund-table th {
-  padding: 0 10px 9px;
-  color: var(--fz-muted);
-  text-align: right;
-}
-.fund-table th:first-child {
-  text-align: left;
-}
-.fund-table td {
-  padding: 11px 10px;
-  border-top: 1px solid var(--fz-line);
-  text-align: right;
-  vertical-align: middle;
-  font-variant-numeric: tabular-nums;
-}
-.fund-table td:first-child {
-  text-align: left;
-}
-.fund-table td small {
-  display: block;
-  margin-top: 3px;
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-.fund-sort-button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-.fund-position-disclosure {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--fz-ink);
-  text-align: left;
-  cursor: pointer;
-}
-.fund-position-disclosure-copy {
-  display: grid;
-  min-width: 0;
-}
-.fund-position-disclosure-copy strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fund-edit-icon-button {
-  border: 1px solid var(--fz-line);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--fz-muted);
-  cursor: pointer;
-}
-.fund-inline-detail-row td {
-  padding: 0;
-  background: var(--fz-surface-soft);
-}
-.fund-inline-price-panel {
-  padding: 17px;
-}
-.fund-inline-chart-toolbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  margin-bottom: 10px;
-}
-.fund-chart-legend {
-  display: flex;
-  gap: 10px;
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-.fund-inline-range {
-  display: grid;
-  justify-items: end;
-}
-.fund-chart-state,
-.fund-empty-compact {
+.fund-chart-state {
   min-height: 180px;
   display: grid;
   place-content: center;
@@ -1975,73 +1290,6 @@ onMounted(loadDashboard);
 }
 .fund-chart-state strong {
   color: var(--fz-ink);
-}
-.movement-filters {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
-}
-.movement-filters select,
-.movement-filters button {
-  min-height: 34px;
-  padding: 7px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 9px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-ink);
-  font-size: 11px;
-}
-.movement-filters .add-movement {
-  background: var(--fz-accent);
-  color: #fff;
-}
-.operation-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--fz-accent) 12%, transparent);
-  color: var(--fz-accent);
-  white-space: nowrap;
-}
-.operation-pill.out {
-  background: color-mix(in srgb, var(--fz-negative) 12%, transparent);
-  color: var(--fz-negative);
-}
-.operation-pill small {
-  display: inline;
-  margin-left: 0;
-}
-.movement-row-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 5px;
-}
-.movement-row-actions button {
-  padding: 5px 7px;
-  border: 1px solid var(--fz-line);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-.delete-order {
-  color: var(--fz-negative) !important;
-}
-.movement-pagination {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 15px;
-  color: var(--fz-muted);
-  font-size: 11px;
-}
-.movement-pagination button {
-  padding: 7px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fz-muted);
 }
 .stock-dialog {
   width: min(540px, calc(100vw - 32px));
@@ -2120,43 +1368,26 @@ onMounted(loadDashboard);
   .stocks-page {
     padding-inline: 28px;
   }
-  .fund-performance-header,
-  .fund-secondary-header {
+  .fund-performance-header {
     align-items: stretch;
     flex-direction: column;
   }
   .stock-performance-meta {
     grid-template-columns: repeat(3, 1fr);
   }
-  .fund-inline-chart-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .fund-inline-range {
-    justify-items: start;
-  }
 }
 @media (max-width: 720px) {
   .stocks-page {
     padding: 4px 18px 32px;
   }
-  .stock-performance-panel,
-  .positions-panel,
-  .movements-panel {
+  .stock-performance-panel {
     padding: 19px 17px;
   }
   .stock-performance-meta {
     grid-template-columns: repeat(2, 1fr);
   }
-  .stock-performance-controls,
-  .fund-collapsible-actions {
+  .stock-performance-controls {
     flex-wrap: wrap;
-  }
-  .fund-inline-range {
-    justify-items: start;
-  }
-  .movement-filters > * {
-    width: 100%;
   }
   .stock-calendar-fields {
     grid-template-columns: 1fr;
