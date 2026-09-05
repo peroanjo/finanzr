@@ -12,14 +12,12 @@ from apps.portfolio.models import ManualAsset
 from apps.users.models import User
 from rest_framework.test import APIClient
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.mark.django_db(transaction=True)
 def test_analysis_endpoints_expose_only_the_native_position_contract(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     common = {
         "instrument_id",
         "kind",
@@ -72,7 +70,7 @@ def test_native_position_projection_fails_loudly_for_an_orphan() -> None:
 
 @pytest.mark.django_db(transaction=True)
 def test_native_position_projection_uses_visible_instrument_name(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
     instrument = Instrument.objects.get(name="Synthetic Stock")
     isin = instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value

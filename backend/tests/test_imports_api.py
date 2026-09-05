@@ -7,14 +7,12 @@ from apps.users.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.mark.django_db(transaction=True)
 def test_registered_parser_upload_is_persisted_and_deduplicated(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     content = (
         b"txid,pair,time,type,price,cost,fee,vol\n"
         b"new-tx,BTC/EUR,2026-07-20 12:00:00,buy,100000,100,1,0.001\n"
@@ -70,9 +68,9 @@ def test_registered_parser_upload_is_persisted_and_deduplicated(
 
 @pytest.mark.django_db(transaction=True)
 def test_account_importer_is_required_compatible_and_drives_the_upload(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
 
     missing = client.post(
         "/api/crypto-accounts",
@@ -117,9 +115,9 @@ def test_account_importer_is_required_compatible_and_drives_the_upload(
 
 @pytest.mark.django_db(transaction=True)
 def test_upload_contract_distinguishes_direct_and_account_bound_multipart(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     account = Account.objects.get(kind=Account.Kind.CRYPTO)
     raw = b"not parsed because the multipart contract is rejected first"
 

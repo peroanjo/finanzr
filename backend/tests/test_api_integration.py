@@ -42,6 +42,6 @@ def test_read_endpoints_are_served_from_django_models(api_context: tuple[APIClie
 
 
 @pytest.mark.django_db(transaction=True)
-def test_api_requires_authentication(api_context: tuple[APIClient, User]) -> None:
+def test_api_requires_authentication(api_session: tuple[APIClient, User]) -> None:
     anonymous = APIClient()
     assert anonymous.get("/api/summary").status_code in {401, 403}

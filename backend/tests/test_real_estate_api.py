@@ -6,14 +6,12 @@ from apps.common.models import InstallationSettings
 from apps.users.models import User
 from rest_framework.test import APIClient
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.mark.django_db(transaction=True)
 def test_real_estate_keeps_empty_expected_profit_for_client_fallback(
-    api_context: tuple[APIClient, User],
+    real_estate_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = real_estate_context
 
     projects = client.get("/api/real-estate").json()
     malaga = next(item for item in projects if item["name"] == "Synthetic project")
@@ -23,9 +21,9 @@ def test_real_estate_keeps_empty_expected_profit_for_client_fallback(
 
 @pytest.mark.django_db(transaction=True)
 def test_real_estate_uses_uuid_and_native_fields(
-    api_context: tuple[APIClient, User],
+    real_estate_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = real_estate_context
 
     project = client.get("/api/real-estate").json()[0]
 
@@ -70,9 +68,9 @@ def test_real_estate_uses_uuid_and_native_fields(
 
 @pytest.mark.django_db(transaction=True)
 def test_real_estate_preserves_multiple_dated_movements(
-    api_context: tuple[APIClient, User],
+    real_estate_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = real_estate_context
 
     response = client.post(
         "/api/real-estate",
@@ -169,9 +167,9 @@ def test_real_estate_preserves_multiple_dated_movements(
 
 @pytest.mark.django_db(transaction=True)
 def test_real_estate_persists_and_updates_custom_tax_rate(
-    api_context: tuple[APIClient, User],
+    real_estate_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = real_estate_context
 
     invalid_payload = {
         "name": "Proyecto inválido",

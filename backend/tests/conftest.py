@@ -21,24 +21,44 @@ from rest_framework.test import APIClient
 
 
 @pytest.fixture
-def api_context() -> tuple[APIClient, User]:
+def api_session() -> tuple[APIClient, User]:
     workspace = Workspace.objects.create(
         name="Synthetic API",
         slug="personal",
         base_currency="EUR",
         timezone="Europe/Madrid",
     )
+
     user = User.objects.create_user(
         email="owner@example.com",
         password="synthetic-password",
     )
+
     WorkspaceMembership.objects.create(
         workspace=workspace,
         user=user,
         role=WorkspaceMembership.Role.OWNER,
     )
+
     InstallationSettings.load()
 
+    client = APIClient()
+
+    client.force_authenticate(user=user)
+
+    session = client.session
+
+    session["active_workspace_id"] = str(workspace.pk)
+
+    session.save()
+
+    return client, user
+
+
+@pytest.fixture
+def snapshot_context(api_session: tuple[APIClient, User]) -> tuple[APIClient, User]:
+    _, user = api_session
+    workspace = user.memberships.get().workspace
     savings = Account.objects.create(
         workspace=workspace,
         name="Synthetic savings",
@@ -48,6 +68,7 @@ def api_context() -> tuple[APIClient, User]:
         currency="EUR",
         external_id="legacy:savings:1",
     )
+
     investment = Account.objects.create(
         workspace=workspace,
         name="Synthetic investment",
@@ -56,35 +77,6 @@ def api_context() -> tuple[APIClient, User]:
         provider_label="Demo Broker",
         currency="EUR",
         external_id="legacy:manual_investment:1",
-    )
-    funds = Account.objects.create(
-        workspace=workspace,
-        name="Synthetic funds",
-        kind=Account.Kind.FUNDS,
-        subtype="Renta Variable",
-        provider_label="MyInvestor",
-        importer_slug="fund_broker",
-        currency="EUR",
-        external_id="legacy:funds:1",
-    )
-    stocks = Account.objects.create(
-        workspace=workspace,
-        name="Synthetic stocks",
-        kind=Account.Kind.STOCKS,
-        subtype="Broker",
-        provider_label="Trade Republic",
-        importer_slug="trade_republic",
-        currency="EUR",
-        external_id="legacy:stocks:1",
-    )
-    crypto = Account.objects.create(
-        workspace=workspace,
-        name="Synthetic crypto",
-        kind=Account.Kind.CRYPTO,
-        provider_label="KrakenPro",
-        importer_slug="kraken_spot",
-        currency="EUR",
-        external_id="legacy:crypto:1",
     )
 
     for account, value, contribution in (
@@ -107,22 +99,64 @@ def api_context() -> tuple[APIClient, User]:
             fx_source="identity",
         )
 
+    return api_session
+
+
+@pytest.fixture
+def traded_context(api_session: tuple[APIClient, User]) -> tuple[APIClient, User]:
+    _, user = api_session
+    workspace = user.memberships.get().workspace
+    funds = Account.objects.create(
+        workspace=workspace,
+        name="Synthetic funds",
+        kind=Account.Kind.FUNDS,
+        subtype="Renta Variable",
+        provider_label="MyInvestor",
+        importer_slug="fund_broker",
+        currency="EUR",
+        external_id="legacy:funds:1",
+    )
+
+    stocks = Account.objects.create(
+        workspace=workspace,
+        name="Synthetic stocks",
+        kind=Account.Kind.STOCKS,
+        subtype="Broker",
+        provider_label="Trade Republic",
+        importer_slug="trade_republic",
+        currency="EUR",
+        external_id="legacy:stocks:1",
+    )
+
+    crypto = Account.objects.create(
+        workspace=workspace,
+        name="Synthetic crypto",
+        kind=Account.Kind.CRYPTO,
+        provider_label="KrakenPro",
+        importer_slug="kraken_spot",
+        currency="EUR",
+        external_id="legacy:crypto:1",
+    )
+
     fund = Instrument.objects.create(
         kind=Instrument.Kind.FUND,
         name="Synthetic Fund",
         quote_currency="EUR",
         metadata={"asset_class": "Renta variable", "subtype": "Global"},
     )
+
     stock = Instrument.objects.create(
         kind=Instrument.Kind.STOCK,
         name="Synthetic Stock",
         quote_currency="EUR",
     )
+
     crypto_asset = Instrument.objects.create(
         kind=Instrument.Kind.CRYPTO,
         name="Synthetic Bitcoin",
         quote_currency="EUR",
     )
+
     for instrument, scheme, identifier_value in (
         (fund, InstrumentIdentifier.Scheme.ISIN, "SYNTH-FUND-001"),
         (stock, InstrumentIdentifier.Scheme.ISIN, "SYNTH-STOCK-001"),
@@ -135,6 +169,7 @@ def api_context() -> tuple[APIClient, User]:
             venue="",
             is_primary=True,
         )
+
     for instrument, ticker in (
         (fund, "SYNTH-FUND-EUR"),
         (stock, "SYNTH-STOCK-EUR"),
@@ -147,6 +182,7 @@ def api_context() -> tuple[APIClient, User]:
             venue="",
             is_primary=True,
         )
+
     for instrument in (fund, stock, crypto_asset):
         WorkspaceInstrument.objects.create(workspace=workspace, instrument=instrument)
 
@@ -206,6 +242,7 @@ def api_context() -> tuple[APIClient, User]:
         name="Synthetic Fund",
         market="DEMO",
     )
+
     buy_transaction(
         account=stocks,
         instrument=stock,
@@ -219,6 +256,7 @@ def api_context() -> tuple[APIClient, User]:
         provider_operation_type="Compra",
         name="Synthetic Stock",
     )
+
     buy_transaction(
         account=crypto,
         instrument=crypto_asset,
@@ -234,6 +272,7 @@ def api_context() -> tuple[APIClient, User]:
     )
 
     quoted_at = datetime(2026, 1, 31, 12, tzinfo=UTC)
+
     for instrument, close in (
         (fund, Decimal("11")),
         (stock, Decimal("55")),
@@ -247,6 +286,7 @@ def api_context() -> tuple[APIClient, User]:
             currency="EUR",
             source="synthetic-fixture",
         )
+
     StockSplit.objects.create(
         workspace=workspace,
         instrument=stock,
@@ -255,6 +295,13 @@ def api_context() -> tuple[APIClient, User]:
         source="Synthetic fixture",
     )
 
+    return api_session
+
+
+@pytest.fixture
+def real_estate_context(api_session: tuple[APIClient, User]) -> tuple[APIClient, User]:
+    _, user = api_session
+    workspace = user.memberships.get().workspace
     project = RealEstateInvestment.objects.create(
         workspace=workspace,
         provider_label="Demo Platform",
@@ -268,6 +315,7 @@ def api_context() -> tuple[APIClient, User]:
         origin="Ahorro",
         currency="EUR",
     )
+
     RealEstateCashFlow.objects.create(
         investment=project,
         effective_date=date(2026, 1, 1),
@@ -276,6 +324,14 @@ def api_context() -> tuple[APIClient, User]:
         is_external=True,
         source_note="Synthetic fixture",
     )
+
+    return api_session
+
+
+@pytest.fixture
+def portfolio_context(api_session: tuple[APIClient, User]) -> tuple[APIClient, User]:
+    _, user = api_session
+    workspace = user.memberships.get().workspace
     ManualAsset.objects.create(
         workspace=workspace,
         provider_label="Manual",
@@ -286,6 +342,20 @@ def api_context() -> tuple[APIClient, User]:
         currency="EUR",
         valued_at=date(2026, 1, 31),
     )
+
+    return api_session
+
+
+@pytest.fixture
+def api_context(
+    snapshot_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
+    real_estate_context: tuple[APIClient, User],
+    portfolio_context: tuple[APIClient, User],
+) -> tuple[APIClient, User]:
+    """Seed every domain only for cross-domain integration and export scenarios."""
+    client, user = snapshot_context
+    workspace = user.memberships.get().workspace
     BudgetLine.objects.create(
         workspace=workspace,
         category="Synthetic needs",
@@ -294,9 +364,5 @@ def api_context() -> tuple[APIClient, User]:
         line_type="Necesidad",
         sort_order=0,
     )
-    client = APIClient()
-    client.force_authenticate(user=user)
-    session = client.session
-    session["active_workspace_id"] = str(workspace.pk)
-    session.save()
+
     return client, user

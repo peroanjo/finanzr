@@ -21,14 +21,12 @@ from django.core.cache import cache
 from django.db import connection
 from rest_framework.test import APIClient
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.mark.django_db(transaction=True)
 def test_crypto_chart_returns_ohlc_data(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     monkeypatch.setattr(
         market_views,
         "yahoo_chart",
@@ -74,9 +72,9 @@ def test_crypto_chart_returns_ohlc_data(
 
 @pytest.mark.django_db(transaction=True)
 def test_market_charts_use_native_uuid_rows_and_per_date_fx(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     instrument_ids: dict[str, str] = {
         "fund": str(Instrument.objects.get(kind=Instrument.Kind.FUND).pk),
         "stock": str(Instrument.objects.get(kind=Instrument.Kind.STOCK).pk),
@@ -177,9 +175,9 @@ def test_market_charts_use_native_uuid_rows_and_per_date_fx(
 
 @pytest.mark.django_db(transaction=True)
 def test_market_chart_uuid_scope_rejects_before_provider_access(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     fund = Instrument.objects.get(kind=Instrument.Kind.FUND)
     foreign_workspace = Workspace.objects.create(
         name="Foreign chart workspace",
@@ -215,9 +213,9 @@ def test_market_chart_uuid_scope_rejects_before_provider_access(
 
 @pytest.mark.django_db(transaction=True)
 def test_market_chart_preserves_provider_and_currency_errors(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     stock = Instrument.objects.get(kind=Instrument.Kind.STOCK)
     monkeypatch.setattr(market_views, "yahoo_ticker", lambda _instrument: "SYNTH")
 
@@ -249,9 +247,9 @@ def test_market_chart_preserves_provider_and_currency_errors(
 
 @pytest.mark.django_db(transaction=True)
 def test_stock_split_mutations_target_the_canonical_instrument_only(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, owner = api_context
+    client, owner = traded_context
     canonical = "SPLIT-SHARED-001"
     first = client.post(
         "/api/stocks",
@@ -340,9 +338,9 @@ def test_stock_split_mutations_target_the_canonical_instrument_only(
 
 @pytest.mark.django_db(transaction=True)
 def test_native_stock_split_contract_rejects_invalid_payloads_without_mutation(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, owner = api_context
+    client, owner = traded_context
     stock = Instrument.objects.get(
         identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
         identifiers__value="SYNTH-STOCK-001",
@@ -486,9 +484,9 @@ def _foreign_stock_split(label: str) -> StockSplit:
 
 @pytest.mark.django_db(transaction=True)
 def test_stock_split_instrument_isolation_rejects_foreign_post_and_hides_foreign_rows(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     current_workspace = _active_workspace(client)
     current_stock = Instrument.objects.get(
         identifiers__scheme=InstrumentIdentifier.Scheme.ISIN,
@@ -522,9 +520,9 @@ def test_stock_split_instrument_isolation_rejects_foreign_post_and_hides_foreign
 @pytest.mark.parametrize("target", ("foreign", "missing", "wrong-kind", "malformed", "legacy"))
 @pytest.mark.django_db(transaction=True)
 def test_stock_split_delete_is_scoped_and_rejects_non_native_routes(
-    api_context: tuple[APIClient, User], target: str
+    traded_context: tuple[APIClient, User], target: str
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     current_workspace = _active_workspace(client)
     current_split = StockSplit.objects.get(workspace=current_workspace)
     wrong_kind_split = None
@@ -562,9 +560,9 @@ def test_stock_split_delete_is_scoped_and_rejects_non_native_routes(
 
 @pytest.mark.django_db(transaction=True)
 def test_viewer_cannot_mutate_stock_splits(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     current_workspace = _active_workspace(client)
     split = StockSplit.objects.get(workspace=current_workspace)
     stock = split.instrument
@@ -596,9 +594,9 @@ def test_viewer_cannot_mutate_stock_splits(
 
 @pytest.mark.django_db(transaction=True)
 def test_price_refresh_endpoints_share_the_internal_handler(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     monkeypatch.setattr(market_views, "yahoo_ticker", lambda _instrument: "TEST")
     monkeypatch.setattr(market_views, "quote_price", lambda _ticker: (100.0, "USD"))
     monkeypatch.setattr(
@@ -622,9 +620,9 @@ def test_price_refresh_endpoints_share_the_internal_handler(
 
 @pytest.mark.django_db(transaction=True)
 def test_stock_prices_and_analysis_use_only_the_latest_spot_quote(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     transaction = (
         Transaction.objects.filter(instrument__kind="stock").select_related("instrument").first()
     )

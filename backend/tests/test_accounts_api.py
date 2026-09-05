@@ -14,14 +14,12 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.mark.django_db(transaction=True)
 def test_savings_account_can_be_edited(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     account = client.get("/api/savings/accounts").json()[0]
 
     response = client.put(
@@ -40,9 +38,9 @@ def test_savings_account_can_be_edited(
 
 @pytest.mark.django_db(transaction=True)
 def test_savings_snapshot_is_saved_on_last_day_of_month(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     account = client.get("/api/savings/accounts").json()[0]
 
     response = client.post(
@@ -63,9 +61,9 @@ def test_savings_snapshot_is_saved_on_last_day_of_month(
 
 @pytest.mark.django_db(transaction=True)
 def test_savings_native_contract_uses_uuid_and_english_fields(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     account = client.get("/api/savings/accounts").json()[0]
     assert set(account) == {"id", "name", "bank", "type", "currency"}
     UUID(account["id"])
@@ -130,9 +128,9 @@ def test_savings_native_contract_uses_uuid_and_english_fields(
 
 @pytest.mark.django_db(transaction=True)
 def test_savings_native_account_update_delete_and_summary(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     created = client.post(
         "/api/savings/accounts",
         {"name": "Temporary savings", "bank": "Bank", "type": "Cash"},
@@ -163,9 +161,9 @@ def test_savings_native_account_update_delete_and_summary(
 
 @pytest.mark.django_db(transaction=True)
 def test_savings_native_snapshot_preserves_currency_conversion(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    snapshot_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     monkeypatch.setattr(
         account_views,
         "rate_to_base",
@@ -233,9 +231,9 @@ def test_savings_native_rejects_invalid_or_out_of_scope_identifiers(
 
 @pytest.mark.django_db(transaction=True)
 def test_savings_native_account_fields_enforce_model_lengths(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     account_id = client.get("/api/savings/accounts").json()[0]["id"]
     for field, value in (("name", "N" * 161), ("bank", "B" * 161), ("type", "T" * 81)):
         created = client.post(
@@ -254,9 +252,9 @@ def test_savings_native_account_fields_enforce_model_lengths(
 
 @pytest.mark.django_db(transaction=True)
 def test_manual_investment_account_and_snapshot_can_be_updated(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     account = client.get("/api/investments/accounts").json()[0]
     assert set(account) == {"id", "name", "platform", "type", "currency"}
     UUID(account["id"])
@@ -303,9 +301,9 @@ def test_manual_investment_account_and_snapshot_can_be_updated(
 
 @pytest.mark.django_db(transaction=True)
 def test_manual_investment_native_contract_calculates_or_accepts_interest(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     created = client.post(
         "/api/investments/accounts",
         {"name": "Native investment", "platform": "Broker", "type": "Managed"},
@@ -371,9 +369,9 @@ def test_manual_investment_native_contract_calculates_or_accepts_interest(
 
 @pytest.mark.django_db(transaction=True)
 def test_manual_investment_native_distinguishes_implicit_zero_and_upserts_stably(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     account = client.post(
         "/api/investments/accounts",
         {"name": "Decimal investment", "platform": "Broker"},
@@ -430,9 +428,9 @@ def test_manual_investment_native_distinguishes_implicit_zero_and_upserts_stably
 
 @pytest.mark.django_db(transaction=True)
 def test_manual_investment_native_snapshot_preserves_currency_conversion(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    snapshot_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     monkeypatch.setattr(
         account_views,
         "rate_to_base",
@@ -467,9 +465,9 @@ def test_manual_investment_native_snapshot_preserves_currency_conversion(
 
 @pytest.mark.django_db(transaction=True)
 def test_manual_investment_native_rejects_legacy_and_out_of_scope_identifiers(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     account_id = client.get("/api/investments/accounts").json()[0]["id"]
     savings_id = client.get("/api/savings/accounts").json()[0]["id"]
     foreign_workspace = Workspace.objects.create(
@@ -526,9 +524,9 @@ def test_manual_investment_native_rejects_legacy_and_out_of_scope_identifiers(
 
 @pytest.mark.django_db(transaction=True)
 def test_manual_investment_native_account_fields_enforce_model_lengths(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
     account_id = client.get("/api/investments/accounts").json()[0]["id"]
     for field, value in (
         ("name", "N" * 161),
@@ -555,9 +553,9 @@ def test_manual_investment_native_account_fields_enforce_model_lengths(
     ("/api/fund-accounts", "/api/stock-accounts", "/api/crypto-accounts"),
 )
 def test_traded_account_crud_uses_strict_native_contract(
-    api_context: tuple[APIClient, User], endpoint: str
+    traded_context: tuple[APIClient, User], endpoint: str
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     body = {
         "name": "Synthetic account",
         "platform": "Synthetic broker",
@@ -609,9 +607,9 @@ def test_traded_account_crud_uses_strict_native_contract(
 
 @pytest.mark.django_db(transaction=True)
 def test_savings_write_persists_to_database(
-    api_context: tuple[APIClient, User],
+    snapshot_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = snapshot_context
 
     response = client.post(
         "/api/savings/history",
@@ -633,9 +631,9 @@ def test_savings_write_persists_to_database(
 
 @pytest.mark.django_db(transaction=True)
 def test_traded_account_delete_removes_import_dependents_atomically(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, user = api_context
+    client, user = traded_context
     account = Account.objects.get(kind=Account.Kind.CRYPTO)
     raw = (
         b"txid,pair,time,type,price,cost,fee,vol\n"
@@ -695,9 +693,9 @@ def test_traded_account_delete_removes_import_dependents_atomically(
 
 @pytest.mark.django_db(transaction=True)
 def test_traded_account_scope_and_roles_cover_archived_foreign_and_viewer_rows(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, user = api_context
+    client, user = traded_context
     workspace = user.memberships.get().workspace
     archived = Account.objects.create(
         workspace=workspace,
@@ -775,9 +773,9 @@ def test_traded_account_scope_and_roles_cover_archived_foreign_and_viewer_rows(
 
 @pytest.mark.django_db(transaction=True)
 def test_crypto_accounts_can_be_created_and_filter_orders(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     created = client.post(
         "/api/crypto-accounts",
         {

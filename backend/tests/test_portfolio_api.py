@@ -9,14 +9,12 @@ from apps.users.models import User
 from apps.workspaces.models import Workspace
 from rest_framework.test import APIClient
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.mark.django_db(transaction=True)
 def test_portfolio_native_contract_uses_uuid_and_english_fields(
-    api_context: tuple[APIClient, User],
+    portfolio_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = portfolio_context
     seeded_asset = ManualAsset.objects.get(name="Synthetic cash")
     assert (
         client.patch(
@@ -79,9 +77,9 @@ def test_portfolio_native_contract_uses_uuid_and_english_fields(
 
 @pytest.mark.django_db(transaction=True)
 def test_portfolio_native_contract_resolves_and_clears_providers(
-    api_context: tuple[APIClient, User],
+    portfolio_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = portfolio_context
     provider = FinancialProvider.objects.create(
         slug="canonical-bank",
         name="Canonical Bank",
@@ -157,9 +155,9 @@ def test_portfolio_native_contract_resolves_and_clears_providers(
 
 @pytest.mark.django_db(transaction=True)
 def test_portfolio_native_contract_rejects_legacy_fields_and_model_overflows(
-    api_context: tuple[APIClient, User],
+    portfolio_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = portfolio_context
     asset_id = client.get("/api/portfolio").json()[0]["id"]
     legacy_payload = {
         "nombre": "Rejected",

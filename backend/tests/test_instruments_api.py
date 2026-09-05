@@ -17,8 +17,6 @@ from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
 from rest_framework.test import APIClient
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
@@ -29,13 +27,13 @@ pytestmark = pytest.mark.django_db
     ],
 )
 def test_stock_and_crypto_assets_can_be_created_and_edit_their_ticker(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
     collection: str,
     identity_scheme: str,
     identifier: str,
     ticker: str,
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     transaction_count = Transaction.objects.count()
 
     created = client.post(
@@ -94,9 +92,9 @@ def test_stock_and_crypto_assets_can_be_created_and_edit_their_ticker(
 
 @pytest.mark.django_db(transaction=True)
 def test_native_instrument_contract_is_strict_uuid_scoped_and_preserves_identities(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, owner = api_context
+    client, owner = traded_context
     workspace = Workspace.objects.get(pk=client.session["active_workspace_id"])
     body = {
         "name": "Native contract stock",
@@ -250,9 +248,9 @@ def test_native_instrument_contract_is_strict_uuid_scoped_and_preserves_identiti
 
 @pytest.mark.django_db(transaction=True)
 def test_instrument_name_only_update_keeps_currency_seen_after_lock(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     instrument = Instrument.objects.get(kind=Instrument.Kind.STOCK)
 
     def change_currency_during_lock(_keys: object) -> None:
@@ -274,9 +272,9 @@ def test_instrument_name_only_update_keeps_currency_seen_after_lock(
 
 @pytest.mark.django_db(transaction=True)
 def test_identifier_selection_matches_public_projection_and_market_consumers(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, owner = api_context
+    client, owner = traded_context
     workspace = Workspace.objects.get(memberships__user=owner)
     instrument = Instrument.objects.create(
         kind=Instrument.Kind.STOCK,
@@ -404,9 +402,9 @@ def test_identifier_selection_matches_public_projection_and_market_consumers(
 
 @pytest.mark.django_db(transaction=True)
 def test_canonical_identity_resolvers_ignore_nondefault_aliases(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     canonical = "SHARED-VALUE-001"
     first = client.post(
         "/api/stocks",
@@ -495,9 +493,9 @@ def test_canonical_identity_resolvers_ignore_nondefault_aliases(
 
 @pytest.mark.django_db(transaction=True)
 def test_native_identifier_sets_validate_before_writes_and_support_fund_clear(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     body = {
         "name": "Primary venue stock",
         "quote_currency": "EUR",

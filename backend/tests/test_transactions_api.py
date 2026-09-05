@@ -14,14 +14,12 @@ from apps.workspaces.models import Workspace, WorkspaceMembership
 from django.db import IntegrityError
 from rest_framework.test import APIClient
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.mark.django_db(transaction=True)
 def test_transaction_detail_is_scoped_by_uuid_and_workspace_kind(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
     assert source is not None
     first_account = source.account
@@ -77,9 +75,9 @@ def test_transaction_detail_is_scoped_by_uuid_and_workspace_kind(
 
 @pytest.mark.django_db(transaction=True)
 def test_transaction_move_rejects_duplicate_external_id_without_mutation(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
     assert source is not None
     source_account = source.account
@@ -158,9 +156,9 @@ def test_transaction_move_rejects_duplicate_external_id_without_mutation(
 
 @pytest.mark.django_db(transaction=True)
 def test_manual_fund_canonical_operations_drive_positions_and_source_history(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     account = Account.objects.get(kind=Account.Kind.FUNDS)
     instrument = Instrument.objects.get(kind=Instrument.Kind.FUND)
     isin = instrument.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
@@ -224,9 +222,9 @@ def test_manual_fund_canonical_operations_drive_positions_and_source_history(
 
 @pytest.mark.django_db(transaction=True)
 def test_imported_transaction_edit_preserves_provider_provenance_and_batch_policy(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
     assert source is not None
     source_account = source.account
@@ -305,9 +303,9 @@ def test_imported_transaction_edit_preserves_provider_provenance_and_batch_polic
 
 @pytest.mark.django_db(transaction=True)
 def test_transaction_move_handles_raced_external_id_conflict_atomically(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
     assert source is not None
     source_account = source.account
@@ -371,9 +369,9 @@ def test_transaction_move_handles_raced_external_id_conflict_atomically(
 
 @pytest.mark.django_db(transaction=True)
 def test_transaction_move_reraises_unrelated_integrity_error_without_mutation(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
     assert source is not None
     source_account = source.account
@@ -433,9 +431,9 @@ def test_transaction_move_reraises_unrelated_integrity_error_without_mutation(
 
 @pytest.mark.django_db(transaction=True)
 def test_transaction_uuid_detail_enforces_workspace_kind_and_roles(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, user = api_context
+    client, user = traded_context
     source = Transaction.objects.filter(account__kind=Account.Kind.STOCKS).first()
     assert source is not None
     workspace = user.memberships.get().workspace
@@ -497,7 +495,7 @@ def test_transaction_uuid_detail_enforces_workspace_kind_and_roles(
     ),
 )
 def test_manual_traded_transactions_validate_native_typed_contract(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
     endpoint: str,
     account_kind: str,
     asset_key: str,
@@ -505,7 +503,7 @@ def test_manual_traded_transactions_validate_native_typed_contract(
     price_key: str,
     operation: str,
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     account = Account.objects.get(kind=account_kind)
     payload: dict[str, object] = {
         "account_id": str(account.id),
@@ -600,9 +598,9 @@ def test_manual_traded_transactions_validate_native_typed_contract(
 
 @pytest.mark.django_db(transaction=True)
 def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     fund_account = client.get("/api/fund-accounts").json()[0]
     fund = client.get("/api/funds").json()[0]
     fund_isin = next(item["value"] for item in fund["identifiers"] if item["scheme"] == "isin")
@@ -671,9 +669,9 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
 
 @pytest.mark.django_db(transaction=True)
 def test_stock_cashback_is_only_available_for_trade_republic(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     trade_republic = client.get("/api/stock-accounts").json()[0]
     stock = client.get("/api/stocks").json()[0]
     stock_isin = next(item["value"] for item in stock["identifiers"] if item["scheme"] == "isin")

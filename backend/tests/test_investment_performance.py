@@ -28,9 +28,9 @@ from finanzr.domain.investment_performance import (
 
 @pytest.mark.django_db(transaction=True)
 def test_fund_performance_uses_market_history_and_filters_by_account(
-    api_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     cache.clear()
     created = client.post(
         "/api/fund-accounts",
@@ -104,9 +104,9 @@ def test_fund_performance_uses_market_history_and_filters_by_account(
 
 @pytest.mark.django_db(transaction=True)
 def test_fund_performance_rejects_an_incomplete_custom_range(
-    api_context: tuple[APIClient, User],
+    traded_context: tuple[APIClient, User],
 ) -> None:
-    client, _ = api_context
+    client, _ = traded_context
     response = client.get("/api/investment-performance/fund?account_id=all&start=2026-01-01")
     assert response.status_code == 400
     assert response.json()["error"] == "Debes indicar fecha inicial y final"
