@@ -144,7 +144,6 @@ function initializeMovementRange() {
 watch(
   () => props.orders,
   () => {
-    movementPage.value = 1;
     initializeMovementRange();
   },
   { immediate: true },

@@ -359,6 +359,17 @@ describe("SettingsView", () => {
       .findAll('input[autocomplete="new-password"]')[1]
       .setValue("draft-password-123");
 
+    await primaryButton("Interfaz")!.trigger("click");
+    await wrapper
+      .get('input[name="installation-language"][value="en"]')
+      .setValue();
+    expect(
+      (
+        wrapper.get('input[name="installation-language"][value="en"]')
+          .element as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+
     await primaryButton("Secciones")!.trigger("click");
     await wrapper
       .findAll(".settings-secondary > button")
@@ -392,6 +403,14 @@ describe("SettingsView", () => {
     expect(
       (wrapper.get(".tax-rate-field input").element as HTMLInputElement).value,
     ).toBe("21.5");
+
+    await primaryButton("Interfaz")!.trigger("click");
+    expect(
+      (
+        wrapper.get('input[name="installation-language"][value="en"]')
+          .element as HTMLInputElement
+      ).checked,
+    ).toBe(true);
   });
 
   it("supports listbox keyboard navigation and preserves focus after transfer", async () => {

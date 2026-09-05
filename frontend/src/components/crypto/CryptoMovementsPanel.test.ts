@@ -122,6 +122,41 @@ describe("CryptoMovementsPanel", () => {
     );
   });
 
+  it("preserves pagination for replacements, clamps shrinking results, and resets explicitly", async () => {
+    const wrapper = mount(CryptoMovementsPanel, { props: baseProps });
+    await wrapper
+      .get(".movement-pagination button:last-child")
+      .trigger("click");
+    expect(wrapper.get(".movement-pagination").text()).toContain("Page 2 of 2");
+
+    await wrapper.setProps({
+      orders: baseProps.orders.map((item) => ({ ...item })),
+    });
+    expect(wrapper.get(".movement-pagination").text()).toContain("Page 2 of 2");
+
+    await wrapper.setProps({ orders: baseProps.orders.slice(0, 10) });
+    expect(wrapper.find(".movement-pagination").exists()).toBe(false);
+
+    await wrapper.setProps({ orders: baseProps.orders });
+    await wrapper
+      .get(".movement-pagination button:last-child")
+      .trigger("click");
+    const exposed = wrapper.vm as unknown as {
+      resetForAccount: () => void;
+      resetPage: () => void;
+    };
+    exposed.resetPage();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get(".movement-pagination").text()).toContain("Page 1 of 2");
+
+    await wrapper
+      .get(".movement-pagination button:last-child")
+      .trigger("click");
+    exposed.resetForAccount();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get(".movement-pagination").text()).toContain("Page 1 of 2");
+  });
+
   it("keeps date drafts local and emits CRUD actions", async () => {
     const wrapper = mount(CryptoMovementsPanel, {
       props: { ...baseProps, orders: [order] },
