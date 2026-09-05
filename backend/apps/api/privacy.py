@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, cast
+from typing import cast
 
 from django.db import transaction
+from django.http import Http404
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from rest_framework.decorators import api_view
@@ -11,25 +11,23 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.models import Account, AccountSnapshot
-from apps.api import instrument_views, market_views, transaction_views, views
 from apps.api.account_projection import account_row
 from apps.api.auth import user_payload
+from apps.api.budget_queries import budget_rows
 from apps.api.context import active_membership, workspace
+from apps.api.instrument_queries import instrument_rows
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
+from apps.api.market_queries import price_rows
 from apps.api.overview_queries import _overview_calculation
 from apps.api.portfolio_projection import manual_asset_row
+from apps.api.real_estate_queries import real_estate_records
 from apps.api.savings_projection import savings_account_row, savings_snapshot_row
+from apps.api.transaction_queries import selected_traded_account, transaction_rows
 from apps.audit.models import AuditEvent
+from apps.market_data.fx import CurrencyConversionError
 from apps.portfolio.models import ManualAsset
 from apps.users.models import User
 from apps.workspaces.models import WorkspaceMembership
-
-
-def _view_data(view: Callable[[Any], Any], request: Request) -> object:
-    """Call a decorated API view with its underlying Django request."""
-
-    raw_request = getattr(request, "_request", request)
-    return view(raw_request).data
 
 
 def _native_savings_sections(
@@ -92,6 +90,25 @@ def _native_traded_accounts(request: Request, kind: str) -> list[dict[str, objec
     return [account_row(account) for account in accounts]
 
 
+def _export_transaction_rows(request: Request, kind: str) -> object:
+    """Preserve v4's request filters and per-section account errors."""
+    try:
+        selected_account = selected_traded_account(request, kind)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    except Http404 as exc:
+        return {"detail": str(exc)}
+    return transaction_rows(request, kind, selected_account)
+
+
+def _export_price_rows(request: Request, kind: str) -> object:
+    """Keep unavailable conversions as section errors in the v4 export."""
+    try:
+        return price_rows(request, kind)
+    except CurrencyConversionError as exc:
+        return {"error": str(exc)}
+
+
 def export_payload(request: Request) -> dict[str, object]:
     user = cast(User, request.user)
     savings_accounts, savings_history = _native_savings_sections(request)
@@ -107,20 +124,20 @@ def export_payload(request: Request) -> dict[str, object]:
         "investment_accounts": investment_accounts,
         "investment_history": investment_history,
         "portfolio": _native_portfolio_section(request),
-        "real_estate": _view_data(views.real_estate, request),
-        "budget": _view_data(views.budget, request),
+        "real_estate": real_estate_records(request),
+        "budget": budget_rows(request),
         "fund_accounts": _native_traded_accounts(request, Account.Kind.FUNDS),
         "stock_accounts": _native_traded_accounts(request, Account.Kind.STOCKS),
         "crypto_accounts": _native_traded_accounts(request, Account.Kind.CRYPTO),
-        "funds": _view_data(instrument_views.funds, request),
-        "stocks": _view_data(instrument_views.stocks, request),
-        "cryptos": _view_data(instrument_views.cryptos, request),
-        "orders": _view_data(transaction_views.orders, request),
-        "stock_orders": _view_data(transaction_views.stock_orders, request),
-        "crypto_orders": _view_data(transaction_views.crypto_orders, request),
-        "fund_prices": _view_data(market_views.fund_prices, request),
-        "stock_prices": _view_data(market_views.stock_prices, request),
-        "crypto_prices": _view_data(market_views.crypto_prices, request),
+        "funds": instrument_rows(request, "fund"),
+        "stocks": instrument_rows(request, "stock"),
+        "cryptos": instrument_rows(request, "crypto"),
+        "orders": _export_transaction_rows(request, "fund"),
+        "stock_orders": _export_transaction_rows(request, "stock"),
+        "crypto_orders": _export_transaction_rows(request, "crypto"),
+        "fund_prices": _export_price_rows(request, "fund"),
+        "stock_prices": _export_price_rows(request, "stock"),
+        "crypto_prices": _export_price_rows(request, "crypto"),
     }
 
 

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from typing import Any
+
 from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404
 from rest_framework.request import Request
 
 from apps.api.context import workspace
+from apps.api.market_data_projection import instrument_row
 from apps.market_data.models import (
     Instrument,
     InstrumentIdentifier,
@@ -40,3 +43,7 @@ def workspace_instrument(request: Request, scheme: str, value: str) -> Instrumen
 
         raise Http404
     return identity.instrument
+
+
+def instrument_rows(request: Request, kind: str) -> list[dict[str, Any]]:
+    return [instrument_row(item) for item in workspace_instruments(request, kind)]

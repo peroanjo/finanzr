@@ -15,7 +15,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.api.context import workspace
-from apps.api.instrument_queries import workspace_instruments
+from apps.api.instrument_queries import instrument_rows
 from apps.api.market_data_projection import (
     instrument_row,
 )
@@ -39,8 +39,7 @@ from apps.workspaces.models import Workspace
 
 
 def instruments(request: Request, kind: str) -> Response:
-    queryset = workspace_instruments(request, kind)
-    return Response([instrument_row(item) for item in queryset])
+    return Response(instrument_rows(request, kind))
 
 
 @api_view(["GET"])

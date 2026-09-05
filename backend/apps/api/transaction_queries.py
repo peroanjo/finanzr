@@ -14,6 +14,7 @@ from apps.api.account_queries import (
 from apps.api.context import workspace
 from apps.api.transaction_projection import (
     _transaction_calculation_row,
+    transaction_row,
 )
 from apps.market_data.models import (
     Instrument,
@@ -60,3 +61,10 @@ def transaction_calculation_rows(
     """Return private legacy-shaped rows for pure position calculations."""
     queryset = transaction_queryset(request, kind, selected_account)
     return [_transaction_calculation_row(item) for item in queryset.order_by("trade_date")]
+
+
+def transaction_rows(
+    request: Request, kind: str, selected_account: Account | None = None
+) -> list[dict[str, Any]]:
+    queryset = transaction_queryset(request, kind, selected_account)
+    return [transaction_row(item) for item in queryset.order_by("trade_date")]
