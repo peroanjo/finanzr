@@ -13,6 +13,8 @@ import type { ImporterCatalogItem, SummarySourceKey } from "../types/api";
 import NavIcon from "../components/NavIcon.vue";
 import AdminUsersPanel from "../components/settings/AdminUsersPanel.vue";
 import SettingsImporterDocument from "../components/settings/SettingsImporterDocument.vue";
+import SettingsInstallationPreferencesPanel from "../components/settings/SettingsInstallationPreferencesPanel.vue";
+import SettingsLanguagePanel from "../components/settings/SettingsLanguagePanel.vue";
 import SettingsSummarySourcesPanel from "../components/settings/SettingsSummarySourcesPanel.vue";
 import { useSessionStore } from "../stores/session";
 import { useLocalePreference } from "../i18n";
@@ -85,11 +87,9 @@ const passwordSuccess = ref("");
 const languageBusy = ref(false);
 const languageError = ref("");
 const languageSuccess = ref("");
-const installationLanguage = ref<"es-ES" | "en">("es-ES");
 const installationLanguageBusy = ref(false);
 const installationLanguageError = ref("");
 const installationLanguageSuccess = ref("");
-const defaultCrowdfundingTaxRate = ref(19);
 const crowdfundingTaxBusy = ref(false);
 const crowdfundingTaxError = ref("");
 const crowdfundingTaxSuccess = ref("");
@@ -140,36 +140,6 @@ const effectiveLanguageName = computed(() =>
 const effectiveLanguageFlag = computed(() =>
   effectiveLanguage.value === "en" ? "🇬🇧" : "🇪🇸",
 );
-const installationLanguageName = computed(() =>
-  installationLanguage.value === "en"
-    ? t("locales.english")
-    : t("locales.spanish"),
-);
-const personalLanguageOptions = computed(() => [
-  {
-    code: "" as const,
-    flag: "🌐",
-    title: t("settings.inheritInstallationLanguage"),
-    native: t("settings.automaticLanguage"),
-    description: t("settings.inheritLanguageDescription", {
-      language: installationLanguageName.value,
-    }),
-  },
-  {
-    code: "es-ES" as const,
-    flag: "🇪🇸",
-    title: t("locales.spanish"),
-    native: t("locales.spanish"),
-    description: t("settings.spanishLanguageDescription"),
-  },
-  {
-    code: "en" as const,
-    flag: "🇬🇧",
-    title: t("locales.english"),
-    native: "English",
-    description: t("settings.englishLanguageDescription"),
-  },
-]);
 
 watch(importers, (items) => {
   if (!items.some((item) => item.slug === selectedSlug.value)) {
@@ -187,22 +157,6 @@ watch(
   () => session.user?.display_name,
   (name) => {
     accountDisplayName.value = name ?? "";
-  },
-  { immediate: true },
-);
-watch(
-  sessionDefaultLanguage,
-  (language) => {
-    installationLanguage.value = language === "en" ? "en" : "es-ES";
-  },
-  { immediate: true },
-);
-watch(
-  sessionDefaultCrowdfundingTaxRate,
-  (rate) => {
-    if (rate !== undefined && rate !== null) {
-      defaultCrowdfundingTaxRate.value = rate;
-    }
   },
   { immediate: true },
 );
@@ -285,7 +239,7 @@ async function savePassword() {
   }
 }
 
-async function saveInstallationLanguage() {
+async function saveInstallationLanguage(language: "es-ES" | "en") {
   installationLanguageError.value = "";
   installationLanguageSuccess.value = "";
   installationLanguageBusy.value = true;
@@ -295,7 +249,7 @@ async function saveInstallationLanguage() {
       language: "es-ES" | "en";
     }>(
       "/installation/preferences",
-      json("PATCH", { default_language: installationLanguage.value }),
+      json("PATCH", { default_language: language }),
     );
     if (session.user) {
       Object.assign(session.user, {
@@ -317,7 +271,7 @@ async function saveInstallationLanguage() {
   }
 }
 
-async function saveCrowdfundingTax() {
+async function saveCrowdfundingTax(rate: number) {
   crowdfundingTaxError.value = "";
   crowdfundingTaxSuccess.value = "";
   crowdfundingTaxBusy.value = true;
@@ -329,7 +283,7 @@ async function saveCrowdfundingTax() {
     }>(
       "/installation/preferences",
       json("PATCH", {
-        default_crowdfunding_tax_rate: Number(defaultCrowdfundingTaxRate.value),
+        default_crowdfunding_tax_rate: Number(rate),
       }),
     );
     if (session.user) {
@@ -644,235 +598,38 @@ onBeforeUnmount(() => {
             @update="updateSummarySources"
             @save="saveSummarySources"
           />
-          <article
+          <SettingsLanguagePanel
             v-else-if="activeSection === 'interface'"
-            class="interface-document"
-          >
-            <header class="interface-document-header">
-              <div>
-                <p>{{ t("settings.interfaceEyebrow") }}</p>
-                <h3>{{ t("settings.interfaceLanguageTitle") }}</h3>
-                <span>{{ t("settings.interfaceLanguageIntro") }}</span>
-              </div>
-              <div class="effective-language" aria-live="polite">
-                <span aria-hidden="true">{{ effectiveLanguageFlag }}</span>
-                <p>
-                  <small>{{ t("settings.effectiveLanguage") }}</small
-                  ><strong>{{ effectiveLanguageName }}</strong>
-                </p>
-                <i />
-              </div>
-            </header>
-
-            <section
-              class="language-preference-panel"
-              :aria-labelledby="'personal-language-title'"
-            >
-              <header>
-                <div>
-                  <p>{{ t("settings.personalPreference") }}</p>
-                  <h4 id="personal-language-title">
-                    {{ t("settings.chooseLanguage") }}
-                  </h4>
-                </div>
-                <span>{{
-                  session.user?.preferred_language
-                    ? t("settings.personalOverride")
-                    : t("settings.followingInstallation")
-                }}</span>
-              </header>
-              <div
-                class="language-choice-grid"
-                role="radiogroup"
-                :aria-label="t('settings.languageTitle')"
-              >
-                <button
-                  v-for="option in personalLanguageOptions"
-                  :key="option.code || 'automatic'"
-                  type="button"
-                  class="language-choice"
-                  :class="{
-                    selected:
-                      (session.user?.preferred_language ?? '') === option.code,
-                  }"
-                  :aria-checked="
-                    (session.user?.preferred_language ?? '') === option.code
-                  "
-                  :disabled="languageBusy || !canManageAccount"
-                  role="radio"
-                  @click="saveLanguage(option.code)"
-                >
-                  <span class="language-flag" aria-hidden="true">{{
-                    option.flag
-                  }}</span>
-                  <span class="language-copy"
-                    ><strong>{{ option.title }}</strong
-                    ><small>{{ option.native }}</small></span
-                  >
-                  <i class="language-check" aria-hidden="true">✓</i>
-                  <em>{{ option.description }}</em>
-                </button>
-              </div>
-              <p
-                v-if="languageError"
-                class="language-feedback error"
-                role="alert"
-              >
-                {{ languageError }}
-              </p>
-              <p
-                v-else-if="languageSuccess"
-                class="language-feedback success"
-                role="status"
-              >
-                {{ languageSuccess }}
-              </p>
-              <p v-if="!canManageAccount" class="language-feedback muted">
-                {{ t("settings.demoLanguageNotice") }}
-              </p>
-            </section>
-
-            <form
-              v-if="canAdminister"
-              class="installation-language-panel"
-              @submit.prevent="saveInstallationLanguage"
-            >
-              <div class="installation-language-copy">
-                <span aria-hidden="true">⌂</span>
-                <div>
-                  <p>{{ t("settings.installationPreference") }}</p>
-                  <h4>{{ t("settings.installationLanguageTitle") }}</h4>
-                  <small>{{ t("settings.installationLanguageHelp") }}</small>
-                </div>
-              </div>
-              <div class="installation-language-actions">
-                <label
-                  v-for="option in supportedLocales"
-                  :key="option.code"
-                  :class="{ selected: installationLanguage === option.code }"
-                >
-                  <input
-                    v-model="installationLanguage"
-                    type="radio"
-                    name="installation-language"
-                    :value="option.code"
-                  />
-                  <span aria-hidden="true">{{
-                    option.code === "en" ? "🇬🇧" : "🇪🇸"
-                  }}</span>
-                  <strong>{{ option.label }}</strong>
-                </label>
-                <button type="submit" :disabled="installationLanguageBusy">
-                  {{
-                    installationLanguageBusy
-                      ? t("common.saving")
-                      : t("settings.saveInstallationLanguage")
-                  }}
-                </button>
-              </div>
-              <p
-                v-if="installationLanguageError"
-                class="language-feedback error"
-                role="alert"
-              >
-                {{ installationLanguageError }}
-              </p>
-              <p
-                v-else-if="installationLanguageSuccess"
-                class="language-feedback success"
-                role="status"
-              >
-                {{ installationLanguageSuccess }}
-              </p>
-            </form>
-          </article>
-
-          <article
+            :effective-language="effectiveLanguage"
+            :effective-language-name="effectiveLanguageName"
+            :effective-language-flag="effectiveLanguageFlag"
+            :preferred-language="session.user?.preferred_language ?? null"
+            :can-manage="canManageAccount"
+            :can-administer="canAdminister"
+            :language-busy="languageBusy"
+            :language-error="languageError"
+            :language-success="languageSuccess"
+            :installation-language="sessionDefaultLanguage"
+            :supported-locales="supportedLocales"
+            :installation-busy="installationLanguageBusy"
+            :installation-error="installationLanguageError"
+            :installation-success="installationLanguageSuccess"
+            @save-language="saveLanguage"
+            @save-installation-language="saveInstallationLanguage"
+          />
+          <SettingsInstallationPreferencesPanel
             v-else-if="
               activeSection === 'sections' &&
               activeProductSection === 'crowdfunding'
             "
-            class="interface-document"
-          >
-            <header class="interface-document-header">
-              <div>
-                <p>{{ t("settings.crowdfunding") }}</p>
-                <h3>{{ t("settings.crowdfundingTaxTitle") }}</h3>
-                <span>{{ t("settings.crowdfundingTaxIntro") }}</span>
-              </div>
-              <div class="effective-language" aria-live="polite">
-                <span aria-hidden="true">%</span>
-                <p>
-                  <small>{{ t("settings.defaultRateBadge") }}</small
-                  ><strong>{{ defaultCrowdfundingTaxRate }} %</strong>
-                </p>
-                <i aria-hidden="true" />
-              </div>
-            </header>
-
-            <form
-              class="language-preference-panel"
-              @submit.prevent="saveCrowdfundingTax"
-            >
-              <header>
-                <div>
-                  <p>{{ t("settings.crowdfunding") }}</p>
-                  <h4>{{ t("settings.crowdfundingTaxTitle") }}</h4>
-                </div>
-                <span>{{ t("settings.installationPreference") }}</span>
-              </header>
-              <p class="document-description">
-                {{ t("settings.crowdfundingTaxHelp") }}
-              </p>
-
-              <div class="withholding-form-row">
-                <label class="tax-rate-field">
-                  <span>{{ t("settings.defaultCrowdfundingTaxRate") }}</span>
-                  <div class="tax-rate-input-wrap">
-                    <input
-                      v-model.number="defaultCrowdfundingTaxRate"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      :disabled="!canAdminister || crowdfundingTaxBusy"
-                      required
-                    />
-                    <strong>%</strong>
-                  </div>
-                </label>
-                <button
-                  v-if="canAdminister"
-                  type="submit"
-                  :disabled="crowdfundingTaxBusy"
-                >
-                  {{
-                    crowdfundingTaxBusy
-                      ? t("common.saving")
-                      : t("settings.saveCrowdfundingTax")
-                  }}
-                </button>
-              </div>
-
-              <p v-if="!canAdminister" class="language-feedback muted">
-                {{ t("settings.adminsOnlyWithholdingNotice") }}
-              </p>
-              <p
-                v-if="crowdfundingTaxError"
-                class="language-feedback error"
-                role="alert"
-              >
-                {{ crowdfundingTaxError }}
-              </p>
-              <p
-                v-else-if="crowdfundingTaxSuccess"
-                class="language-feedback success"
-                role="status"
-              >
-                {{ crowdfundingTaxSuccess }}
-              </p>
-            </form>
-          </article>
+            mode="crowdfunding"
+            :can-administer="canAdminister"
+            :default-crowdfunding-tax-rate="sessionDefaultCrowdfundingTaxRate ?? 19"
+            :crowdfunding-busy="crowdfundingTaxBusy"
+            :crowdfunding-error="crowdfundingTaxError"
+            :crowdfunding-success="crowdfundingTaxSuccess"
+            @save-crowdfunding-tax="saveCrowdfundingTax"
+          />
           <div
             v-else-if="activeSection === 'administration'"
             class="administration-document"
@@ -1827,490 +1584,5 @@ onBeforeUnmount(() => {
 }
 .administration-document {
   min-height: 100%;
-}
-.interface-document {
-  min-height: 100%;
-  padding: 36px 40px 48px;
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--fz-accent) 3%, transparent),
-    transparent 38%
-  );
-}
-.interface-document-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-}
-.interface-document-header > div:first-child {
-  max-width: 600px;
-}
-.interface-document-header p,
-.language-preference-panel > header p,
-.installation-language-copy p {
-  margin: 0 0 6px;
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.interface-document-header h3 {
-  margin: 0;
-  font-size: 30px;
-  letter-spacing: -0.05em;
-}
-.interface-document-header > div:first-child > span {
-  display: block;
-  max-width: 590px;
-  margin-top: 11px;
-  color: var(--fz-muted);
-  font-size: 12px;
-  line-height: 1.6;
-}
-.effective-language {
-  min-width: 178px;
-  padding: 12px 14px;
-  display: grid;
-  grid-template-columns: 40px 1fr 7px;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--fz-accent) 24%, var(--fz-line));
-  border-radius: 15px;
-  background: var(--fz-surface);
-  box-shadow: 0 12px 32px rgba(16, 44, 29, 0.07);
-}
-.effective-language > span {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: var(--fz-surface-soft);
-  font-size: 24px;
-  box-shadow: inset 0 0 0 1px var(--fz-line);
-}
-.effective-language p {
-  margin: 0;
-  display: grid;
-  gap: 2px;
-}
-.effective-language small {
-  color: var(--fz-muted);
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.effective-language strong {
-  font-size: 12px;
-}
-.effective-language > i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--fz-accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fz-accent) 12%, transparent);
-}
-.language-preference-panel {
-  margin-top: 32px;
-  padding: 22px;
-  border: 1px solid var(--fz-line);
-  border-radius: 20px;
-  background: var(--fz-surface);
-}
-.language-preference-panel > header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 17px;
-}
-.language-preference-panel h4,
-.installation-language-copy h4 {
-  margin: 0;
-  font-size: 16px;
-  letter-spacing: -0.025em;
-}
-.language-preference-panel > header > span {
-  padding: 5px 8px;
-  border-radius: 99px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 750;
-}
-.language-choice-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 11px;
-}
-.language-choice {
-  position: relative;
-  min-height: 158px;
-  padding: 16px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 24px;
-  grid-template-rows: auto 1fr;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 16px;
-  outline: 0;
-  background: var(--fz-surface-soft);
-  color: var(--fz-ink);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    box-shadow 0.16s ease,
-    background 0.16s ease;
-}
-.language-choice:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--fz-accent) 32%, var(--fz-line));
-  box-shadow: 0 12px 28px rgba(13, 42, 26, 0.08);
-}
-.language-choice:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 18%, transparent);
-}
-.language-choice.selected {
-  border-color: color-mix(in srgb, var(--fz-accent) 58%, var(--fz-line));
-  background: color-mix(in srgb, var(--fz-accent) 7%, var(--fz-surface));
-  box-shadow:
-    inset 0 -3px var(--fz-accent),
-    0 14px 30px rgba(13, 42, 26, 0.08);
-}
-.language-choice:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
-}
-.language-flag {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--fz-line);
-  border-radius: 14px;
-  background: var(--fz-surface);
-  font-size: 27px;
-  box-shadow: 0 5px 12px rgba(13, 42, 26, 0.06);
-}
-.language-copy {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-.language-copy strong {
-  font-size: 12px;
-  line-height: 1.2;
-}
-.language-copy small {
-  overflow: hidden;
-  color: var(--fz-muted);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.language-check {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--fz-line);
-  border-radius: 50%;
-  color: transparent;
-  font-size: 11px;
-  font-style: normal;
-}
-.language-choice.selected .language-check {
-  border-color: var(--fz-accent);
-  background: var(--fz-accent);
-  color: #092418;
-}
-.language-choice em {
-  grid-column: 1/-1;
-  align-self: end;
-  margin-top: 8px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  font-style: normal;
-  line-height: 1.5;
-}
-.language-feedback {
-  margin: 13px 0 0;
-  padding: 9px 11px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 680;
-}
-.language-feedback.error {
-  background: color-mix(in srgb, var(--fz-negative) 9%, transparent);
-  color: var(--fz-negative);
-}
-.language-feedback.success {
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-}
-.language-feedback.muted {
-  background: var(--fz-surface-soft);
-  color: var(--fz-muted);
-}
-.installation-language-panel {
-  margin-top: 16px;
-  padding: 18px 20px;
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto;
-  align-items: center;
-  gap: 16px;
-  border: 1px dashed color-mix(in srgb, var(--fz-accent) 32%, var(--fz-line));
-  border-radius: 17px;
-  background: color-mix(in srgb, var(--fz-accent) 3%, var(--fz-surface));
-}
-.installation-language-copy {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.installation-language-copy > span {
-  width: 39px;
-  height: 39px;
-  display: grid;
-  place-items: center;
-  border-radius: 11px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 18px;
-}
-.installation-language-copy small {
-  display: block;
-  max-width: 500px;
-  margin-top: 4px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  line-height: 1.45;
-}
-.installation-language-actions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.installation-language-actions label {
-  height: 42px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  background: var(--fz-surface);
-  cursor: pointer;
-}
-.installation-language-actions > button {
-  height: 42px;
-  padding: 0 13px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--fz-accent);
-  color: #092418;
-  font-size: 10px;
-  font-weight: 800;
-  cursor: pointer;
-}
-.installation-language-actions > button:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-.installation-language-panel > .language-feedback {
-  grid-column: 1/-1;
-  margin: 0;
-}
-.withholding-form-row {
-  margin-top: 20px;
-  display: flex;
-  align-items: flex-end;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.withholding-form-row label {
-  display: grid;
-  gap: 6px;
-}
-.withholding-form-row label > span {
-  color: var(--fz-muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-.tax-rate-input-wrap {
-  height: 44px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--fz-line);
-  border-radius: 12px;
-  background: var(--fz-surface-soft);
-  transition: border-color 0.15s ease;
-}
-.tax-rate-input-wrap:focus-within {
-  border-color: var(--fz-accent);
-}
-.tax-rate-input-wrap input {
-  width: 80px;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--fz-ink);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 750;
-  text-align: right;
-}
-.tax-rate-input-wrap strong {
-  color: var(--fz-muted);
-  font-size: 12px;
-}
-.withholding-form-row button {
-  height: 44px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--fz-accent);
-  color: #092418;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-.withholding-form-row button:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-  .summary-source-option,
-  .summary-transfer-button,
-  .summary-sources-save {
-    transition: none;
-  }
-  .summary-source-option:hover:not(:disabled),
-  .summary-transfer-button:hover:not(:disabled),
-  .summary-transfer-button:last-child:hover:not(:disabled),
-  .summary-sources-save:hover:not(:disabled) {
-    transform: none;
-  }
-}
-@media (max-width: 900px) {
-  .summary-transfer {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .summary-transfer-rail {
-    display: none;
-  }
-  .summary-transfer-actions {
-    position: static;
-    display: flex;
-    justify-content: center;
-    transform: none;
-    order: 2;
-  }
-  .summary-transfer-button:first-child,
-  .summary-transfer-button:last-child {
-    transform: none;
-  }
-  .summary-transfer-button:first-child svg {
-    transform: rotate(90deg);
-  }
-  .summary-transfer-button:last-child svg {
-    transform: rotate(-90deg);
-  }
-  .summary-source-column.included {
-    order: 3;
-  }
-}
-@media (max-width: 720px) {
-  .summary-sources-panel {
-    margin-top: 20px;
-    padding: 15px;
-  }
-  .summary-sources-panel > header {
-    align-items: start;
-  }
-  .summary-sources-panel > header h4 {
-    font-size: 15px;
-  }
-  .summary-source-list {
-    min-height: 150px;
-  }
-  .summary-sources-footer {
-    align-items: stretch;
-    display: grid;
-  }
-  .summary-sources-save {
-    width: 100%;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .language-choice {
-    transition: none;
-  }
-  .language-choice:hover:not(:disabled) {
-    transform: none;
-  }
-}
-@media (max-width: 1100px) {
-  .interface-document {
-    padding-inline: 28px;
-  }
-  .language-choice-grid {
-    grid-template-columns: 1fr;
-  }
-  .language-choice {
-    min-height: 108px;
-  }
-  .installation-language-panel {
-    grid-template-columns: 1fr;
-  }
-  .installation-language-actions {
-    justify-content: flex-start;
-  }
-}
-@media (max-width: 720px) {
-  .interface-document {
-    padding: 22px 17px 34px;
-  }
-  .interface-document-header {
-    display: block;
-  }
-  .interface-document-header h3 {
-    font-size: 24px;
-  }
-  .effective-language {
-    margin-top: 18px;
-  }
-  .language-preference-panel {
-    margin-top: 20px;
-    padding: 15px;
-  }
-  .language-preference-panel > header {
-    display: block;
-  }
-  .language-preference-panel > header > span {
-    display: inline-block;
-    margin-top: 9px;
-  }
-  .language-choice {
-    min-height: 120px;
-  }
-  .installation-language-panel {
-    padding: 15px;
-  }
-  .installation-language-actions {
-    flex-wrap: wrap;
-  }
-  .installation-language-actions > button {
-    width: 100%;
-  }
 }
 </style>
