@@ -4,7 +4,7 @@ import threading
 from unittest.mock import patch
 
 from apps.accounts.models import Account
-from apps.api import views
+from apps.api import market_queries
 from apps.market_data.locking import lock_logical_keys
 from apps.market_data.models import Instrument, InstrumentIdentifier, WorkspaceInstrument
 from apps.users.models import User
@@ -81,10 +81,10 @@ class PostgresAdvisoryLockTests(TransactionTestCase):
             lock_states.append(connection.in_atomic_block)
 
         with (
-            patch("apps.api.views.search", return_value={"ticker": "LOOKUP.US"}),
-            patch("apps.api.views.lock_logical_keys", side_effect=observe_lock),
+            patch("apps.api.market_queries.search", return_value={"ticker": "LOOKUP.US"}),
+            patch("apps.api.market_queries.lock_logical_keys", side_effect=observe_lock),
         ):
-            self.assertEqual("LOOKUP.US", views.yahoo_ticker(instrument))
+            self.assertEqual("LOOKUP.US", market_queries.yahoo_ticker(instrument))
 
         self.assertEqual([True], lock_states)
         self.assertTrue(

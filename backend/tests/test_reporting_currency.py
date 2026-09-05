@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from apps.api import views
+from apps.api import performance_views
 from apps.market_data.fx import FxConversion
 from apps.planning.models import BudgetLine
 from apps.portfolio.models import ManualAsset
@@ -120,11 +120,11 @@ def test_fund_history_cache_is_isolated_by_workspace_and_reporting_currency(
             "importe_base": 100,
         }
     ]
-    monkeypatch.setattr(views, "_transaction_calculation_list", lambda *_args: rows)
-    monkeypatch.setattr(views, "workspace_instrument", lambda *_args: object())
-    monkeypatch.setattr(views, "yahoo_ticker", lambda *_args: "TEST")
+    monkeypatch.setattr(performance_views, "transaction_calculation_rows", lambda *_args: rows)
+    monkeypatch.setattr(performance_views, "workspace_instrument", lambda *_args: object())
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda *_args: "TEST")
     monkeypatch.setattr(
-        views,
+        performance_views,
         "yahoo_chart",
         lambda *_args, **_kwargs: (
             {"currency": "USD"},
@@ -141,7 +141,7 @@ def test_fund_history_cache_is_isolated_by_workspace_and_reporting_currency(
         rate = Decimal("0.9") if base == "EUR" else Decimal("1")
         return {value: FxConversion(rate, value, "test") for value in dates}
 
-    monkeypatch.setattr(views, "rates_to_base", rates)
+    monkeypatch.setattr(performance_views, "rates_to_base", rates)
 
     eur = eur_client.get("/api/investment-performance/fund?account_id=all&range=1y")
     usd = usd_client.get("/api/investment-performance/fund?account_id=all&range=1y")

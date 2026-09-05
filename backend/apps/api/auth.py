@@ -23,7 +23,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.api.views import active_membership, payload, percentage_rate
+from apps.api.context import active_membership
+from apps.api.request_data import payload, percentage_rate
 from apps.common.i18n import (
     activate_request_language,
     effective_language,

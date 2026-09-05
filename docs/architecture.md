@@ -29,6 +29,32 @@ production-oriented process boundaries.
 - `finanzr/importers/` contains deterministic parsers and their public metadata
   contracts.
 
+## API module ownership
+
+`backend/apps/api/urls.py` imports endpoint functions directly from their owning
+modules. There is no aggregate `views.py` or compatibility export facade.
+
+- `context.py` resolves the session workspace; `permissions.py` owns write-role
+  checks and the separate demo-account restriction. `request_data.py` contains
+  shared request parsing.
+- `account_views.py` handles accounts and savings/manual-investment snapshots.
+  `transaction_views.py` handles traded movements; `instrument_views.py` handles
+  catalogue identities; `market_views.py` handles prices, charts and splits.
+- `analysis_views.py`, `performance_views.py` and `overview_views.py` own position
+  analysis, historical investment performance and consolidated overview routes.
+  Manual portfolio, real estate and budget routes have their own view modules.
+- Domain query modules provide data shared by endpoints and exports. They do not
+  import view modules. Projection modules translate between stored records,
+  private calculation inputs and public response fields.
+- `privacy.py` builds the v4 export from those readers and projections rather
+  than invoking decorated HTTP endpoints. Its archival rules and per-section
+  errors remain part of the existing export contract.
+
+Backend API tests follow these domains. Shared fixtures provide a session and
+only the financial records needed by each domain; the full seed remains for
+cross-domain integration and export cases. Pure financial rules remain in
+`finanzr/domain/` and do not depend on HTTP or Django.
+
 ## Ownership and boundaries
 
 Every financial row is owned by a workspace. Django resolves the active
