@@ -1,14 +1,10 @@
-import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import SettingsImporterDocument from "./SettingsImporterDocument.vue";
-import { i18n, registerMessages } from "../../i18n";
-import { coreMessages } from "../../i18n/coreMessages";
-
-registerMessages(coreMessages);
+import { mountWithTestI18n } from "./testI18n";
 
 describe("SettingsImporterDocument", () => {
   it("renders the importer contract and field metadata", () => {
-    const wrapper = mount(SettingsImporterDocument, {
+    const wrapper = mountWithTestI18n(SettingsImporterDocument, {
       props: {
         selectedImporter: {
           slug: "synthetic_importer",
@@ -40,7 +36,6 @@ describe("SettingsImporterDocument", () => {
           rules: ["Only synthetic rows are accepted."],
         },
       },
-      global: { plugins: [i18n] },
     });
 
     expect(wrapper.get(".document-header h3").text()).toBe(
@@ -55,9 +50,8 @@ describe("SettingsImporterDocument", () => {
   });
 
   it("does not render a document until an importer is selected", () => {
-    const wrapper = mount(SettingsImporterDocument, {
+    const wrapper = mountWithTestI18n(SettingsImporterDocument, {
       props: { selectedImporter: null },
-      global: { plugins: [i18n] },
     });
 
     expect(wrapper.find(".importer-document").exists()).toBe(false);

@@ -79,8 +79,8 @@ const movementSymbols = computed(() => {
 const movementRangeValid = computed(() =>
   Boolean(
     movementDraftStart.value &&
-      movementDraftEnd.value &&
-      Date.parse(movementDraftStart.value) <= Date.parse(movementDraftEnd.value),
+    movementDraftEnd.value &&
+    Date.parse(movementDraftStart.value) <= Date.parse(movementDraftEnd.value),
   ),
 );
 const filteredMovements = computed(() =>
@@ -133,10 +133,9 @@ watch(movementPages, (pages) => {
   if (movementPage.value > pages) movementPage.value = pages;
 });
 function initializeMovementRange() {
-  if (!props.orders.length || (movementStart.value && movementEnd.value)) return;
-  const dates = props.orders
-    .map((item) => item.trade_date.slice(0, 10))
-    .sort();
+  if (!props.orders.length || (movementStart.value && movementEnd.value))
+    return;
+  const dates = props.orders.map((item) => item.trade_date.slice(0, 10)).sort();
   movementStart.value = dates[0];
   movementEnd.value = dates.at(-1) ?? dates[0];
   movementDraftStart.value = movementStart.value;
@@ -216,7 +215,10 @@ function applyMovementRange() {
 </script>
 
 <template>
-  <article class="fund-performance-panel movements-panel" :class="{ collapsed }">
+  <article
+    class="fund-performance-panel movements-panel"
+    :class="{ collapsed }"
+  >
     <header class="fund-secondary-header">
       <div>
         <p class="section-label">{{ t("crypto.movements.section") }}</p>
@@ -430,11 +432,7 @@ function applyMovementRange() {
         <button type="button" @click="closeMovementCalendar">
           {{ t("crypto.actions.cancel") }}
         </button>
-        <button
-          class="primary"
-          type="submit"
-          :disabled="!movementRangeValid"
-        >
+        <button class="primary" type="submit" :disabled="!movementRangeValid">
           {{ t("crypto.calendar.applyPeriod") }}
         </button>
       </footer>

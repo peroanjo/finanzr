@@ -50,10 +50,9 @@ export interface StockPositionsPanelProps {
   positionIdentity: (position: StockPositionData) => string;
   assetTicker: (position: StockPositionData) => string;
   marketValueSegmentAria: (item: InvestmentAllocationItem) => string;
-  positionAriaSort: (key: StockPositionSortKey) =>
-    | "none"
-    | "ascending"
-    | "descending";
+  positionAriaSort: (
+    key: StockPositionSortKey,
+  ) => "none" | "ascending" | "descending";
   positionSortAria: (key: StockPositionSortKey, label: string) => string;
   detailId: (instrumentId: string) => string;
 }
@@ -183,8 +182,7 @@ function togglePosition(instrumentId: string) {
               <tr
                 class="fund-position-row"
                 :class="{
-                  active:
-                    props.selectedInstrumentId === position.instrument_id,
+                  active: props.selectedInstrumentId === position.instrument_id,
                 }"
                 @click="togglePosition(position.instrument_id)"
               >
@@ -214,7 +212,9 @@ function togglePosition(instrumentId: string) {
                   >
                     <span class="fund-position-disclosure-copy"
                       ><strong>{{ position.name }}</strong
-                      ><small>{{ props.positionIdentity(position) }}</small></span
+                      ><small>{{
+                        props.positionIdentity(position)
+                      }}</small></span
                     ><span aria-hidden="true">⌄</span>
                   </button>
                 </td>
@@ -248,11 +248,10 @@ function togglePosition(instrumentId: string) {
                     negative: (position.unrealized_pnl ?? 0) < 0,
                   }"
                 >
-                  <strong>{
-                    position.unrealized_pnl == null
-                      ? "—"
-                      : props.formatSignedMoney(position.unrealized_pnl)
-                  }</strong>
+                  <strong
+                    >{ position.unrealized_pnl == null ? "—" :
+                    props.formatSignedMoney(position.unrealized_pnl) }</strong
+                  >
                 </td>
                 <td
                   :class="{

@@ -41,8 +41,8 @@ const movementPageSize = 15;
 const movementRangeValid = computed(() =>
   Boolean(
     movementDraftStart.value &&
-      movementDraftEnd.value &&
-      Date.parse(movementDraftStart.value) <= Date.parse(movementDraftEnd.value),
+    movementDraftEnd.value &&
+    Date.parse(movementDraftStart.value) <= Date.parse(movementDraftEnd.value),
   ),
 );
 const filteredOrders = computed(() =>
@@ -259,7 +259,8 @@ function closeMovementCalendar() {
               <td>{{ props.displayDate(order.trade_date) }}</td>
               <td>
                 <span class="operation-pill" :class="operationGroup(order)">
-                  {{ operationLabel(order) }}<small v-if="order.is_saveback">{{
+                  {{ operationLabel(order)
+                  }}<small v-if="order.is_saveback">{{
                     t("stocks.movements.cashback")
                   }}</small>
                 </span>

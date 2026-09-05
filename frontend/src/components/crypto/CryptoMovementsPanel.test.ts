@@ -99,9 +99,7 @@ describe("CryptoMovementsPanel", () => {
   it("owns filters, pagination, date drafts, and collapse persistence", async () => {
     const wrapper = mount(CryptoMovementsPanel, { props: baseProps });
     expect(wrapper.findAll(".movement-table tbody tr")).toHaveLength(15);
-    expect(wrapper.get(".movement-pagination").text()).toContain(
-      "Page 1 of 2",
-    );
+    expect(wrapper.get(".movement-pagination").text()).toContain("Page 1 of 2");
     await wrapper
       .get(".movement-pagination button:last-child")
       .trigger("click");
@@ -136,9 +134,7 @@ describe("CryptoMovementsPanel", () => {
     expect(wrapper.emitted("delete")?.[0]).toEqual([order]);
 
     await wrapper
-      .get(
-        '.movement-filters button[aria-label="Filter transactions by date"]',
-      )
+      .get('.movement-filters button[aria-label="Filter transactions by date"]')
       .trigger("click");
     const dialog = wrapper.get(
       'dialog[aria-labelledby="movement-calendar-title"]',
@@ -148,9 +144,11 @@ describe("CryptoMovementsPanel", () => {
     await dates[1].setValue("2026-01-01");
     await dialog.get("form").trigger("submit");
     expect(
-      wrapper.get(
-        '.movement-filters button[aria-label="Filter transactions by date"]',
-      ).text(),
+      wrapper
+        .get(
+          '.movement-filters button[aria-label="Filter transactions by date"]',
+        )
+        .text(),
     ).toContain("2026-01-01");
   });
 

@@ -609,7 +609,9 @@ onBeforeUnmount(() => {
             "
             mode="crowdfunding"
             :can-administer="canAdminister"
-            :default-crowdfunding-tax-rate="sessionDefaultCrowdfundingTaxRate ?? 19"
+            :default-crowdfunding-tax-rate="
+              sessionDefaultCrowdfundingTaxRate ?? 19
+            "
             :crowdfunding-busy="crowdfundingTaxBusy"
             :crowdfunding-error="crowdfundingTaxError"
             :crowdfunding-success="crowdfundingTaxSuccess"

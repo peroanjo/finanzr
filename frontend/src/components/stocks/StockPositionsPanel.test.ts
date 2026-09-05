@@ -149,7 +149,9 @@ describe("StockPositionsPanel", () => {
     });
     expect(wrapper.get('[data-testid="stock-chart"]').text()).toBe("1-1");
     expect(
-      wrapper.get('[data-testid="stock-chart"]').attributes("data-marker-shape"),
+      wrapper
+        .get('[data-testid="stock-chart"]')
+        .attributes("data-marker-shape"),
     ).toBe("pin");
 
     await wrapper.get(".fund-range-control button").trigger("click");

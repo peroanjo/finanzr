@@ -1,14 +1,10 @@
-import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import SettingsLanguagePanel from "./SettingsLanguagePanel.vue";
-import { i18n, registerMessages } from "../../i18n";
-import { coreMessages } from "../../i18n/coreMessages";
-
-registerMessages(coreMessages);
+import { mountWithTestI18n } from "./testI18n";
 
 describe("SettingsLanguagePanel", () => {
   it("shows the effective language and emits personal language intent", async () => {
-    const wrapper = mount(SettingsLanguagePanel, {
+    const wrapper = mountWithTestI18n(SettingsLanguagePanel, {
       props: {
         effectiveLanguage: "es-ES",
         effectiveLanguageName: "Español",
@@ -25,7 +21,6 @@ describe("SettingsLanguagePanel", () => {
         installationError: "",
         installationSuccess: "",
       },
-      global: { plugins: [i18n] },
     });
 
     expect(wrapper.get(".effective-language strong").text()).toBe("Español");

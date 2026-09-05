@@ -954,7 +954,10 @@ onMounted(loadDashboard);
         @select-chart-range="selectChartRange"
         @retry-chart="loadChart"
         @edit-position="
-          (position) => assetEditor?.openEdit(instrumentById(instruments, position.instrument_id))
+          (position) =>
+            assetEditor?.openEdit(
+              instrumentById(instruments, position.instrument_id),
+            )
         "
         @add-asset="assetEditor?.openCreate()"
         @sort="sortPositions"

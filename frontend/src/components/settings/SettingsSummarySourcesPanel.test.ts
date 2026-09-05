@@ -1,10 +1,7 @@
-import { flushPromises, mount } from "@vue/test-utils";
+import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import SettingsSummarySourcesPanel from "./SettingsSummarySourcesPanel.vue";
-import { i18n, registerMessages } from "../../i18n";
-import { coreMessages } from "../../i18n/coreMessages";
-
-registerMessages(coreMessages);
+import { mountWithTestI18n } from "./testI18n";
 
 const sourceKeys = [
   "savings",
@@ -18,7 +15,7 @@ const sourceKeys = [
 
 describe("SettingsSummarySourcesPanel", () => {
   it("transfers selected sources and emits the explicit save intent", async () => {
-    const wrapper = mount(SettingsSummarySourcesPanel, {
+    const wrapper = mountWithTestI18n(SettingsSummarySourcesPanel, {
       props: {
         summarySources: ["savings", "crowdfunding"],
         summarySourceKeys: [...sourceKeys],
@@ -28,7 +25,6 @@ describe("SettingsSummarySourcesPanel", () => {
         error: "",
         success: "",
       },
-      global: { plugins: [i18n] },
     });
 
     const available = wrapper.findAll('[role="option"]')[0];
@@ -41,14 +37,12 @@ describe("SettingsSummarySourcesPanel", () => {
     ]);
 
     await wrapper.get(".summary-sources-save").trigger("click");
-    expect(wrapper.emitted("save")?.[0]).toEqual([
-      ["savings", "crowdfunding"],
-    ]);
+    expect(wrapper.emitted("save")?.[0]).toEqual([["savings", "crowdfunding"]]);
     await flushPromises();
   });
 
   it("keeps listbox navigation and save controls accessible", async () => {
-    const wrapper = mount(SettingsSummarySourcesPanel, {
+    const wrapper = mountWithTestI18n(SettingsSummarySourcesPanel, {
       props: {
         summarySources: ["savings"],
         summarySourceKeys: [...sourceKeys],
@@ -59,15 +53,18 @@ describe("SettingsSummarySourcesPanel", () => {
         success: "",
       },
       attachTo: document.body,
-      global: { plugins: [i18n] },
     });
 
-    const available = wrapper.findAll('[role="listbox"]')[0].findAll('[role="option"]');
+    const available = wrapper
+      .findAll('[role="listbox"]')[0]
+      .findAll('[role="option"]');
     await available[0].trigger("focus");
     await available[0].trigger("keydown", { key: "End" });
     await flushPromises();
     expect(document.activeElement).toBe(available.at(-1)!.element);
-    expect(wrapper.get(".summary-sources-save").attributes("disabled")).toBeUndefined();
+    expect(
+      wrapper.get(".summary-sources-save").attributes("disabled"),
+    ).toBeUndefined();
     wrapper.unmount();
   });
 });

@@ -1,10 +1,6 @@
-import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import SettingsInstallationPreferencesPanel from "./SettingsInstallationPreferencesPanel.vue";
-import { i18n, registerMessages } from "../../i18n";
-import { coreMessages } from "../../i18n/coreMessages";
-
-registerMessages(coreMessages);
+import { mountWithTestI18n } from "./testI18n";
 
 const locales = [
   { code: "es-ES" as const, label: "Español" },
@@ -13,7 +9,7 @@ const locales = [
 
 describe("SettingsInstallationPreferencesPanel", () => {
   it("emits installation language changes from the local draft", async () => {
-    const wrapper = mount(SettingsInstallationPreferencesPanel, {
+    const wrapper = mountWithTestI18n(SettingsInstallationPreferencesPanel, {
       props: {
         mode: "installation",
         canAdminister: true,
@@ -23,7 +19,6 @@ describe("SettingsInstallationPreferencesPanel", () => {
         installationError: "",
         installationSuccess: "",
       },
-      global: { plugins: [i18n] },
     });
 
     await wrapper.find('input[value="en"]').setValue();
@@ -32,7 +27,7 @@ describe("SettingsInstallationPreferencesPanel", () => {
   });
 
   it("emits crowdfunding tax updates and gates the editor for non-admins", async () => {
-    const wrapper = mount(SettingsInstallationPreferencesPanel, {
+    const wrapper = mountWithTestI18n(SettingsInstallationPreferencesPanel, {
       props: {
         mode: "crowdfunding",
         canAdminister: true,
@@ -41,7 +36,6 @@ describe("SettingsInstallationPreferencesPanel", () => {
         crowdfundingError: "",
         crowdfundingSuccess: "",
       },
-      global: { plugins: [i18n] },
     });
 
     await wrapper.get(".tax-rate-field input").setValue("21.5");
@@ -49,7 +43,9 @@ describe("SettingsInstallationPreferencesPanel", () => {
     expect(wrapper.emitted("saveCrowdfundingTax")?.[0]).toEqual([21.5]);
 
     await wrapper.setProps({ canAdminister: false });
-    expect(wrapper.get(".tax-rate-field input").attributes("disabled")).toBe("");
+    expect(wrapper.get(".tax-rate-field input").attributes("disabled")).toBe(
+      "",
+    );
     expect(wrapper.find(".withholding-form-row button").exists()).toBe(false);
   });
 });

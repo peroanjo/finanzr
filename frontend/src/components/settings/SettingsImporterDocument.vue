@@ -46,10 +46,7 @@ const { t } = useI18n();
         <span>{{ selectedImporter.formats.length }}</span>
       </header>
       <div class="format-grid">
-        <div
-          v-for="format in selectedImporter.formats"
-          :key="format.extension"
-        >
+        <div v-for="format in selectedImporter.formats" :key="format.extension">
           <span>{{ format.extension.replace(".", "").toUpperCase() }}</span>
           <p>
             <strong>{{ format.label }}</strong
@@ -86,7 +83,9 @@ const { t } = useI18n();
           class="field-row"
         >
           <div>
-            <b v-if="field.position">{{ String(field.position).padStart(2, "0") }}</b>
+            <b v-if="field.position">{{
+              String(field.position).padStart(2, "0")
+            }}</b>
             <span>
               <strong>{{ field.label }}</strong
               ><code>{{ field.name }}</code>
@@ -94,7 +93,9 @@ const { t } = useI18n();
           </div>
           <p>
             {{ field.description }}
-            <em>{{ field.required ? t("common.required") : t("common.optional") }}</em>
+            <em>{{
+              field.required ? t("common.required") : t("common.optional")
+            }}</em>
           </p>
           <code>{{ field.example }}</code>
         </div>
@@ -215,7 +216,9 @@ const { t } = useI18n();
 .document-section > header p {
   margin: 0;
   color: var(--fz-accent);
-  font: 750 10px ui-monospace, monospace;
+  font:
+    750 10px ui-monospace,
+    monospace;
 }
 .document-section h4 {
   margin: 0;
@@ -268,7 +271,10 @@ const { t } = useI18n();
 .field-row {
   min-width: 780px;
   display: grid;
-  grid-template-columns: minmax(210px, 0.8fr) minmax(330px, 1.25fr) minmax(160px, 0.6fr);
+  grid-template-columns: minmax(210px, 0.8fr) minmax(330px, 1.25fr) minmax(
+      160px,
+      0.6fr
+    );
   gap: 12px;
   align-items: center;
 }
@@ -302,7 +308,11 @@ const { t } = useI18n();
 }
 .field-row code {
   color: var(--fz-muted);
-  font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    600 10px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 .field-row > p {
   margin: 0;
