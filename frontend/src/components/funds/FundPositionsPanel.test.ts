@@ -125,7 +125,11 @@ describe("FundPositionsPanel", () => {
     );
 
     expect(collapse.attributes("aria-expanded")).toBe("true");
-    expect(wrapper.get(".fund-position-row").text()).toContain("Global fund");
+    const positionRow = wrapper.get(".fund-position-row");
+    expect(positionRow.text()).toContain("Global fund");
+    expect(positionRow.text()).toContain("+€200");
+    expect(positionRow.text()).toContain("20%");
+    expect(positionRow.text()).not.toContain("{ position");
 
     await collapse.trigger("click");
     expect(collapse.attributes("aria-expanded")).toBe("false");

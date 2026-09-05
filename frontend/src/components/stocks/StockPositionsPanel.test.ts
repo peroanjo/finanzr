@@ -124,7 +124,11 @@ describe("StockPositionsPanel", () => {
     );
 
     expect(collapse.attributes("aria-expanded")).toBe("true");
-    expect(wrapper.get(".fund-position-row").text()).toContain("NVIDIA");
+    const positionRow = wrapper.get(".fund-position-row");
+    expect(positionRow.text()).toContain("NVIDIA");
+    expect(positionRow.text()).toContain("+€50");
+    expect(positionRow.text()).toContain("25%");
+    expect(positionRow.text()).not.toContain("{ position");
 
     await collapse.trigger("click");
     expect(collapse.attributes("aria-expanded")).toBe("false");

@@ -253,10 +253,13 @@ function toggleFund(instrumentId: string) {
                     negative: (position.unrealized_pnl ?? 0) < 0,
                   }"
                 >
-                  <strong
-                    >{ position.unrealized_pnl == null ? "—" :
-                    props.formatSignedMoney(position.unrealized_pnl) }}</strong
-                  >
+                  <strong>
+                    {{
+                      position.unrealized_pnl == null
+                        ? "—"
+                        : props.formatSignedMoney(position.unrealized_pnl)
+                    }}
+                  </strong>
                 </td>
                 <td
                   :data-label="t('funds.positions.return')"
@@ -265,10 +268,13 @@ function toggleFund(instrumentId: string) {
                     negative: (position.return_percent ?? 0) < 0,
                   }"
                 >
-                  <strong
-                    >{ position.return_percent == null ? "—" :
-                    props.formatPercentage(position.return_percent) }}</strong
-                  >
+                  <strong>
+                    {{
+                      position.return_percent == null
+                        ? "—"
+                        : props.formatPercentage(position.return_percent)
+                    }}
+                  </strong>
                 </td>
                 <td>
                   <button

@@ -248,10 +248,13 @@ function togglePosition(instrumentId: string) {
                     negative: (position.unrealized_pnl ?? 0) < 0,
                   }"
                 >
-                  <strong
-                    >{ position.unrealized_pnl == null ? "—" :
-                    props.formatSignedMoney(position.unrealized_pnl) }</strong
-                  >
+                  <strong>
+                    {{
+                      position.unrealized_pnl == null
+                        ? "—"
+                        : props.formatSignedMoney(position.unrealized_pnl)
+                    }}
+                  </strong>
                 </td>
                 <td
                   :class="{
