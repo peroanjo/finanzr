@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import NoReturn
 
 import pytest
-from apps.api import views
+from apps.api import market_queries, market_views
 from apps.market_data.fx import CurrencyConversionError, FxConversion
 from apps.market_data.models import (
     FxRate,
@@ -127,7 +127,7 @@ def test_manual_native_price_is_private_to_its_workspace(
         source="yahoo",
     )
     monkeypatch.setattr(
-        views,
+        market_queries,
         "rate_to_base",
         lambda _quote, base, requested_date, **_kwargs: FxConversion(
             Decimal("0.9") if base == "EUR" else Decimal("1"),
@@ -233,8 +233,8 @@ def test_yahoo_refresh_persists_only_the_native_quote(
         rate=Decimal("0.9"),
         source="yahoo",
     )
-    monkeypatch.setattr(views, "yahoo_ticker", lambda _instrument: "TEST")
-    monkeypatch.setattr(views, "quote_price", lambda _ticker: (100.0, "USD"))
+    monkeypatch.setattr(market_views, "yahoo_ticker", lambda _instrument: "TEST")
+    monkeypatch.setattr(market_views, "quote_price", lambda _ticker: (100.0, "USD"))
 
     response = eur_client.post("/api/stock-prices/fetch", format="json")
 
@@ -284,13 +284,13 @@ def test_provider_failure_never_falls_back_to_an_identity_rate(
 ) -> None:
     workspace, client = workspace_client("provider-failure", "EUR")
     instrument = shared_instrument(workspace, kind=Instrument.Kind.FUND)
-    monkeypatch.setattr(views, "yahoo_ticker", lambda _instrument: "TEST")
-    monkeypatch.setattr(views, "quote_price", lambda _ticker: (100.0, "USD"))
+    monkeypatch.setattr(market_views, "yahoo_ticker", lambda _instrument: "TEST")
+    monkeypatch.setattr(market_views, "quote_price", lambda _ticker: (100.0, "USD"))
 
     def unavailable(*_args: object, **_kwargs: object) -> NoReturn:
         raise CurrencyConversionError("No USD/EUR rate")
 
-    monkeypatch.setattr(views, "rate_to_base", unavailable)
+    monkeypatch.setattr(market_views, "rate_to_base", unavailable)
 
     response = client.post("/api/fund-prices/fetch")
 

@@ -11,7 +11,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.models import Account, AccountSnapshot
-from apps.api import transaction_views, views
+from apps.api import instrument_views, market_views, transaction_views, views
 from apps.api.account_projection import account_row
 from apps.api.auth import user_payload
 from apps.api.context import active_membership, workspace
@@ -111,15 +111,15 @@ def export_payload(request: Request) -> dict[str, object]:
         "fund_accounts": _native_traded_accounts(request, Account.Kind.FUNDS),
         "stock_accounts": _native_traded_accounts(request, Account.Kind.STOCKS),
         "crypto_accounts": _native_traded_accounts(request, Account.Kind.CRYPTO),
-        "funds": _view_data(views.funds, request),
-        "stocks": _view_data(views.stocks, request),
-        "cryptos": _view_data(views.cryptos, request),
+        "funds": _view_data(instrument_views.funds, request),
+        "stocks": _view_data(instrument_views.stocks, request),
+        "cryptos": _view_data(instrument_views.cryptos, request),
         "orders": _view_data(transaction_views.orders, request),
         "stock_orders": _view_data(transaction_views.stock_orders, request),
         "crypto_orders": _view_data(transaction_views.crypto_orders, request),
-        "fund_prices": _view_data(views.fund_prices, request),
-        "stock_prices": _view_data(views.stock_prices, request),
-        "crypto_prices": _view_data(views.crypto_prices, request),
+        "fund_prices": _view_data(market_views.fund_prices, request),
+        "stock_prices": _view_data(market_views.stock_prices, request),
+        "crypto_prices": _view_data(market_views.crypto_prices, request),
     }
 
 
