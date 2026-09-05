@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
 import AssetEditorDialog from "../components/AssetEditorDialog.vue";
@@ -7,12 +7,11 @@ import type { AssetReturnMode } from "../components/AssetReturnToggle.vue";
 import CryptoPositionsPanel, {
   type CryptoPerformanceRange,
 } from "../components/crypto/CryptoPositionsPanel.vue";
+import CryptoMovementsPanel from "../components/crypto/CryptoMovementsPanel.vue";
 import FundPerformanceChart from "../components/FundPerformanceChart.vue";
 import InvestmentAccountBar from "../components/investments/InvestmentAccountBar.vue";
 import type { InvestmentAllocationItem } from "../components/investments/InvestmentAllocationStrip.vue";
-import InvestmentCollapseButton from "../components/investments/InvestmentCollapseButton.vue";
 import InvestmentOverview from "../components/investments/InvestmentOverview.vue";
-import InvestmentMovementActions from "../components/investments/InvestmentMovementActions.vue";
 import type {
   InvestmentAccountBarLabels,
   InvestmentImportConfig,
@@ -187,11 +186,15 @@ const performanceError = ref("");
 const chartError = ref("");
 const priceMessage = ref("");
 const calendarDialog = ref<HTMLDialogElement>();
-const movementCalendarDialog = ref<HTMLDialogElement>();
 const accountDialog = ref<HTMLDialogElement>();
 const assetEditor = ref<AssetEditorHandle>();
 const movementEditor = ref<MovementEditorHandle>();
 const movementDelete = ref<MovementDeleteHandle>();
+const movementPanel = ref<{
+  resetForAccount: (resetType?: boolean) => void;
+  resetPage: () => void;
+  initializeMovementRange: () => void;
+}>();
 const accountDialogMode = ref<"create" | "edit">("create");
 const accountName = ref("");
 const accountProvider = ref("");
@@ -202,11 +205,6 @@ const accountBusy = ref(false);
 const accountError = ref("");
 const accountDeleteArmed = ref(false);
 const chartCalendarDialog = ref<HTMLDialogElement>();
-const movementsCollapsed = ref(
-  readStorageItem("finanzr-crypto-movements-collapsed") === "true",
-);
-const movementType = ref("all");
-const movementPage = ref(1);
 let dashboardGeneration = 0;
 let performanceRequestGeneration = 0;
 let chartRequestGeneration = 0;
@@ -220,11 +218,6 @@ const chartCustomStart = ref(customStart.value);
 const chartCustomEnd = ref(customEnd.value);
 const chartDraftStart = ref(chartCustomStart.value);
 const chartDraftEnd = ref(chartCustomEnd.value);
-const movementSymbol = ref("all");
-const movementStart = ref("");
-const movementEnd = ref("");
-const movementDraftStart = ref("");
-const movementDraftEnd = ref("");
 
 const {
   openPositions,
@@ -274,14 +267,6 @@ const chartCustomRangeValid = computed(() =>
     Date.parse(chartDraftStart.value) <= Date.parse(chartDraftEnd.value),
   ),
 );
-const movementRangeValid = computed(() =>
-  Boolean(
-    movementDraftStart.value &&
-    movementDraftEnd.value &&
-    Date.parse(movementDraftStart.value) <= Date.parse(movementDraftEnd.value),
-  ),
-);
-
 const performancePoints = computed(() => performance.value?.data ?? []);
 const firstPerformance = computed(() => performancePoints.value[0] ?? null);
 const lastPerformance = computed(() => performancePoints.value.at(-1) ?? null);
@@ -409,64 +394,6 @@ const positionSortColumns = computed(() => [
   { key: "pnl" as PositionSortKey, label: t("crypto.positions.pnl") },
   { key: "return" as PositionSortKey, label: t("crypto.positions.return") },
 ]);
-const movementSymbols = computed(() => {
-  const names = new Map(
-    instruments.value.map((item) => [
-      instrumentIdentity(item),
-      instrumentName(item),
-    ]),
-  );
-  orders.value.forEach((item) => {
-    names.set(
-      item.symbol,
-      item.asset_name || names.get(item.symbol) || item.symbol,
-    );
-  });
-  return [...names.entries()]
-    .filter(([symbol]) => orders.value.some((item) => item.symbol === symbol))
-    .map(([symbol, name]) => ({ symbol, name }))
-    .sort((a, b) => a.symbol.localeCompare(b.symbol));
-});
-const filteredMovements = computed(() =>
-  [...orders.value]
-    .filter(
-      (item) =>
-        movementSymbol.value === "all" || item.symbol === movementSymbol.value,
-    )
-    .filter(
-      (item) =>
-        movementType.value === "all" ||
-        operationGroup(item) === movementType.value,
-    )
-    .filter(
-      (item) =>
-        !movementStart.value ||
-        item.trade_date.slice(0, 10) >= movementStart.value,
-    )
-    .filter(
-      (item) =>
-        !movementEnd.value || item.trade_date.slice(0, 10) <= movementEnd.value,
-    )
-    .sort(
-      (a, b) =>
-        b.trade_date.localeCompare(a.trade_date) ||
-        String(b.id).localeCompare(String(a.id)),
-    ),
-);
-const movementPages = computed(() =>
-  Math.max(1, Math.ceil(filteredMovements.value.length / 15)),
-);
-const displayedMovements = computed(() =>
-  filteredMovements.value.slice(
-    (movementPage.value - 1) * 15,
-    movementPage.value * 15,
-  ),
-);
-const movementRangeLabel = computed(() =>
-  movementStart.value && movementEnd.value
-    ? `${displayDate(movementStart.value)} → ${displayDate(movementEnd.value)}`
-    : t("crypto.movements.allDates"),
-);
 const movementAssets = computed(() =>
   instruments.value.map((item) => ({
     id: instrumentIdentity(item),
@@ -543,38 +470,12 @@ function displayDate(value: string) {
 function money(value: number) {
   return n(value, "currency");
 }
-function originalMoney(value: number, currency?: string) {
-  return n(value, {
-    style: "currency",
-    currency: currency || "EUR",
-    maximumFractionDigits: 2,
-  });
-}
-
 function percentage(value: number) {
   return n(value, "percent");
 }
 
 function signedMoney(value: number) {
   return `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
-}
-
-function initializeMovementRange() {
-  if (!orders.value.length || (movementStart.value && movementEnd.value))
-    return;
-  const dates = orders.value.map((item) => item.trade_date.slice(0, 10)).sort();
-  movementStart.value = dates[0];
-  movementEnd.value = dates.at(-1) ?? dates[0];
-  movementDraftStart.value = movementStart.value;
-  movementDraftEnd.value = movementEnd.value;
-}
-
-function resetMovementFiltersForAccount() {
-  movementSymbol.value = "all";
-  movementStart.value = "";
-  movementEnd.value = "";
-  movementDraftStart.value = "";
-  movementDraftEnd.value = "";
 }
 
 function accountQuery() {
@@ -593,7 +494,7 @@ function performanceQuery() {
 }
 
 async function loadDashboard(showLoading = true, loadSelectedChart = true) {
-  movementPage.value = 1;
+  movementPanel.value?.resetPage();
   const generation = ++dashboardGeneration;
   performanceRequestGeneration += 1;
   chartRequestGeneration += 1;
@@ -631,7 +532,7 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
     orders.value = nextOrders;
     instruments.value = nextInstruments;
     prices.value = nextPrices;
-    initializeMovementRange();
+    movementPanel.value?.initializeMovementRange();
     const available = openPositions.value.map(
       (position) => position.instrument_id,
     );
@@ -694,9 +595,7 @@ function syncAccountUrl() {
 
 async function changeAccount(account: string) {
   selectedAccount.value = account;
-  resetMovementFiltersForAccount();
-  movementType.value = "all";
-  movementPage.value = 1;
+  movementPanel.value?.resetForAccount(true);
   closePosition();
   syncAccountUrl();
   await loadDashboard(false);
@@ -753,7 +652,7 @@ async function saveAccount() {
       }),
     );
     selectedAccount.value = String(saved.id);
-    resetMovementFiltersForAccount();
+    movementPanel.value?.resetForAccount(false);
     syncAccountUrl();
     accountDialog.value?.close();
     await loadDashboard();
@@ -777,7 +676,7 @@ async function deleteAccount() {
       method: "DELETE",
     });
     selectedAccount.value = "all";
-    resetMovementFiltersForAccount();
+    movementPanel.value?.resetForAccount(false);
     syncAccountUrl();
     accountDialog.value?.close();
     await loadDashboard();
@@ -919,31 +818,6 @@ async function applyChartCustomRange() {
   await loadChart();
 }
 
-function openMovementCalendar() {
-  movementDraftStart.value = movementStart.value;
-  movementDraftEnd.value = movementEnd.value;
-  movementCalendarDialog.value?.showModal();
-}
-
-function closeMovementCalendar() {
-  movementCalendarDialog.value?.close();
-}
-
-function applyMovementRange() {
-  if (!movementRangeValid.value) return;
-  movementStart.value = movementDraftStart.value;
-  movementEnd.value = movementDraftEnd.value;
-  closeMovementCalendar();
-}
-
-function operationGroup(order: CryptoOrder) {
-  return movementTone(order) === "is-buy" ? "in" : "out";
-}
-
-function hasOriginalCurrency(order: CryptoOrder) {
-  return Boolean(order.currency && order.currency !== reportingCurrency.value);
-}
-
 function assetTicker(position: CryptoPosition) {
   const instrument = instrumentById(instruments.value, position.instrument_id);
   return instrumentTicker(instrument) || instrumentIdentity(instrument);
@@ -983,14 +857,6 @@ function sortAria(key: PositionSortKey, label: string) {
   );
 }
 
-function toggleMovements() {
-  movementsCollapsed.value = !movementsCollapsed.value;
-  writeStorageItem(
-    "finanzr-crypto-movements-collapsed",
-    String(movementsCollapsed.value),
-  );
-}
-
 function openNewMovement() {
   movementEditor.value?.openCreate();
 }
@@ -1001,18 +867,6 @@ function openEditMovement(order: CryptoOrder) {
 
 function askDeleteMovement(order: CryptoOrder) {
   movementDelete.value?.open(order);
-}
-
-function movementTone(order: CryptoOrder) {
-  if (order.operation_type === "buy") return "is-buy";
-  if (order.operation_type === "sell") return "is-sell";
-  return "is-neutral";
-}
-
-function movementLabel(order: CryptoOrder) {
-  if (order.operation_type === "buy") return t("crypto.movements.buy");
-  if (order.operation_type === "sell") return t("crypto.movements.sell");
-  return order.provider_operation_type || order.operation_type;
 }
 
 function importerDescription(importer: ImporterCatalogItem) {
@@ -1060,12 +914,6 @@ async function handleAssetSaved(asset: EditableAsset) {
   await loadChart();
 }
 
-watch([movementSymbol, movementType, movementStart, movementEnd], () => {
-  movementPage.value = 1;
-});
-watch(movementPages, (pages) => {
-  if (movementPage.value > pages) movementPage.value = pages;
-});
 onMounted(loadDashboard);
 </script>
 
@@ -1273,185 +1121,22 @@ onMounted(loadDashboard);
         @sort="sortPositions"
       />
 
-      <article
-        class="fund-performance-panel movements-panel"
-        :class="{ collapsed: movementsCollapsed }"
-      >
-        <header class="fund-secondary-header">
-          <div>
-            <p class="section-label">{{ t("crypto.movements.section") }}</p>
-            <h2>{{ t("crypto.movements.title") }}</h2>
-            <p class="fund-range-label">
-              {{
-                t(
-                  filteredMovements.length === 1
-                    ? "crypto.movements.operation"
-                    : "crypto.movements.operations",
-                  { count: filteredMovements.length },
-                )
-              }}
-              · {{ movementRangeLabel }}
-            </p>
-          </div>
-          <div class="fund-collapsible-actions">
-            <div v-show="!movementsCollapsed" class="movement-filters">
-              <button
-                type="button"
-                class="add-movement"
-                @click="openNewMovement"
-              >
-                + {{ t("crypto.movements.add") }}</button
-              ><select
-                v-model="movementSymbol"
-                :aria-label="t('crypto.movements.currencyFilterAria')"
-              >
-                <option value="all">
-                  {{ t("crypto.movements.allCurrencies") }}
-                </option>
-                <option
-                  v-for="item in movementSymbols"
-                  :key="item.symbol"
-                  :value="item.symbol"
-                >
-                  {{ item.symbol }} · {{ item.name }}
-                </option></select
-              ><select
-                v-model="movementType"
-                :aria-label="t('crypto.movements.filterTypeAria')"
-              >
-                <option value="all">
-                  {{ t("crypto.movements.allMovements") }}
-                </option>
-                <option value="in">{{ t("crypto.movements.entries") }}</option>
-                <option value="out">
-                  {{ t("crypto.movements.exits") }}
-                </option></select
-              ><button
-                type="button"
-                :aria-label="t('crypto.movements.dateFilterAria')"
-                @click="openMovementCalendar"
-              >
-                {{ movementRangeLabel }}
-              </button>
-            </div>
-            <InvestmentCollapseButton
-              :collapsed="movementsCollapsed"
-              controls="crypto-movements-content"
-              :label="
-                t(
-                  movementsCollapsed
-                    ? 'crypto.movements.expandAria'
-                    : 'crypto.movements.collapseAria',
-                )
-              "
-              @toggle="toggleMovements"
-            />
-          </div>
-        </header>
-        <div v-show="!movementsCollapsed" id="crypto-movements-content">
-          <div class="fund-table-scroll">
-            <table class="fund-table movement-table">
-              <thead>
-                <tr>
-                  <th>{{ t("crypto.movements.date") }}</th>
-                  <th>{{ t("crypto.movements.movement") }}</th>
-                  <th>{{ t("crypto.movements.asset") }}</th>
-                  <th>{{ t("crypto.movements.account") }}</th>
-                  <th>{{ t("crypto.movements.quantity") }}</th>
-                  <th>{{ t("crypto.movements.price") }}</th>
-                  <th>{{ t("crypto.movements.amount") }}</th>
-                  <th>{{ t("crypto.movements.fee") }}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="item in displayedMovements"
-                  :key="item.id"
-                  :data-testid="`movement-${item.id}`"
-                >
-                  <td>{{ displayDate(item.trade_date) }}</td>
-                  <td>
-                    <span
-                      class="operation-pill"
-                      :class="operationGroup(item)"
-                      >{{ movementLabel(item) }}</span
-                    >
-                  </td>
-                  <td>
-                    <strong>{{ item.asset_name }}</strong
-                    ><small>{{ item.symbol }}</small>
-                  </td>
-                  <td>
-                    {{ item.account_name || selectedAccountLabel
-                    }}<small>{{
-                      item.platform || t("crypto.accounts.cryptoFallback")
-                    }}</small>
-                  </td>
-                  <td>{{ n(item.quantity, "quantity") }}</td>
-                  <td>
-                    {{ money(basePrice(item))
-                    }}<small v-if="hasOriginalCurrency(item)">{{
-                      originalMoney(item.unit_price, item.currency)
-                    }}</small>
-                  </td>
-                  <td>
-                    <strong>{{ money(baseAmount(item)) }}</strong
-                    ><small v-if="hasOriginalCurrency(item)">{{
-                      originalMoney(item.net_amount, item.currency)
-                    }}</small>
-                  </td>
-                  <td>
-                    {{ money(baseFee(item))
-                    }}<small v-if="hasOriginalCurrency(item)">{{
-                      originalMoney(item.fee, item.currency)
-                    }}</small>
-                  </td>
-                  <td>
-                    <InvestmentMovementActions
-                      :edit-label="t('crypto.movements.edit')"
-                      :delete-label="t('crypto.movements.delete')"
-                      @edit="openEditMovement(item)"
-                      @delete="askDeleteMovement(item)"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div v-if="!filteredMovements.length" class="fund-empty-compact">
-            {{ t("crypto.movements.noResults") }}
-          </div>
-          <nav
-            v-else-if="movementPages > 1"
-            class="movement-pagination"
-            :aria-label="t('crypto.movements.paginationAria')"
-          >
-            <span>{{
-              t("crypto.movements.page", {
-                page: movementPage,
-                pages: movementPages,
-              })
-            }}</span>
-            <div>
-              <button
-                type="button"
-                :disabled="movementPage === 1"
-                @click="movementPage -= 1"
-              >
-                {{ t("crypto.movements.previous") }}</button
-              ><button
-                type="button"
-                :disabled="movementPage === movementPages"
-                @click="movementPage += 1"
-              >
-                {{ t("crypto.movements.next") }}
-              </button>
-            </div>
-          </nav>
-        </div>
-      </article>
-
+      <CryptoMovementsPanel
+        ref="movementPanel"
+        :orders="orders"
+        :instruments="instruments"
+        :selected-account-label="selectedAccountLabel"
+        :base-currency="reportingCurrency"
+        :format-money="money"
+        :format-quantity="(value) => n(value, 'quantity')"
+        :display-date="displayDate"
+        :base-price="basePrice"
+        :base-amount="baseAmount"
+        :base-fee="baseFee"
+        @add="openNewMovement"
+        @edit="openEditMovement"
+        @delete="askDeleteMovement"
+      />
       <MovementEditorDialog
         ref="movementEditor"
         kind="crypto"
@@ -1561,59 +1246,6 @@ onMounted(loadDashboard);
               class="primary"
               type="submit"
               :disabled="!chartCustomRangeValid"
-            >
-              {{ t("crypto.calendar.applyPeriod") }}
-            </button>
-          </footer>
-        </form>
-      </dialog>
-
-      <dialog
-        ref="movementCalendarDialog"
-        class="calendar-dialog movement-calendar-dialog"
-        aria-labelledby="movement-calendar-title"
-        @cancel.prevent="closeMovementCalendar"
-      >
-        <form @submit.prevent="applyMovementRange">
-          <header>
-            <div>
-              <p class="section-label">
-                {{ t("crypto.movements.filterSection") }}
-              </p>
-              <h2 id="movement-calendar-title">
-                {{ t("crypto.calendar.selectDates") }}
-              </h2>
-            </div>
-          </header>
-          <div class="calendar-fields">
-            <label>
-              <span>{{ t("crypto.calendar.from") }}</span>
-              <input
-                v-model="movementDraftStart"
-                type="date"
-                :max="movementDraftEnd"
-                required
-              />
-            </label>
-            <span aria-hidden="true">→</span>
-            <label>
-              <span>{{ t("crypto.calendar.to") }}</span>
-              <input
-                v-model="movementDraftEnd"
-                type="date"
-                :min="movementDraftStart"
-                required
-              />
-            </label>
-          </div>
-          <footer class="calendar-dialog-actions">
-            <button type="button" @click="closeMovementCalendar">
-              {{ t("crypto.actions.cancel") }}
-            </button>
-            <button
-              class="primary"
-              type="submit"
-              :disabled="!movementRangeValid"
             >
               {{ t("crypto.calendar.applyPeriod") }}
             </button>
@@ -2219,15 +1851,13 @@ onMounted(loadDashboard);
   background: var(--fz-surface);
   box-shadow: var(--fz-shadow);
 }
-.fund-performance-header,
-.fund-secondary-header {
+.fund-performance-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
 }
-.fund-performance-header h2,
-.fund-secondary-header h2 {
+.fund-performance-header h2 {
   margin: 0;
   font-size: 20px;
   font-weight: 750;
@@ -2320,300 +1950,6 @@ onMounted(loadDashboard);
   background: transparent;
   color: inherit;
   cursor: pointer;
-}
-.fund-collapsible-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.fund-table-scroll {
-  overflow-x: auto;
-}
-.fund-table {
-  width: 100%;
-  min-width: 980px;
-  margin-top: 18px;
-  border-collapse: collapse;
-  font-size: 11px;
-}
-.fund-table th {
-  padding: 0 10px 9px;
-  color: var(--fz-muted);
-  font-size: 10px;
-  font-weight: 700;
-  text-align: right;
-  border-bottom: 1px solid var(--fz-line);
-}
-.fund-table th:first-child,
-.fund-table td:first-child,
-.fund-table th:nth-child(2),
-.fund-table td:nth-child(2) {
-  text-align: left;
-}
-.fund-table td {
-  padding: 11px 10px;
-  border-bottom: 1px solid var(--fz-line);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.fund-table td small {
-  display: block;
-  color: var(--fz-muted);
-  font-size: 9px;
-}
-.movement-pagination {
-  margin-top: 15px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  color: var(--fz-muted);
-  font-size: 11px;
-}
-.movement-pagination button {
-  padding: 7px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.movement-pagination button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.movements-panel {
-  margin-top: 20px;
-  padding: 24px;
-  overflow: hidden;
-}
-.movements-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-}
-.movements-header h2 span {
-  display: inline-grid;
-  min-width: 22px;
-  min-height: 22px;
-  margin-left: 5px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-muted);
-  font-size: 9px;
-  vertical-align: 2px;
-}
-.movement-filters {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
-}
-.movement-filters select,
-.movement-filters button {
-  min-height: 34px;
-  padding: 7px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 9px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-ink);
-  font-size: 11px;
-}
-.movement-filters .add-movement {
-  background: var(--fz-accent);
-  color: #fff;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.movement-filters .add-movement span {
-  margin-right: 3px;
-  font-size: 12px;
-}
-.movement-symbol-filter,
-.movement-date-filter {
-  min-height: 49px;
-  display: grid;
-  align-content: center;
-  gap: 2px;
-  border: 1px solid var(--fz-line);
-  border-radius: 12px;
-  background: var(--fz-surface-soft);
-}
-.movement-symbol-filter {
-  min-width: 190px;
-  padding: 7px 11px;
-}
-.movement-symbol-filter > span,
-.movement-date-filter > span {
-  color: var(--fz-muted);
-  font-size: 8px;
-  font-weight: 680;
-}
-.movement-symbol-filter select {
-  width: 100%;
-  padding: 0 22px 0 0;
-  border: 0;
-  background-color: transparent;
-  color: var(--fz-ink);
-  font-size: 10px;
-  font-weight: 720;
-  cursor: pointer;
-}
-.movement-date-filter {
-  position: relative;
-  min-width: 210px;
-  padding: 7px 35px 7px 11px;
-  color: var(--fz-ink);
-  text-align: left;
-  cursor: pointer;
-}
-.movement-date-filter strong {
-  font-size: 10px;
-  font-weight: 720;
-  font-variant-numeric: tabular-nums;
-}
-.movement-date-filter i {
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  color: var(--fz-muted);
-  font-size: 13px;
-  font-style: normal;
-  transform: translateY(-50%);
-}
-.movement-symbol-filter:hover,
-.movement-date-filter:hover {
-  border-color: color-mix(in srgb, var(--fz-accent) 70%, var(--fz-line));
-}
-.movement-table {
-  margin-top: 20px;
-}
-.movement-table-head,
-.movement-row {
-  display: grid;
-  grid-template-columns:
-    78px minmax(130px, 1.15fr) minmax(100px, 0.8fr)
-    minmax(100px, 0.9fr) repeat(3, minmax(74px, 0.7fr)) 105px;
-  gap: 10px;
-  align-items: center;
-}
-.movement-table-head {
-  padding: 0 12px 9px;
-  color: var(--fz-muted);
-  font-size: 8px;
-  font-weight: 710;
-}
-.movement-table-head span:nth-child(n + 4) {
-  text-align: right;
-}
-.movement-row {
-  min-height: 64px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--fz-line);
-  transition: background 0.16s ease;
-}
-.movement-row:hover {
-  background: var(--fz-surface-soft);
-}
-.movement-row time {
-  color: var(--fz-muted);
-  font-size: 9px;
-  font-weight: 680;
-  font-variant-numeric: tabular-nums;
-}
-.movement-kind,
-.movement-account {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.movement-kind > i {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: color-mix(in srgb, currentColor 11%, transparent);
-  font-size: 13px;
-  font-style: normal;
-  font-weight: 820;
-}
-.movement-kind > span,
-.movement-account {
-  display: grid;
-  gap: 2px;
-}
-.movement-kind strong,
-.movement-account strong {
-  overflow: hidden;
-  color: var(--fz-ink);
-  font-size: 10px;
-  font-weight: 720;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.movement-kind small,
-.movement-account small,
-.movement-number small {
-  color: var(--fz-muted);
-  font-size: 8px;
-  font-weight: 570;
-}
-.movement-number {
-  color: var(--fz-ink);
-  font-size: 9px;
-  font-weight: 690;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
-}
-.movement-number small {
-  display: none;
-}
-.movement-number.muted {
-  color: var(--fz-muted);
-}
-.movement-row-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 5px;
-}
-.movement-row-actions button {
-  padding: 6px 8px;
-  border: 1px solid var(--fz-line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fz-muted);
-  font-size: 8px;
-  font-weight: 690;
-  cursor: pointer;
-}
-.movement-row-actions button:hover {
-  border-color: var(--fz-accent);
-  color: var(--fz-ink);
-}
-.movement-row-actions .delete {
-  color: var(--fz-negative);
-}
-.movement-kind.is-buy,
-.movement-number.is-buy {
-  color: var(--fz-positive);
-}
-.movement-kind.is-sell,
-.movement-number.is-sell {
-  color: var(--fz-negative);
-}
-.movement-kind.is-neutral,
-.movement-number.is-neutral {
-  color: var(--crypto-amber);
-}
-.movements-empty {
-  min-height: 180px;
 }
 .chart-panel-header {
   align-items: flex-end;
@@ -3028,8 +2364,7 @@ onMounted(loadDashboard);
   }
   .assets-panel,
   .kpi-panel,
-  .chart-panel,
-  .movements-panel {
+  .chart-panel {
     padding: 19px 17px;
     border-radius: 18px;
   }
@@ -3074,50 +2409,6 @@ onMounted(loadDashboard);
   .calendar-fields {
     grid-template-columns: minmax(0, 1fr);
   }
-  .movements-header {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 15px;
-  }
-  .movement-filters {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .movement-symbol-filter,
-  .movement-date-filter,
-  .movement-filters .add-movement {
-    width: 100%;
-    min-width: 0;
-  }
-  .movement-table-head {
-    display: none;
-  }
-  .movement-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px 18px;
-    padding: 15px 4px;
-  }
-  .movement-row time {
-    grid-column: 1 / -1;
-    padding-bottom: 7px;
-    border-bottom: 1px dashed var(--fz-line);
-  }
-  .movement-kind,
-  .movement-account {
-    min-height: 34px;
-  }
-  .movement-number {
-    display: grid;
-    gap: 3px;
-    text-align: left;
-  }
-  .movement-number small {
-    display: block;
-  }
-  .movement-row-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
   .account-fields {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3140,8 +2431,7 @@ onMounted(loadDashboard);
     padding: 19px 17px;
     border-radius: 18px;
   }
-  .fund-performance-header,
-  .fund-secondary-header {
+  .fund-performance-header {
     display: grid;
     justify-content: stretch;
     gap: 14px;
@@ -3159,21 +2449,6 @@ onMounted(loadDashboard);
   .stock-performance-meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .fund-collapsible-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-  .fund-collapsible-actions .movement-filters {
-    width: 100%;
-    order: 2;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .fund-collapsible-actions .movement-filters select,
-  .fund-collapsible-actions .movement-filters button {
-    width: 100%;
-    min-width: 0;
-  }
 }
 
 /* Type hierarchy shared with Stocks and Funds. */
@@ -3189,11 +2464,6 @@ onMounted(loadDashboard);
 .crypto-utility span,
 :deep(.import-compact p),
 .kraken-pro-note,
-.movement-symbol-filter > span,
-.movement-date-filter > span,
-.movement-kind small,
-.movement-account small,
-.movement-number small,
 .chart-asset-selector > span,
 .chart-legend .legend-label {
   font-size: 10px;
@@ -3211,12 +2481,6 @@ onMounted(loadDashboard);
 :deep(.import-compact select),
 :deep(.import-compact input),
 :deep(.import-compact button),
-.movements-header h2 span,
-.movement-filters .add-movement,
-.movement-table-head,
-.movement-row time,
-.movement-number,
-.movement-row-actions button,
 .chart-range-control button,
 .calendar-fields label span,
 .account-fields span,
@@ -3229,9 +2493,7 @@ onMounted(loadDashboard);
 .crypto-panel h2 {
   font-size: 20px;
 }
-.asset-identity strong,
-.movement-kind strong,
-.movement-account strong {
+.asset-identity strong {
   font-size: 12px;
 }
 .crypto-kpi-grid strong {
@@ -3242,9 +2504,6 @@ onMounted(loadDashboard);
 }
 .chart-asset-selector select {
   font-size: 19px;
-}
-.movement-row {
-  min-height: 70px;
 }
 .account-fields input,
 .account-fields select,
