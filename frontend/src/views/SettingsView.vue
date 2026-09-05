@@ -12,6 +12,7 @@ import { api, json } from "../api/client";
 import type { ImporterCatalogItem, SummarySourceKey } from "../types/api";
 import NavIcon from "../components/NavIcon.vue";
 import AdminUsersPanel from "../components/settings/AdminUsersPanel.vue";
+import SettingsAccountPanel from "../components/settings/SettingsAccountPanel.vue";
 import SettingsImporterDocument from "../components/settings/SettingsImporterDocument.vue";
 import SettingsInstallationPreferencesPanel from "../components/settings/SettingsInstallationPreferencesPanel.vue";
 import SettingsLanguagePanel from "../components/settings/SettingsLanguagePanel.vue";
@@ -72,15 +73,9 @@ const accountRoleLabel = computed(() =>
     ? t("settings.administrator")
     : t("settings.user"),
 );
-const accountDisplayName = ref("");
-const accountEmail = ref("");
-const identityPassword = ref("");
 const identityBusy = ref(false);
 const identityError = ref("");
 const identitySuccess = ref("");
-const currentPassword = ref("");
-const newPassword = ref("");
-const passwordConfirmation = ref("");
 const passwordBusy = ref(false);
 const passwordError = ref("");
 const passwordSuccess = ref("");
@@ -147,20 +142,6 @@ watch(importers, (items) => {
   }
 });
 watch(
-  () => session.user?.email,
-  (email) => {
-    accountEmail.value = email ?? "";
-  },
-  { immediate: true },
-);
-watch(
-  () => session.user?.display_name,
-  (name) => {
-    accountDisplayName.value = name ?? "";
-  },
-  { immediate: true },
-);
-watch(
   () => [session.user?.active_workspace_id, session.user?.summary_sources],
   () => {
     const next = (session.user?.summary_sources ??
@@ -189,17 +170,20 @@ async function load() {
   }
 }
 
-async function saveIdentity() {
+async function saveIdentity(payload: {
+  displayName: string;
+  email: string;
+  password: string;
+}) {
   identityError.value = "";
   identitySuccess.value = "";
   identityBusy.value = true;
   try {
     await session.updateAccount(
-      accountDisplayName.value,
-      accountEmail.value,
-      identityPassword.value,
+      payload.displayName,
+      payload.email,
+      payload.password,
     );
-    identityPassword.value = "";
     identitySuccess.value = t("settings.profileUpdated");
   } catch (reason) {
     identityError.value =
@@ -211,23 +195,24 @@ async function saveIdentity() {
   }
 }
 
-async function savePassword() {
+async function savePassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+  confirmation: string;
+}) {
   passwordError.value = "";
   passwordSuccess.value = "";
-  if (newPassword.value !== passwordConfirmation.value) {
+  if (payload.newPassword !== payload.confirmation) {
     passwordError.value = t("settings.passwordMismatch");
     return;
   }
   passwordBusy.value = true;
   try {
     await session.changePassword(
-      currentPassword.value,
-      newPassword.value,
-      passwordConfirmation.value,
+      payload.currentPassword,
+      payload.newPassword,
+      payload.confirmation,
     );
-    currentPassword.value = "";
-    newPassword.value = "";
-    passwordConfirmation.value = "";
     passwordSuccess.value = t("settings.passwordUpdated");
   } catch (reason) {
     passwordError.value =
@@ -636,141 +621,20 @@ onBeforeUnmount(() => {
           >
             <AdminUsersPanel />
           </div>
-          <article
+          <SettingsAccountPanel
             v-else-if="activeSection === 'account'"
-            class="account-document"
-          >
-            <header class="account-document-header">
-              <div>
-                <p>{{ t("settings.identityAndAccess") }}</p>
-                <h3>{{ t("settings.yourAccount") }}</h3>
-              </div>
-              <span>{{ accountRoleLabel }}</span>
-            </header>
-            <p class="account-intro">{{ t("settings.accountIntro") }}</p>
-
-            <div class="account-form-grid">
-              <form class="account-form-card" @submit.prevent="saveIdentity">
-                <header>
-                  <span aria-hidden="true">@</span>
-                  <div>
-                    <p>{{ t("settings.identification") }}</p>
-                    <h4>{{ t("settings.profileAndEmail") }}</h4>
-                  </div>
-                </header>
-                <p>{{ t("settings.identityHelp") }}</p>
-                <label>
-                  <span>{{ t("settings.displayName") }}</span>
-                  <input
-                    v-model.trim="accountDisplayName"
-                    type="text"
-                    autocomplete="name"
-                    maxlength="120"
-                  />
-                </label>
-                <label>
-                  <span>{{ t("settings.email") }}</span>
-                  <input
-                    v-model.trim="accountEmail"
-                    type="email"
-                    autocomplete="email"
-                    required
-                  />
-                </label>
-                <label>
-                  <span>{{ t("settings.currentPassword") }}</span>
-                  <input
-                    v-model="identityPassword"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                  />
-                </label>
-                <p
-                  v-if="identityError"
-                  class="account-form-message error"
-                  role="alert"
-                >
-                  {{ identityError }}
-                </p>
-                <p
-                  v-else-if="identitySuccess"
-                  class="account-form-message success"
-                  role="status"
-                >
-                  {{ identitySuccess }}
-                </p>
-                <button type="submit" :disabled="identityBusy">
-                  {{
-                    identityBusy
-                      ? t("common.saving")
-                      : t("settings.saveProfile")
-                  }}
-                </button>
-              </form>
-
-              <form class="account-form-card" @submit.prevent="savePassword">
-                <header>
-                  <span aria-hidden="true">••</span>
-                  <div>
-                    <p>{{ t("settings.security") }}</p>
-                    <h4>{{ t("settings.password") }}</h4>
-                  </div>
-                </header>
-                <p>{{ t("settings.passwordHelp") }}</p>
-                <label>
-                  <span>{{ t("settings.currentPassword") }}</span>
-                  <input
-                    v-model="currentPassword"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                  />
-                </label>
-                <label>
-                  <span>{{ t("settings.newPassword") }}</span>
-                  <input
-                    v-model="newPassword"
-                    type="password"
-                    autocomplete="new-password"
-                    minlength="12"
-                    required
-                  />
-                </label>
-                <label>
-                  <span>{{ t("settings.repeatNewPassword") }}</span>
-                  <input
-                    v-model="passwordConfirmation"
-                    type="password"
-                    autocomplete="new-password"
-                    minlength="12"
-                    required
-                  />
-                </label>
-                <p
-                  v-if="passwordError"
-                  class="account-form-message error"
-                  role="alert"
-                >
-                  {{ passwordError }}
-                </p>
-                <p
-                  v-else-if="passwordSuccess"
-                  class="account-form-message success"
-                  role="status"
-                >
-                  {{ passwordSuccess }}
-                </p>
-                <button type="submit" :disabled="passwordBusy">
-                  {{
-                    passwordBusy
-                      ? t("settings.updating")
-                      : t("settings.changePassword")
-                  }}
-                </button>
-              </form>
-            </div>
-          </article>
+            :initial-display-name="session.user?.display_name ?? ''"
+            :initial-email="session.user?.email ?? ''"
+            :role-label="accountRoleLabel"
+            :identity-busy="identityBusy"
+            :identity-error="identityError"
+            :identity-success="identitySuccess"
+            :password-busy="passwordBusy"
+            :password-error="passwordError"
+            :password-success="passwordSuccess"
+            @save-identity="saveIdentity"
+            @save-password="savePassword"
+          />
           <div
             v-else-if="loading"
             class="content-loading"
@@ -1095,12 +959,6 @@ onBeforeUnmount(() => {
   .settings-primary {
     padding-inline: 9px;
   }
-  .importer-document {
-    padding-inline: 24px;
-  }
-  .format-grid {
-    grid-template-columns: 1fr;
-  }
 }
 @media (max-width: 720px) {
   .settings-overlay {
@@ -1143,23 +1001,6 @@ onBeforeUnmount(() => {
   .settings-secondary > button {
     min-width: 190px;
     margin: 0 !important;
-  }
-  .importer-document {
-    padding: 22px 17px 34px;
-  }
-  .document-header {
-    display: block;
-  }
-  .document-header > code {
-    display: inline-block;
-    margin-top: 10px;
-  }
-  .document-header h3 {
-    font-size: 21px;
-  }
-  .field-head,
-  .field-row {
-    min-width: 650px;
   }
 }
 .settings-secondary {
@@ -1316,200 +1157,6 @@ onBeforeUnmount(() => {
   background: var(--fz-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 12%, transparent);
 }
-.account-document {
-  padding: 34px 38px 48px;
-}
-.account-document-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-}
-.account-document-header p {
-  margin: 0 0 6px;
-  color: var(--fz-muted);
-  font-size: 7px;
-  font-weight: 760;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.account-document-header h3 {
-  margin: 0;
-  font-size: 27px;
-  letter-spacing: -0.045em;
-}
-.account-document-header > span {
-  padding: 6px 9px;
-  border: 1px solid color-mix(in srgb, var(--fz-accent) 24%, var(--fz-line));
-  border-radius: 99px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 7px;
-  font-weight: 780;
-}
-.account-intro {
-  max-width: 650px;
-  margin: 12px 0 0;
-  color: var(--fz-muted);
-  font-size: 9px;
-  line-height: 1.6;
-}
-.account-form-grid {
-  margin-top: 27px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  align-items: start;
-}
-.account-form-card {
-  min-width: 0;
-  padding: 19px;
-  display: grid;
-  gap: 13px;
-  border: 1px solid var(--fz-line);
-  border-radius: 16px;
-  background: var(--fz-surface-soft);
-}
-.account-form-card > header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-bottom: 13px;
-  border-bottom: 1px solid var(--fz-line);
-}
-.account-form-card > header > span {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-  font-size: 10px;
-  font-weight: 820;
-}
-.account-form-card > header div {
-  display: grid;
-  gap: 2px;
-}
-.account-form-card > header p {
-  margin: 0;
-  color: var(--fz-accent);
-  font-size: 6px;
-  font-weight: 780;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.account-form-card h4 {
-  margin: 0;
-  font-size: 13px;
-  letter-spacing: -0.025em;
-}
-.account-form-card > p {
-  min-height: 29px;
-  margin: 0;
-  color: var(--fz-muted);
-  font-size: 8px;
-  line-height: 1.55;
-}
-.account-form-card label {
-  display: grid;
-  gap: 6px;
-}
-.account-form-card label > span {
-  color: var(--fz-muted);
-  font-size: 7px;
-  font-weight: 700;
-}
-.account-form-card input {
-  width: 100%;
-  height: 39px;
-  padding: 0 11px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  outline: 0;
-  background: var(--fz-surface);
-  color: var(--fz-ink);
-  font: 600 9px inherit;
-  transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
-}
-.account-form-card input:focus {
-  border-color: color-mix(in srgb, var(--fz-accent) 58%, var(--fz-line));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fz-accent) 10%, transparent);
-}
-.account-form-card > button {
-  justify-self: start;
-  min-width: 130px;
-  margin-top: 2px;
-  padding: 10px 13px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--fz-accent);
-  color: #092418;
-  font-size: 8px;
-  font-weight: 780;
-  cursor: pointer;
-}
-.account-form-card > button:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-.account-form-message {
-  min-height: 0 !important;
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-weight: 680;
-}
-.account-form-message.error {
-  background: color-mix(in srgb, var(--fz-negative) 9%, transparent);
-  color: var(--fz-negative);
-}
-.account-form-message.success {
-  background: var(--fz-accent-soft);
-  color: var(--fz-accent);
-}
-.account-form-card input {
-  font-family: inherit;
-  font-size: 9px;
-  font-weight: 600;
-}
-@media (max-width: 1060px) {
-  .account-form-grid {
-    grid-template-columns: 1fr;
-  }
-  .account-document {
-    padding-inline: 28px;
-  }
-}
-@media (max-width: 720px) {
-  .settings-primary {
-    display: flex;
-    gap: 5px;
-    overflow-x: auto;
-  }
-  .settings-primary > button {
-    min-width: 170px;
-    margin: 0;
-  }
-  .account-access-state {
-    display: none;
-  }
-  .account-document {
-    padding: 22px 17px 34px;
-  }
-  .account-document-header h3 {
-    font-size: 22px;
-  }
-  .account-form-grid {
-    margin-top: 20px;
-  }
-  .account-form-card {
-    padding: 16px;
-  }
-}
-
 /* Settings type scale: dense data without dropping below 10 px. */
 .settings-layout {
   grid-template-columns: 220px 290px minmax(0, 1fr);
@@ -1522,25 +1169,18 @@ onBeforeUnmount(() => {
 .settings-secondary > header span,
 .settings-secondary > button > span,
 .settings-secondary > button small,
- .importer-group > header h3,
+.importer-group > header h3,
 .importer-group > header span,
 .importer-group > button > span,
 .importer-group > button small,
 .importer-count,
-.account-access-state,
-.account-document-header p,
-.account-document-header > span,
-.account-form-card > header p {
+.account-access-state {
   font-size: 10px;
 }
 .settings-primary > button strong,
 .settings-secondary > button strong,
- .settings-error p,
-.importer-group > button strong,
-.account-form-card > p,
-.account-form-card label > span,
-.account-form-card > button,
-.account-form-message {
+.settings-error p,
+.importer-group > button strong {
   font-size: 11px;
 }
 .settings-primary footer > span {
@@ -1548,19 +1188,6 @@ onBeforeUnmount(() => {
 }
 .settings-modal-header h2 {
   font-size: 22px;
-}
- .account-intro {
-  font-size: 12px;
-}
-.account-document-header h3 {
-  font-size: 29px;
-}
-.account-form-card h4 {
-  font-size: 15px;
-}
-.account-form-card input {
-  height: 43px;
-  font-size: 12px;
 }
 @media (max-width: 1100px) {
   .settings-layout {
@@ -1577,9 +1204,6 @@ onBeforeUnmount(() => {
   .settings-secondary > button,
   .importer-group > button {
     min-width: 210px;
-  }
-  .account-document-header h3 {
-    font-size: 24px;
   }
 }
 .administration-document {
