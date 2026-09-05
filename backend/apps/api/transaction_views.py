@@ -34,12 +34,12 @@ from apps.api.transaction_queries import selected_traded_account, transaction_ro
 from apps.market_data.fx import (
     CurrencyConversionError,
     normalize_currency,
-    rate_to_base,
 )
 from apps.market_data.models import (
     Instrument,
     InstrumentIdentifier,
 )
+from apps.transactions.currency import conversion_snapshot
 from apps.transactions.models import Transaction
 
 CRYPTO_MANUAL_OPERATIONS = {
@@ -205,7 +205,6 @@ def save_manual_transaction(
         currency = normalize_currency(
             data.get("currency") or (item.currency if not creating else account.currency)
         )
-        base_currency = normalize_currency(account.workspace.base_currency)
         provided_rate = (
             decimal(data["fx_rate_to_base"])
             if data.get("fx_rate_to_base") not in (None, "")
@@ -214,25 +213,29 @@ def save_manual_transaction(
         provided_rate_date = (
             date.fromisoformat(str(data["fx_rate_date"])[:10]) if data.get("fx_rate_date") else None
         )
-        conversion = rate_to_base(
-            currency,
-            base_currency,
-            settlement_date or trade_date,
+        conversion = conversion_snapshot(
+            account=account,
+            currency=currency,
+            trade_date=trade_date,
+            settlement_date=settlement_date,
+            unit_price=unit_price,
+            net_amount=amount,
+            fee=fee,
             provided_rate=provided_rate,
-            provided_date=provided_rate_date,
+            provided_rate_date=provided_rate_date,
             provided_source=str(data.get("fx_source") or "manual"),
-            workspace=account.workspace,
+            allow_pending=False,
         )
     except (CurrencyConversionError, ValueError) as exc:
         return Response({"error": str(exc)}, status=400)
     item.currency = currency
-    item.base_currency = base_currency
-    item.base_unit_price = unit_price * conversion.rate
-    item.base_net_amount = amount * conversion.rate
-    item.base_fee = fee * conversion.rate
-    item.fx_rate_to_base = conversion.rate
-    item.fx_rate_date = conversion.rate_date
-    item.fx_source = conversion.source
+    item.base_currency = conversion["base_currency"]
+    item.base_unit_price = conversion["base_unit_price"]
+    item.base_net_amount = conversion["base_net_amount"]
+    item.base_fee = conversion["base_fee"]
+    item.fx_rate_to_base = conversion["fx_rate_to_base"]
+    item.fx_rate_date = conversion["fx_rate_date"]
+    item.fx_source = conversion["fx_source"]
     if item.external_id is None:
         item.provider_operation_type = _calculation_operation_label(item)
         item.raw_metadata = {
