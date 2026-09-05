@@ -703,6 +703,31 @@ describe("StocksView", () => {
     expect(movementTable.text()).toContain("$80.00");
   });
 
+  it("preserves movement filters and pagination through a same-account refresh", async () => {
+    const wrapper = mount(StocksView);
+    await flushPromises();
+
+    const movementType = wrapper.get('select[aria-label="Filtrar por tipo"]');
+    await movementType.setValue("in");
+    await wrapper
+      .get(".movement-pagination button:last-child")
+      .trigger("click");
+    expect(movementType.element).toHaveProperty("value", "in");
+    expect(wrapper.get(".movement-pagination").text()).toContain(
+      "Página 2 de 2",
+    );
+
+    await wrapper.get(".fund-action-button").trigger("click");
+    await flushPromises();
+
+    expect(
+      wrapper.get('select[aria-label="Filtrar por tipo"]').element,
+    ).toHaveProperty("value", "in");
+    expect(wrapper.get(".movement-pagination").text()).toContain(
+      "Página 2 de 2",
+    );
+  });
+
   it("names local dialogs and exposes account failures as alerts", async () => {
     const wrapper = mount(StocksView);
     await flushPromises();

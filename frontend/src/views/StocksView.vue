@@ -1147,21 +1147,22 @@ onMounted(loadDashboard);
           </footer>
         </form>
       </dialog>
-      <StockMovementsPanel
-        :orders="orders"
-        :positions="positions"
-        :selected-account-label="selectedAccountLabel"
-        :account-key="selectedAccount"
-        :base-currency="stockBaseCurrency"
-        :format-money="money"
-        :format-quantity="quantity"
-        :display-date="displayDate"
-        :position-identity="positionIdentity"
-        @add="openNewMovement"
-        @edit="openEditMovement"
-        @delete="askDeleteOrder"
-      />
     </template>
+    <StockMovementsPanel
+      v-show="!loading && !error"
+      :orders="orders"
+      :positions="positions"
+      :selected-account-label="selectedAccountLabel"
+      :account-key="selectedAccount"
+      :base-currency="stockBaseCurrency"
+      :format-money="money"
+      :format-quantity="quantity"
+      :display-date="displayDate"
+      :position-identity="positionIdentity"
+      @add="openNewMovement"
+      @edit="openEditMovement"
+      @delete="askDeleteOrder"
+    />
   </section>
 </template>
 

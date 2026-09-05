@@ -446,6 +446,22 @@ function togglePosition(instrumentId: string) {
   font: inherit;
   cursor: pointer;
 }
+.fund-position-row {
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fund-position-row {
+    transition: none;
+  }
+}
+.fund-position-row:hover,
+.fund-position-row.active {
+  background: color-mix(in srgb, var(--fz-accent) 7%, transparent);
+}
+.fund-position-row.active {
+  box-shadow: inset 3px 0 var(--fz-accent);
+}
 .fund-position-disclosure {
   width: 100%;
   display: flex;

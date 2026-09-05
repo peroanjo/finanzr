@@ -215,232 +215,239 @@ function applyMovementRange() {
 </script>
 
 <template>
-  <article
-    class="fund-performance-panel movements-panel"
-    :class="{ collapsed }"
-  >
-    <header class="fund-secondary-header">
-      <div>
-        <p class="section-label">{{ t("crypto.movements.section") }}</p>
-        <h2>{{ t("crypto.movements.title") }}</h2>
-        <p class="fund-range-label">
-          {{
-            t(
-              filteredMovements.length === 1
-                ? "crypto.movements.operation"
-                : "crypto.movements.operations",
-              { count: filteredMovements.length },
-            )
-          }}
-          · {{ movementRangeLabel }}
-        </p>
-      </div>
-      <div class="fund-collapsible-actions">
-        <div v-show="!collapsed" class="movement-filters">
-          <button type="button" class="add-movement" @click="emit('add')">
-            + {{ t("crypto.movements.add") }}
-          </button>
-          <select
-            v-model="movementSymbol"
-            :aria-label="t('crypto.movements.currencyFilterAria')"
-          >
-            <option value="all">
-              {{ t("crypto.movements.allCurrencies") }}
-            </option>
-            <option
-              v-for="item in movementSymbols"
-              :key="item.symbol"
-              :value="item.symbol"
-            >
-              {{ item.symbol }} · {{ item.name }}
-            </option>
-          </select>
-          <select
-            v-model="movementType"
-            :aria-label="t('crypto.movements.filterTypeAria')"
-          >
-            <option value="all">
-              {{ t("crypto.movements.allMovements") }}
-            </option>
-            <option value="in">{{ t("crypto.movements.entries") }}</option>
-            <option value="out">{{ t("crypto.movements.exits") }}</option>
-          </select>
-          <button
-            type="button"
-            :aria-label="t('crypto.movements.dateFilterAria')"
-            @click="openMovementCalendar"
-          >
-            {{ movementRangeLabel }}
-          </button>
-        </div>
-        <InvestmentCollapseButton
-          :collapsed="collapsed"
-          controls="crypto-movements-content"
-          :label="
-            t(
-              collapsed
-                ? 'crypto.movements.expandAria'
-                : 'crypto.movements.collapseAria',
-            )
-          "
-          @toggle="toggleCollapsed"
-        />
-      </div>
-    </header>
-    <div v-show="!collapsed" id="crypto-movements-content">
-      <div class="fund-table-scroll">
-        <table class="fund-table movement-table">
-          <thead>
-            <tr>
-              <th>{{ t("crypto.movements.date") }}</th>
-              <th>{{ t("crypto.movements.movement") }}</th>
-              <th>{{ t("crypto.movements.asset") }}</th>
-              <th>{{ t("crypto.movements.account") }}</th>
-              <th>{{ t("crypto.movements.quantity") }}</th>
-              <th>{{ t("crypto.movements.price") }}</th>
-              <th>{{ t("crypto.movements.amount") }}</th>
-              <th>{{ t("crypto.movements.fee") }}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="item in displayedMovements"
-              :key="item.id"
-              :data-testid="'movement-' + item.id"
-            >
-              <td>{{ props.displayDate(item.trade_date) }}</td>
-              <td>
-                <span class="operation-pill" :class="operationGroup(item)">
-                  {{ movementLabel(item) }}</span
-                >
-              </td>
-              <td>
-                <strong>{{ item.asset_name }}</strong
-                ><small>{{ item.symbol }}</small>
-              </td>
-              <td>
-                {{ item.account_name || props.selectedAccountLabel
-                }}<small>{{
-                  item.platform || t("crypto.accounts.cryptoFallback")
-                }}</small>
-              </td>
-              <td>{{ props.formatQuantity(item.quantity) }}</td>
-              <td>
-                {{ props.formatMoney(props.basePrice(item))
-                }}<small v-if="hasOriginalCurrency(item)">{{
-                  originalMoney(item.unit_price, item.currency)
-                }}</small>
-              </td>
-              <td>
-                <strong>{{ props.formatMoney(props.baseAmount(item)) }}</strong
-                ><small v-if="hasOriginalCurrency(item)">{{
-                  originalMoney(item.net_amount, item.currency)
-                }}</small>
-              </td>
-              <td>
-                {{ props.formatMoney(props.baseFee(item))
-                }}<small v-if="hasOriginalCurrency(item)">{{
-                  originalMoney(item.fee, item.currency)
-                }}</small>
-              </td>
-              <td>
-                <InvestmentMovementActions
-                  :edit-label="t('crypto.movements.edit')"
-                  :delete-label="t('crypto.movements.delete')"
-                  @edit="emit('edit', item)"
-                  @delete="emit('delete', item)"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-if="!filteredMovements.length" class="fund-empty-compact">
-        {{ t("crypto.movements.noResults") }}
-      </div>
-      <nav
-        v-else-if="movementPages > 1"
-        class="movement-pagination"
-        :aria-label="t('crypto.movements.paginationAria')"
-      >
-        <span>{{
-          t("crypto.movements.page", {
-            page: movementPage,
-            pages: movementPages,
-          })
-        }}</span>
+  <div class="fund-performance-panel movement-panel-host">
+    <article
+      class="fund-performance-panel movements-panel"
+      :class="{ collapsed }"
+    >
+      <header class="fund-secondary-header">
         <div>
-          <button
-            type="button"
-            :disabled="movementPage === 1"
-            @click="movementPage -= 1"
-          >
-            {{ t("crypto.movements.previous") }}
-          </button>
-          <button
-            type="button"
-            :disabled="movementPage === movementPages"
-            @click="movementPage += 1"
-          >
-            {{ t("crypto.movements.next") }}
-          </button>
-        </div>
-      </nav>
-    </div>
-  </article>
-
-  <dialog
-    ref="movementCalendarDialog"
-    class="calendar-dialog movement-calendar-dialog"
-    aria-labelledby="movement-calendar-title"
-    @cancel.prevent="closeMovementCalendar"
-  >
-    <form @submit.prevent="applyMovementRange">
-      <header>
-        <div>
-          <p class="section-label">
-            {{ t("crypto.movements.filterSection") }}
+          <p class="section-label">{{ t("crypto.movements.section") }}</p>
+          <h2>{{ t("crypto.movements.title") }}</h2>
+          <p class="fund-range-label">
+            {{
+              t(
+                filteredMovements.length === 1
+                  ? "crypto.movements.operation"
+                  : "crypto.movements.operations",
+                { count: filteredMovements.length },
+              )
+            }}
+            · {{ movementRangeLabel }}
           </p>
-          <h2 id="movement-calendar-title">
-            {{ t("crypto.calendar.selectDates") }}
-          </h2>
+        </div>
+        <div class="fund-collapsible-actions">
+          <div v-show="!collapsed" class="movement-filters">
+            <button type="button" class="add-movement" @click="emit('add')">
+              + {{ t("crypto.movements.add") }}
+            </button>
+            <select
+              v-model="movementSymbol"
+              :aria-label="t('crypto.movements.currencyFilterAria')"
+            >
+              <option value="all">
+                {{ t("crypto.movements.allCurrencies") }}
+              </option>
+              <option
+                v-for="item in movementSymbols"
+                :key="item.symbol"
+                :value="item.symbol"
+              >
+                {{ item.symbol }} · {{ item.name }}
+              </option>
+            </select>
+            <select
+              v-model="movementType"
+              :aria-label="t('crypto.movements.filterTypeAria')"
+            >
+              <option value="all">
+                {{ t("crypto.movements.allMovements") }}
+              </option>
+              <option value="in">{{ t("crypto.movements.entries") }}</option>
+              <option value="out">{{ t("crypto.movements.exits") }}</option>
+            </select>
+            <button
+              type="button"
+              :aria-label="t('crypto.movements.dateFilterAria')"
+              @click="openMovementCalendar"
+            >
+              {{ movementRangeLabel }}
+            </button>
+          </div>
+          <InvestmentCollapseButton
+            :collapsed="collapsed"
+            controls="crypto-movements-content"
+            :label="
+              t(
+                collapsed
+                  ? 'crypto.movements.expandAria'
+                  : 'crypto.movements.collapseAria',
+              )
+            "
+            @toggle="toggleCollapsed"
+          />
         </div>
       </header>
-      <div class="calendar-fields">
-        <label>
-          <span>{{ t("crypto.calendar.from") }}</span>
-          <input
-            v-model="movementDraftStart"
-            type="date"
-            :max="movementDraftEnd"
-            required
-          />
-        </label>
-        <span aria-hidden="true">→</span>
-        <label>
-          <span>{{ t("crypto.calendar.to") }}</span>
-          <input
-            v-model="movementDraftEnd"
-            type="date"
-            :min="movementDraftStart"
-            required
-          />
-        </label>
+      <div v-show="!collapsed" id="crypto-movements-content">
+        <div class="fund-table-scroll">
+          <table class="fund-table movement-table">
+            <thead>
+              <tr>
+                <th>{{ t("crypto.movements.date") }}</th>
+                <th>{{ t("crypto.movements.movement") }}</th>
+                <th>{{ t("crypto.movements.asset") }}</th>
+                <th>{{ t("crypto.movements.account") }}</th>
+                <th>{{ t("crypto.movements.quantity") }}</th>
+                <th>{{ t("crypto.movements.price") }}</th>
+                <th>{{ t("crypto.movements.amount") }}</th>
+                <th>{{ t("crypto.movements.fee") }}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in displayedMovements"
+                :key="item.id"
+                :data-testid="'movement-' + item.id"
+              >
+                <td>{{ props.displayDate(item.trade_date) }}</td>
+                <td>
+                  <span class="operation-pill" :class="operationGroup(item)">
+                    {{ movementLabel(item) }}</span
+                  >
+                </td>
+                <td>
+                  <strong>{{ item.asset_name }}</strong
+                  ><small>{{ item.symbol }}</small>
+                </td>
+                <td>
+                  {{ item.account_name || props.selectedAccountLabel
+                  }}<small>{{
+                    item.platform || t("crypto.accounts.cryptoFallback")
+                  }}</small>
+                </td>
+                <td>{{ props.formatQuantity(item.quantity) }}</td>
+                <td>
+                  {{ props.formatMoney(props.basePrice(item))
+                  }}<small v-if="hasOriginalCurrency(item)">{{
+                    originalMoney(item.unit_price, item.currency)
+                  }}</small>
+                </td>
+                <td>
+                  <strong>{{
+                    props.formatMoney(props.baseAmount(item))
+                  }}</strong
+                  ><small v-if="hasOriginalCurrency(item)">{{
+                    originalMoney(item.net_amount, item.currency)
+                  }}</small>
+                </td>
+                <td>
+                  {{ props.formatMoney(props.baseFee(item))
+                  }}<small v-if="hasOriginalCurrency(item)">{{
+                    originalMoney(item.fee, item.currency)
+                  }}</small>
+                </td>
+                <td>
+                  <InvestmentMovementActions
+                    :edit-label="t('crypto.movements.edit')"
+                    :delete-label="t('crypto.movements.delete')"
+                    @edit="emit('edit', item)"
+                    @delete="emit('delete', item)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="!filteredMovements.length" class="fund-empty-compact">
+          {{ t("crypto.movements.noResults") }}
+        </div>
+        <nav
+          v-else-if="movementPages > 1"
+          class="movement-pagination"
+          :aria-label="t('crypto.movements.paginationAria')"
+        >
+          <span>{{
+            t("crypto.movements.page", {
+              page: movementPage,
+              pages: movementPages,
+            })
+          }}</span>
+          <div>
+            <button
+              type="button"
+              :disabled="movementPage === 1"
+              @click="movementPage -= 1"
+            >
+              {{ t("crypto.movements.previous") }}
+            </button>
+            <button
+              type="button"
+              :disabled="movementPage === movementPages"
+              @click="movementPage += 1"
+            >
+              {{ t("crypto.movements.next") }}
+            </button>
+          </div>
+        </nav>
       </div>
-      <footer class="calendar-dialog-actions">
-        <button type="button" @click="closeMovementCalendar">
-          {{ t("crypto.actions.cancel") }}
-        </button>
-        <button class="primary" type="submit" :disabled="!movementRangeValid">
-          {{ t("crypto.calendar.applyPeriod") }}
-        </button>
-      </footer>
-    </form>
-  </dialog>
+    </article>
+
+    <dialog
+      ref="movementCalendarDialog"
+      class="calendar-dialog movement-calendar-dialog"
+      aria-labelledby="movement-calendar-title"
+      @cancel.prevent="closeMovementCalendar"
+    >
+      <form @submit.prevent="applyMovementRange">
+        <header>
+          <div>
+            <p class="section-label">
+              {{ t("crypto.movements.filterSection") }}
+            </p>
+            <h2 id="movement-calendar-title">
+              {{ t("crypto.calendar.selectDates") }}
+            </h2>
+          </div>
+        </header>
+        <div class="calendar-fields">
+          <label>
+            <span>{{ t("crypto.calendar.from") }}</span>
+            <input
+              v-model="movementDraftStart"
+              type="date"
+              :max="movementDraftEnd"
+              required
+            />
+          </label>
+          <span aria-hidden="true">→</span>
+          <label>
+            <span>{{ t("crypto.calendar.to") }}</span>
+            <input
+              v-model="movementDraftEnd"
+              type="date"
+              :min="movementDraftStart"
+              required
+            />
+          </label>
+        </div>
+        <footer class="calendar-dialog-actions">
+          <button type="button" @click="closeMovementCalendar">
+            {{ t("crypto.actions.cancel") }}
+          </button>
+          <button class="primary" type="submit" :disabled="!movementRangeValid">
+            {{ t("crypto.calendar.applyPeriod") }}
+          </button>
+        </footer>
+      </form>
+    </dialog>
+  </div>
 </template>
 
 <style scoped>
+.movement-panel-host {
+  display: contents;
+}
 .fund-performance-panel {
   margin-top: 20px;
   padding: 24px;

@@ -166,207 +166,216 @@ function closeMovementCalendar() {
 </script>
 
 <template>
-  <article
-    class="fund-performance-panel movements-panel"
-    :class="{ collapsed }"
-  >
-    <header class="fund-secondary-header">
-      <div>
-        <p class="section-label">{{ t("funds.movements.section") }}</p>
-        <h2>{{ t("funds.movements.title") }}</h2>
-        <p class="fund-range-label">
-          {{
-            t(
-              filteredOrders.length === 1
-                ? "funds.movements.operation"
-                : "funds.movements.operations",
-              { count: filteredOrders.length },
-            )
-          }}
-          · {{ movementRangeLabel }}
-        </p>
-      </div>
-      <div class="fund-collapsible-actions">
-        <div v-show="!collapsed" class="movement-filters">
-          <button type="button" class="add-movement" @click="emit('add')">
-            <span aria-hidden="true">+</span> {{ t("funds.movements.add") }}
-          </button>
-          <select
-            v-model="movementFund"
-            :aria-label="t('funds.movements.filterFundAria')"
-          >
-            <option value="all">{{ t("funds.movements.allFunds") }}</option>
-            <option
-              v-for="position in props.positions"
-              :key="position.instrument_id"
-              :value="props.positionIdentity(position)"
+  <div class="fund-performance-panel movement-panel-host">
+    <article
+      class="fund-performance-panel movements-panel"
+      :class="{ collapsed }"
+    >
+      <header class="fund-secondary-header">
+        <div>
+          <p class="section-label">{{ t("funds.movements.section") }}</p>
+          <h2>{{ t("funds.movements.title") }}</h2>
+          <p class="fund-range-label">
+            {{
+              t(
+                filteredOrders.length === 1
+                  ? "funds.movements.operation"
+                  : "funds.movements.operations",
+                { count: filteredOrders.length },
+              )
+            }}
+            · {{ movementRangeLabel }}
+          </p>
+        </div>
+        <div class="fund-collapsible-actions">
+          <div v-show="!collapsed" class="movement-filters">
+            <button type="button" class="add-movement" @click="emit('add')">
+              <span aria-hidden="true">+</span> {{ t("funds.movements.add") }}
+            </button>
+            <select
+              v-model="movementFund"
+              :aria-label="t('funds.movements.filterFundAria')"
             >
-              {{ position.name }}
-            </option>
-          </select>
-          <select
-            v-model="movementType"
-            :aria-label="t('funds.movements.filterTypeAria')"
-          >
-            <option value="all">{{ t("funds.movements.allMovements") }}</option>
-            <option value="in">{{ t("funds.movements.entries") }}</option>
-            <option value="out">{{ t("funds.movements.exits") }}</option>
-          </select>
-          <button type="button" @click="openMovementCalendar">
-            {{ movementRangeLabel }}
-          </button>
-        </div>
-        <InvestmentCollapseButton
-          :collapsed="collapsed"
-          controls="fund-movements-content"
-          :label="
-            t(
-              collapsed
-                ? 'funds.movements.expandAria'
-                : 'funds.movements.collapseAria',
-            )
-          "
-          @toggle="toggleCollapsed"
-        />
-      </div>
-    </header>
-    <div v-show="!collapsed" id="fund-movements-content">
-      <div class="fund-table-scroll">
-        <table class="fund-table movement-table">
-          <thead>
-            <tr>
-              <th>{{ t("funds.movements.date") }}</th>
-              <th>{{ t("funds.movements.movement") }}</th>
-              <th>{{ t("funds.movements.fund") }}</th>
-              <th>{{ t("funds.movements.account") }}</th>
-              <th>{{ t("funds.movements.shares") }}</th>
-              <th>{{ t("funds.movements.price") }}</th>
-              <th>{{ t("funds.movements.amount") }}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="order in displayedOrders" :key="order.id">
-              <td>{{ props.displayDate(order.trade_date) }}</td>
-              <td>
-                <span class="operation-pill" :class="operationGroup(order)">
-                  {{ operationLabel(order) }}
-                </span>
-              </td>
-              <td>
-                <strong>{{ order.asset_name }}</strong>
-                <small>{{ order.isin }}</small>
-              </td>
-              <td>
-                {{ order.account_name ?? props.selectedAccountLabel }}
-                <small>{{ order.platform }}</small>
-              </td>
-              <td>{{ props.formatQuantity(order.quantity, 6) }}</td>
-              <td>
-                {{ props.formatMoney(baseUnitPrice(order)) }}
-                <small v-if="order.currency && order.currency !== 'EUR'">
-                  {{ originalMoney(order.unit_price, order.currency) }}
-                </small>
-              </td>
-              <td>
-                <strong>{{ props.formatMoney(baseAmount(order)) }}</strong>
-                <small v-if="order.currency && order.currency !== 'EUR'">
-                  {{ originalMoney(order.net_amount, order.currency) }}
-                </small>
-              </td>
-              <td>
-                <InvestmentMovementActions
-                  :edit-label="t('funds.movements.edit')"
-                  :delete-label="t('funds.movements.delete')"
-                  @edit="emit('edit', order)"
-                  @delete="emit('delete', order)"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-if="!filteredOrders.length" class="fund-empty-compact">
-        {{ t("funds.movements.noResults") }}
-      </div>
-      <nav
-        v-else-if="movementPages > 1"
-        class="movement-pagination"
-        :aria-label="t('funds.movements.paginationAria')"
-      >
-        <span>{{
-          t("funds.movements.page", {
-            page: movementPage,
-            pages: movementPages,
-          })
-        }}</span>
-        <div>
-          <button
-            type="button"
-            :disabled="movementPage === 1"
-            @click="movementPage--"
-          >
-            {{ t("funds.movements.previous") }}
-          </button>
-          <button
-            type="button"
-            :disabled="movementPage === movementPages"
-            @click="movementPage++"
-          >
-            {{ t("funds.movements.next") }}
-          </button>
-        </div>
-      </nav>
-    </div>
-  </article>
-
-  <dialog
-    ref="movementCalendarDialog"
-    class="fund-dialog"
-    aria-labelledby="movement-calendar-title"
-    @cancel.prevent="closeMovementCalendar"
-  >
-    <form @submit.prevent="applyMovementRange">
-      <header>
-        <div>
-          <p class="section-label">{{ t("funds.movements.filterSection") }}</p>
-          <h2 id="movement-calendar-title">
-            {{ t("funds.calendar.selectDates") }}
-          </h2>
+              <option value="all">{{ t("funds.movements.allFunds") }}</option>
+              <option
+                v-for="position in props.positions"
+                :key="position.instrument_id"
+                :value="props.positionIdentity(position)"
+              >
+                {{ position.name }}
+              </option>
+            </select>
+            <select
+              v-model="movementType"
+              :aria-label="t('funds.movements.filterTypeAria')"
+            >
+              <option value="all">
+                {{ t("funds.movements.allMovements") }}
+              </option>
+              <option value="in">{{ t("funds.movements.entries") }}</option>
+              <option value="out">{{ t("funds.movements.exits") }}</option>
+            </select>
+            <button type="button" @click="openMovementCalendar">
+              {{ movementRangeLabel }}
+            </button>
+          </div>
+          <InvestmentCollapseButton
+            :collapsed="collapsed"
+            controls="fund-movements-content"
+            :label="
+              t(
+                collapsed
+                  ? 'funds.movements.expandAria'
+                  : 'funds.movements.collapseAria',
+              )
+            "
+            @toggle="toggleCollapsed"
+          />
         </div>
       </header>
-      <div class="movement-calendar-fields">
-        <label
-          ><span>{{ t("funds.calendar.from") }}</span
-          ><input
-            v-model="movementDraftStart"
-            type="date"
-            :max="movementDraftEnd"
-            required
-        /></label>
-        <span aria-hidden="true">→</span>
-        <label
-          ><span>{{ t("funds.calendar.to") }}</span
-          ><input
-            v-model="movementDraftEnd"
-            type="date"
-            :min="movementDraftStart"
-            required
-        /></label>
+      <div v-show="!collapsed" id="fund-movements-content">
+        <div class="fund-table-scroll">
+          <table class="fund-table movement-table">
+            <thead>
+              <tr>
+                <th>{{ t("funds.movements.date") }}</th>
+                <th>{{ t("funds.movements.movement") }}</th>
+                <th>{{ t("funds.movements.fund") }}</th>
+                <th>{{ t("funds.movements.account") }}</th>
+                <th>{{ t("funds.movements.shares") }}</th>
+                <th>{{ t("funds.movements.price") }}</th>
+                <th>{{ t("funds.movements.amount") }}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in displayedOrders" :key="order.id">
+                <td>{{ props.displayDate(order.trade_date) }}</td>
+                <td>
+                  <span class="operation-pill" :class="operationGroup(order)">
+                    {{ operationLabel(order) }}
+                  </span>
+                </td>
+                <td>
+                  <strong>{{ order.asset_name }}</strong>
+                  <small>{{ order.isin }}</small>
+                </td>
+                <td>
+                  {{ order.account_name ?? props.selectedAccountLabel }}
+                  <small>{{ order.platform }}</small>
+                </td>
+                <td>{{ props.formatQuantity(order.quantity, 6) }}</td>
+                <td>
+                  {{ props.formatMoney(baseUnitPrice(order)) }}
+                  <small v-if="order.currency && order.currency !== 'EUR'">
+                    {{ originalMoney(order.unit_price, order.currency) }}
+                  </small>
+                </td>
+                <td>
+                  <strong>{{ props.formatMoney(baseAmount(order)) }}</strong>
+                  <small v-if="order.currency && order.currency !== 'EUR'">
+                    {{ originalMoney(order.net_amount, order.currency) }}
+                  </small>
+                </td>
+                <td>
+                  <InvestmentMovementActions
+                    :edit-label="t('funds.movements.edit')"
+                    :delete-label="t('funds.movements.delete')"
+                    @edit="emit('edit', order)"
+                    @delete="emit('delete', order)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="!filteredOrders.length" class="fund-empty-compact">
+          {{ t("funds.movements.noResults") }}
+        </div>
+        <nav
+          v-else-if="movementPages > 1"
+          class="movement-pagination"
+          :aria-label="t('funds.movements.paginationAria')"
+        >
+          <span>{{
+            t("funds.movements.page", {
+              page: movementPage,
+              pages: movementPages,
+            })
+          }}</span>
+          <div>
+            <button
+              type="button"
+              :disabled="movementPage === 1"
+              @click="movementPage--"
+            >
+              {{ t("funds.movements.previous") }}
+            </button>
+            <button
+              type="button"
+              :disabled="movementPage === movementPages"
+              @click="movementPage++"
+            >
+              {{ t("funds.movements.next") }}
+            </button>
+          </div>
+        </nav>
       </div>
-      <footer>
-        <button type="button" @click="closeMovementCalendar">
-          {{ t("funds.actions.cancel") }}
-        </button>
-        <button class="primary" type="submit" :disabled="!movementRangeValid">
-          {{ t("funds.calendar.applyFilter") }}
-        </button>
-      </footer>
-    </form>
-  </dialog>
+    </article>
+
+    <dialog
+      ref="movementCalendarDialog"
+      class="fund-dialog"
+      aria-labelledby="movement-calendar-title"
+      @cancel.prevent="closeMovementCalendar"
+    >
+      <form @submit.prevent="applyMovementRange">
+        <header>
+          <div>
+            <p class="section-label">
+              {{ t("funds.movements.filterSection") }}
+            </p>
+            <h2 id="movement-calendar-title">
+              {{ t("funds.calendar.selectDates") }}
+            </h2>
+          </div>
+        </header>
+        <div class="movement-calendar-fields">
+          <label
+            ><span>{{ t("funds.calendar.from") }}</span
+            ><input
+              v-model="movementDraftStart"
+              type="date"
+              :max="movementDraftEnd"
+              required
+          /></label>
+          <span aria-hidden="true">→</span>
+          <label
+            ><span>{{ t("funds.calendar.to") }}</span
+            ><input
+              v-model="movementDraftEnd"
+              type="date"
+              :min="movementDraftStart"
+              required
+          /></label>
+        </div>
+        <footer>
+          <button type="button" @click="closeMovementCalendar">
+            {{ t("funds.actions.cancel") }}
+          </button>
+          <button class="primary" type="submit" :disabled="!movementRangeValid">
+            {{ t("funds.calendar.applyFilter") }}
+          </button>
+        </footer>
+      </form>
+    </dialog>
+  </div>
 </template>
 
 <style scoped>
+.movement-panel-host {
+  display: contents;
+}
 .fund-performance-panel {
   margin-top: 18px;
   padding: 24px;

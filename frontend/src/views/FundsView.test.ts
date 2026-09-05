@@ -1250,6 +1250,24 @@ describe("FundsView", () => {
     });
   });
 
+  it("preserves movement filters through a same-account dashboard refresh", async () => {
+    const wrapper = mount(FundsView);
+    await flushPromises();
+
+    const movementType = wrapper.get('select[aria-label="Filtrar por tipo"]');
+    await movementType.setValue("out");
+    expect(movementType.element).toHaveProperty("value", "out");
+    expect(wrapper.findAll(".movement-table tbody tr")).toHaveLength(1);
+
+    await wrapper.get(".fund-action-button").trigger("click");
+    await flushPromises();
+
+    expect(
+      wrapper.get('select[aria-label="Filtrar por tipo"]').element,
+    ).toHaveProperty("value", "out");
+    expect(wrapper.findAll(".movement-table tbody tr")).toHaveLength(1);
+  });
+
   it("collapses portfolio funds and movements and remembers both choices", async () => {
     const wrapper = mount(FundsView);
     await flushPromises();

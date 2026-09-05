@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
   computed,
+  defineComponent,
+  h,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -21,6 +23,21 @@ import { useSessionStore } from "../stores/session";
 import { useLocalePreference } from "../i18n";
 
 const emit = defineEmits<{ close: [] }>();
+const settingsPanelPlaceholder = defineComponent({
+  name: "SettingsPanelPlaceholder",
+  emits: [
+    "update",
+    "save",
+    "save-language",
+    "save-installation-language",
+    "save-crowdfunding-tax",
+    "save-identity",
+    "save-password",
+  ],
+  setup() {
+    return () => h("span", { "aria-hidden": "true" });
+  },
+});
 const session = useSessionStore();
 const { t } = useI18n();
 const { locale, supportedLocales } = useLocalePreference();
@@ -64,6 +81,71 @@ const activeImporterLabel = computed(() =>
     ? t("settings.importerActive")
     : t("settings.importersActive", { count: importers.value.length }),
 );
+const activeSettingsPanel = computed(() => {
+  if (activeSection.value === "sections") {
+    return activeProductSection.value === "summary"
+      ? SettingsSummarySourcesPanel
+      : SettingsInstallationPreferencesPanel;
+  }
+  if (activeSection.value === "interface") return SettingsLanguagePanel;
+  if (activeSection.value === "account") return SettingsAccountPanel;
+  return null;
+});
+const activeSettingsPanelProps = computed(() => {
+  if (activeSettingsPanel.value === SettingsSummarySourcesPanel) {
+    return {
+      summarySources: summarySources.value,
+      summarySourceKeys,
+      scopeLabel: summaryScopeLabel.value,
+      canManage: canManageAccount.value,
+      busy: summarySourcesBusy.value,
+      error: summarySourcesError.value,
+      success: summarySourcesSuccess.value,
+    };
+  }
+  if (activeSettingsPanel.value === SettingsLanguagePanel) {
+    return {
+      effectiveLanguage: effectiveLanguage.value,
+      effectiveLanguageName: effectiveLanguageName.value,
+      effectiveLanguageFlag: effectiveLanguageFlag.value,
+      preferredLanguage: session.user?.preferred_language ?? null,
+      canManage: canManageAccount.value,
+      canAdminister: canAdminister.value,
+      languageBusy: languageBusy.value,
+      languageError: languageError.value,
+      languageSuccess: languageSuccess.value,
+      installationLanguage: sessionDefaultLanguage.value,
+      supportedLocales,
+      installationBusy: installationLanguageBusy.value,
+      installationError: installationLanguageError.value,
+      installationSuccess: installationLanguageSuccess.value,
+    };
+  }
+  if (activeSettingsPanel.value === SettingsInstallationPreferencesPanel) {
+    return {
+      mode: "crowdfunding" as const,
+      canAdminister: canAdminister.value,
+      defaultCrowdfundingTaxRate: sessionDefaultCrowdfundingTaxRate.value ?? 19,
+      crowdfundingBusy: crowdfundingTaxBusy.value,
+      crowdfundingError: crowdfundingTaxError.value,
+      crowdfundingSuccess: crowdfundingTaxSuccess.value,
+    };
+  }
+  if (activeSettingsPanel.value === SettingsAccountPanel) {
+    return {
+      initialDisplayName: session.user?.display_name ?? "",
+      initialEmail: session.user?.email ?? "",
+      roleLabel: accountRoleLabel.value,
+      identityBusy: identityBusy.value,
+      identityError: identityError.value,
+      identitySuccess: identitySuccess.value,
+      passwordBusy: passwordBusy.value,
+      passwordError: passwordError.value,
+      passwordSuccess: passwordSuccess.value,
+    };
+  }
+  return {};
+});
 const canManageAccount = computed(() =>
   Boolean(session.user && session.user.role !== "demo"),
 );
@@ -569,82 +651,37 @@ onBeforeUnmount(() => {
         </nav>
 
         <main class="settings-content">
-          <SettingsSummarySourcesPanel
-            v-if="
-              activeSection === 'sections' && activeProductSection === 'summary'
-            "
-            :summary-sources="summarySources"
-            :summary-source-keys="summarySourceKeys"
-            :scope-label="summaryScopeLabel"
-            :can-manage="canManageAccount"
-            :busy="summarySourcesBusy"
-            :error="summarySourcesError"
-            :success="summarySourcesSuccess"
-            @update="updateSummarySources"
-            @save="saveSummarySources"
-          />
-          <SettingsLanguagePanel
-            v-else-if="activeSection === 'interface'"
-            :effective-language="effectiveLanguage"
-            :effective-language-name="effectiveLanguageName"
-            :effective-language-flag="effectiveLanguageFlag"
-            :preferred-language="session.user?.preferred_language ?? null"
-            :can-manage="canManageAccount"
-            :can-administer="canAdminister"
-            :language-busy="languageBusy"
-            :language-error="languageError"
-            :language-success="languageSuccess"
-            :installation-language="sessionDefaultLanguage"
-            :supported-locales="supportedLocales"
-            :installation-busy="installationLanguageBusy"
-            :installation-error="installationLanguageError"
-            :installation-success="installationLanguageSuccess"
-            @save-language="saveLanguage"
-            @save-installation-language="saveInstallationLanguage"
-          />
-          <SettingsInstallationPreferencesPanel
-            v-else-if="
-              activeSection === 'sections' &&
-              activeProductSection === 'crowdfunding'
-            "
-            mode="crowdfunding"
-            :can-administer="canAdminister"
-            :default-crowdfunding-tax-rate="
-              sessionDefaultCrowdfundingTaxRate ?? 19
-            "
-            :crowdfunding-busy="crowdfundingTaxBusy"
-            :crowdfunding-error="crowdfundingTaxError"
-            :crowdfunding-success="crowdfundingTaxSuccess"
-            @save-crowdfunding-tax="saveCrowdfundingTax"
-          />
+          <KeepAlive>
+            <component
+              :is="activeSettingsPanel ?? settingsPanelPlaceholder"
+              v-bind="activeSettingsPanelProps"
+              @update="updateSummarySources"
+              @save="saveSummarySources"
+              @save-language="saveLanguage"
+              @save-installation-language="saveInstallationLanguage"
+              @save-crowdfunding-tax="saveCrowdfundingTax"
+              @save-identity="saveIdentity"
+              @save-password="savePassword"
+            />
+          </KeepAlive>
           <div
-            v-else-if="activeSection === 'administration'"
+            v-if="!activeSettingsPanel && activeSection === 'administration'"
             class="administration-document"
           >
             <AdminUsersPanel />
           </div>
-          <SettingsAccountPanel
-            v-else-if="activeSection === 'account'"
-            :initial-display-name="session.user?.display_name ?? ''"
-            :initial-email="session.user?.email ?? ''"
-            :role-label="accountRoleLabel"
-            :identity-busy="identityBusy"
-            :identity-error="identityError"
-            :identity-success="identitySuccess"
-            :password-busy="passwordBusy"
-            :password-error="passwordError"
-            :password-success="passwordSuccess"
-            @save-identity="saveIdentity"
-            @save-password="savePassword"
-          />
           <div
-            v-else-if="loading"
+            v-else-if="!activeSettingsPanel && loading"
             class="content-loading"
             :aria-label="t('settings.loadingImportersAria')"
           >
             <i /><i /><i />
           </div>
-          <article v-else-if="error" class="settings-error" role="alert">
+          <article
+            v-else-if="!activeSettingsPanel && error"
+            class="settings-error"
+            role="alert"
+          >
             <div>
               <strong>{{ t("settings.catalogLoadError") }}</strong>
               <p>{{ error }}</p>
@@ -652,7 +689,7 @@ onBeforeUnmount(() => {
             <button type="button" @click="load">{{ t("common.retry") }}</button>
           </article>
           <SettingsImporterDocument
-            v-else-if="selectedImporter"
+            v-else-if="!activeSettingsPanel && selectedImporter"
             :selected-importer="selectedImporter"
           />
         </main>

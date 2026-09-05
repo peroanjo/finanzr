@@ -168,231 +168,236 @@ function closeMovementCalendar() {
 </script>
 
 <template>
-  <article
-    class="fund-performance-panel movements-panel"
-    :class="{ collapsed }"
-  >
-    <header class="fund-secondary-header">
-      <div>
-        <p class="section-label">{{ t("stocks.movements.section") }}</p>
-        <h2>{{ t("stocks.movements.title") }}</h2>
-        <p class="fund-range-label">
-          {{
-            t(
-              filteredOrders.length === 1
-                ? "stocks.movements.operation"
-                : "stocks.movements.operations",
-              { count: filteredOrders.length },
-            )
-          }}
-          · {{ movementRangeLabel }}
-        </p>
-      </div>
-      <div class="fund-collapsible-actions">
-        <div v-show="!collapsed" class="movement-filters">
-          <button type="button" class="add-movement" @click="emit('add')">
-            + {{ t("stocks.movements.add") }}
-          </button>
-          <select
-            v-model="movementIsin"
-            :aria-label="t('stocks.movements.assetFilterAria')"
-          >
-            <option value="all">{{ t("stocks.movements.allAssets") }}</option>
-            <option
-              v-for="position in props.positions"
-              :key="position.instrument_id"
-              :value="props.positionIdentity(position)"
-            >
-              {{ position.name }}
-            </option>
-          </select>
-          <select
-            v-model="movementType"
-            :aria-label="t('stocks.movements.filterTypeAria')"
-          >
-            <option value="all">
-              {{ t("stocks.movements.allMovements") }}
-            </option>
-            <option value="in">{{ t("stocks.movements.entries") }}</option>
-            <option value="out">{{ t("stocks.movements.exits") }}</option>
-          </select>
-          <button
-            type="button"
-            :aria-label="t('stocks.movements.dateFilterAria')"
-            @click="openMovementCalendar"
-          >
-            {{ movementRangeLabel }}
-          </button>
-        </div>
-        <InvestmentCollapseButton
-          :collapsed="collapsed"
-          controls="stock-movements-content"
-          :label="
-            t(
-              collapsed
-                ? 'stocks.movements.expandAria'
-                : 'stocks.movements.collapseAria',
-            )
-          "
-          @toggle="toggleCollapsed"
-        />
-      </div>
-    </header>
-    <div v-show="!collapsed" id="stock-movements-content">
-      <div class="fund-table-scroll">
-        <table class="fund-table movement-table">
-          <thead>
-            <tr>
-              <th>{{ t("stocks.movements.date") }}</th>
-              <th>{{ t("stocks.movements.movement") }}</th>
-              <th>{{ t("stocks.movements.asset") }}</th>
-              <th>{{ t("stocks.movements.account") }}</th>
-              <th>{{ t("stocks.movements.quantity") }}</th>
-              <th>{{ t("stocks.movements.price") }}</th>
-              <th>{{ t("stocks.movements.amount") }}</th>
-              <th>{{ t("stocks.movements.fee") }}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="order in displayedOrders" :key="order.id">
-              <td>{{ props.displayDate(order.trade_date) }}</td>
-              <td>
-                <span class="operation-pill" :class="operationGroup(order)">
-                  {{ operationLabel(order)
-                  }}<small v-if="order.is_saveback">{{
-                    t("stocks.movements.cashback")
-                  }}</small>
-                </span>
-              </td>
-              <td>
-                <strong>{{ order.asset_name }}</strong
-                ><small>{{ order.isin }}</small>
-              </td>
-              <td>
-                {{ order.account_name ?? props.selectedAccountLabel
-                }}<small>{{ order.platform }}</small>
-              </td>
-              <td>{{ props.formatQuantity(order.quantity) }}</td>
-              <td>
-                {{ props.formatMoney(basePrice(order)) }}
-                <small v-if="hasOriginalCurrency(order)">{{
-                  t("stocks.movements.originalValue", {
-                    value: originalMoney(order.unit_price, order.currency),
-                  })
-                }}</small>
-              </td>
-              <td>
-                <strong>{{ props.formatMoney(baseAmount(order)) }}</strong
-                ><small v-if="hasOriginalCurrency(order)">{{
-                  t("stocks.movements.originalValue", {
-                    value: originalMoney(order.net_amount, order.currency),
-                  })
-                }}</small>
-              </td>
-              <td>
-                {{ props.formatMoney(baseFee(order)) }}
-                <small v-if="hasOriginalCurrency(order)">{{
-                  t("stocks.movements.originalFee", {
-                    value: originalMoney(order.fee, order.currency),
-                  })
-                }}</small>
-              </td>
-              <td>
-                <InvestmentMovementActions
-                  :edit-label="
-                    t('stocks.movements.editAria', {
-                      asset: order.asset_name,
-                    })
-                  "
-                  :delete-label="
-                    t('stocks.movements.deleteAria', {
-                      asset: order.asset_name,
-                    })
-                  "
-                  @edit="emit('edit', order)"
-                  @delete="emit('delete', order)"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-if="!filteredOrders.length" class="fund-empty-compact">
-        {{ t("stocks.movements.noResults") }}
-      </div>
-      <nav
-        v-else-if="movementPages > 1"
-        class="movement-pagination"
-        :aria-label="t('stocks.movements.paginationAria')"
-      >
-        <span>{{
-          t("stocks.movements.page", {
-            page: movementPage,
-            pages: movementPages,
-          })
-        }}</span>
+  <div class="fund-performance-panel movement-panel-host">
+    <article
+      class="fund-performance-panel movements-panel"
+      :class="{ collapsed }"
+    >
+      <header class="fund-secondary-header">
         <div>
-          <button
-            type="button"
-            :disabled="movementPage === 1"
-            @click="movementPage--"
-          >
-            {{ t("stocks.movements.previous") }}
-          </button>
-          <button
-            type="button"
-            :disabled="movementPage === movementPages"
-            @click="movementPage++"
-          >
-            {{ t("stocks.movements.next") }}
-          </button>
+          <p class="section-label">{{ t("stocks.movements.section") }}</p>
+          <h2>{{ t("stocks.movements.title") }}</h2>
+          <p class="fund-range-label">
+            {{
+              t(
+                filteredOrders.length === 1
+                  ? "stocks.movements.operation"
+                  : "stocks.movements.operations",
+                { count: filteredOrders.length },
+              )
+            }}
+            · {{ movementRangeLabel }}
+          </p>
         </div>
-      </nav>
-    </div>
-  </article>
-
-  <dialog
-    ref="movementCalendarDialog"
-    class="stock-dialog stock-movement-dialog"
-    aria-labelledby="stocks-movement-calendar-title"
-  >
-    <form @submit.prevent="applyMovementRange">
-      <header>
-        <h2 id="stocks-movement-calendar-title">
-          {{ t("stocks.calendar.selectDates") }}
-        </h2>
+        <div class="fund-collapsible-actions">
+          <div v-show="!collapsed" class="movement-filters">
+            <button type="button" class="add-movement" @click="emit('add')">
+              + {{ t("stocks.movements.add") }}
+            </button>
+            <select
+              v-model="movementIsin"
+              :aria-label="t('stocks.movements.assetFilterAria')"
+            >
+              <option value="all">{{ t("stocks.movements.allAssets") }}</option>
+              <option
+                v-for="position in props.positions"
+                :key="position.instrument_id"
+                :value="props.positionIdentity(position)"
+              >
+                {{ position.name }}
+              </option>
+            </select>
+            <select
+              v-model="movementType"
+              :aria-label="t('stocks.movements.filterTypeAria')"
+            >
+              <option value="all">
+                {{ t("stocks.movements.allMovements") }}
+              </option>
+              <option value="in">{{ t("stocks.movements.entries") }}</option>
+              <option value="out">{{ t("stocks.movements.exits") }}</option>
+            </select>
+            <button
+              type="button"
+              :aria-label="t('stocks.movements.dateFilterAria')"
+              @click="openMovementCalendar"
+            >
+              {{ movementRangeLabel }}
+            </button>
+          </div>
+          <InvestmentCollapseButton
+            :collapsed="collapsed"
+            controls="stock-movements-content"
+            :label="
+              t(
+                collapsed
+                  ? 'stocks.movements.expandAria'
+                  : 'stocks.movements.collapseAria',
+              )
+            "
+            @toggle="toggleCollapsed"
+          />
+        </div>
       </header>
-      <div class="stock-calendar-fields">
-        <label
-          ><span>{{ t("stocks.calendar.from") }}</span
-          ><input
-            v-model="movementDraftStart"
-            type="date"
-            :max="movementDraftEnd"
-            required /></label
-        ><label
-          ><span>{{ t("stocks.calendar.to") }}</span
-          ><input
-            v-model="movementDraftEnd"
-            type="date"
-            :min="movementDraftStart"
-            required
-        /></label>
+      <div v-show="!collapsed" id="stock-movements-content">
+        <div class="fund-table-scroll">
+          <table class="fund-table movement-table">
+            <thead>
+              <tr>
+                <th>{{ t("stocks.movements.date") }}</th>
+                <th>{{ t("stocks.movements.movement") }}</th>
+                <th>{{ t("stocks.movements.asset") }}</th>
+                <th>{{ t("stocks.movements.account") }}</th>
+                <th>{{ t("stocks.movements.quantity") }}</th>
+                <th>{{ t("stocks.movements.price") }}</th>
+                <th>{{ t("stocks.movements.amount") }}</th>
+                <th>{{ t("stocks.movements.fee") }}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in displayedOrders" :key="order.id">
+                <td>{{ props.displayDate(order.trade_date) }}</td>
+                <td>
+                  <span class="operation-pill" :class="operationGroup(order)">
+                    {{ operationLabel(order)
+                    }}<small v-if="order.is_saveback">{{
+                      t("stocks.movements.cashback")
+                    }}</small>
+                  </span>
+                </td>
+                <td>
+                  <strong>{{ order.asset_name }}</strong
+                  ><small>{{ order.isin }}</small>
+                </td>
+                <td>
+                  {{ order.account_name ?? props.selectedAccountLabel
+                  }}<small>{{ order.platform }}</small>
+                </td>
+                <td>{{ props.formatQuantity(order.quantity) }}</td>
+                <td>
+                  {{ props.formatMoney(basePrice(order)) }}
+                  <small v-if="hasOriginalCurrency(order)">{{
+                    t("stocks.movements.originalValue", {
+                      value: originalMoney(order.unit_price, order.currency),
+                    })
+                  }}</small>
+                </td>
+                <td>
+                  <strong>{{ props.formatMoney(baseAmount(order)) }}</strong
+                  ><small v-if="hasOriginalCurrency(order)">{{
+                    t("stocks.movements.originalValue", {
+                      value: originalMoney(order.net_amount, order.currency),
+                    })
+                  }}</small>
+                </td>
+                <td>
+                  {{ props.formatMoney(baseFee(order)) }}
+                  <small v-if="hasOriginalCurrency(order)">{{
+                    t("stocks.movements.originalFee", {
+                      value: originalMoney(order.fee, order.currency),
+                    })
+                  }}</small>
+                </td>
+                <td>
+                  <InvestmentMovementActions
+                    :edit-label="
+                      t('stocks.movements.editAria', {
+                        asset: order.asset_name,
+                      })
+                    "
+                    :delete-label="
+                      t('stocks.movements.deleteAria', {
+                        asset: order.asset_name,
+                      })
+                    "
+                    @edit="emit('edit', order)"
+                    @delete="emit('delete', order)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="!filteredOrders.length" class="fund-empty-compact">
+          {{ t("stocks.movements.noResults") }}
+        </div>
+        <nav
+          v-else-if="movementPages > 1"
+          class="movement-pagination"
+          :aria-label="t('stocks.movements.paginationAria')"
+        >
+          <span>{{
+            t("stocks.movements.page", {
+              page: movementPage,
+              pages: movementPages,
+            })
+          }}</span>
+          <div>
+            <button
+              type="button"
+              :disabled="movementPage === 1"
+              @click="movementPage--"
+            >
+              {{ t("stocks.movements.previous") }}
+            </button>
+            <button
+              type="button"
+              :disabled="movementPage === movementPages"
+              @click="movementPage++"
+            >
+              {{ t("stocks.movements.next") }}
+            </button>
+          </div>
+        </nav>
       </div>
-      <footer>
-        <button type="button" @click="closeMovementCalendar">
-          {{ t("stocks.calendar.cancel") }}
-        </button>
-        <button class="primary" type="submit" :disabled="!movementRangeValid">
-          {{ t("stocks.calendar.applyFilter") }}
-        </button>
-      </footer>
-    </form>
-  </dialog>
+    </article>
+
+    <dialog
+      ref="movementCalendarDialog"
+      class="stock-dialog stock-movement-dialog"
+      aria-labelledby="stocks-movement-calendar-title"
+    >
+      <form @submit.prevent="applyMovementRange">
+        <header>
+          <h2 id="stocks-movement-calendar-title">
+            {{ t("stocks.calendar.selectDates") }}
+          </h2>
+        </header>
+        <div class="stock-calendar-fields">
+          <label
+            ><span>{{ t("stocks.calendar.from") }}</span
+            ><input
+              v-model="movementDraftStart"
+              type="date"
+              :max="movementDraftEnd"
+              required /></label
+          ><label
+            ><span>{{ t("stocks.calendar.to") }}</span
+            ><input
+              v-model="movementDraftEnd"
+              type="date"
+              :min="movementDraftStart"
+              required
+          /></label>
+        </div>
+        <footer>
+          <button type="button" @click="closeMovementCalendar">
+            {{ t("stocks.calendar.cancel") }}
+          </button>
+          <button class="primary" type="submit" :disabled="!movementRangeValid">
+            {{ t("stocks.calendar.applyFilter") }}
+          </button>
+        </footer>
+      </form>
+    </dialog>
+  </div>
 </template>
 
 <style scoped>
+.movement-panel-host {
+  display: contents;
+}
 .fund-performance-panel {
   margin-top: 20px;
   padding: 24px;

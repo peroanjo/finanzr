@@ -494,7 +494,6 @@ function performanceQuery() {
 }
 
 async function loadDashboard(showLoading = true, loadSelectedChart = true) {
-  movementPanel.value?.resetPage();
   const generation = ++dashboardGeneration;
   performanceRequestGeneration += 1;
   chartRequestGeneration += 1;
@@ -1123,22 +1122,6 @@ onMounted(loadDashboard);
         @sort="sortPositions"
       />
 
-      <CryptoMovementsPanel
-        ref="movementPanel"
-        :orders="orders"
-        :instruments="instruments"
-        :selected-account-label="selectedAccountLabel"
-        :base-currency="reportingCurrency"
-        :format-money="money"
-        :format-quantity="(value) => n(value, 'quantity')"
-        :display-date="displayDate"
-        :base-price="basePrice"
-        :base-amount="baseAmount"
-        :base-fee="baseFee"
-        @add="openNewMovement"
-        @edit="openEditMovement"
-        @delete="askDeleteMovement"
-      />
       <MovementEditorDialog
         ref="movementEditor"
         kind="crypto"
@@ -1372,6 +1355,23 @@ onMounted(loadDashboard);
         </form>
       </dialog>
     </template>
+    <CryptoMovementsPanel
+      v-show="!loading && !error"
+      ref="movementPanel"
+      :orders="orders"
+      :instruments="instruments"
+      :selected-account-label="selectedAccountLabel"
+      :base-currency="reportingCurrency"
+      :format-money="money"
+      :format-quantity="(value) => n(value, 'quantity')"
+      :display-date="displayDate"
+      :base-price="basePrice"
+      :base-amount="baseAmount"
+      :base-fee="baseFee"
+      @add="openNewMovement"
+      @edit="openEditMovement"
+      @delete="askDeleteMovement"
+    />
   </section>
 </template>
 

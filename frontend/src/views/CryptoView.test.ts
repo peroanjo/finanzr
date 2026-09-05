@@ -758,6 +758,26 @@ describe("CryptoView canonical migration", () => {
     );
   });
 
+  it("preserves movement filters through a same-account dashboard refresh", async () => {
+    const wrapper = mount(CryptoView);
+    await flushPromises();
+
+    const movementType = wrapper.get(
+      'select[aria-label="Filtrar movimientos por tipo"]',
+    );
+    await movementType.setValue("out");
+    expect(movementType.element).toHaveProperty("value", "out");
+    expect(wrapper.findAll(".movement-table tbody tr")).toHaveLength(1);
+
+    await wrapper.get(".fund-action-button").trigger("click");
+    await flushPromises();
+
+    expect(
+      wrapper.get('select[aria-label="Filtrar movimientos por tipo"]').element,
+    ).toHaveProperty("value", "out");
+    expect(wrapper.findAll(".movement-table tbody tr")).toHaveLength(1);
+  });
+
   it("clamps movement pagination after deleting the only item on the last page", async () => {
     mockOrders = [
       ...orders,

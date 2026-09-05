@@ -473,6 +473,11 @@ function togglePosition(instrumentId: string) {
   cursor: pointer;
   transition: background 0.14s ease;
 }
+@media (prefers-reduced-motion: reduce) {
+  .fund-position-row {
+    transition: none;
+  }
+}
 .fund-position-row:hover,
 .fund-position-row.active {
   background: color-mix(in srgb, var(--fz-accent) 7%, transparent);

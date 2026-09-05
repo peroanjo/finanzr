@@ -329,6 +329,71 @@ describe("SettingsView", () => {
     expect(useSessionStore().user?.default_crowdfunding_tax_rate).toBe(21.5);
   });
 
+  it("preserves account and withholding drafts while navigating between sections", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => catalog,
+      })),
+    );
+
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    const primaryButton = (label: string) =>
+      wrapper
+        .findAll(".settings-primary > button")
+        .find((item) => item.text().includes(label));
+    const accountButton = primaryButton("Cuenta")!;
+    await accountButton.trigger("click");
+    await wrapper.get('input[autocomplete="name"]').setValue("Draft user");
+    await wrapper
+      .get('input[autocomplete="current-password"]')
+      .setValue("draft-current");
+    await wrapper
+      .findAll('input[autocomplete="new-password"]')[0]
+      .setValue("draft-password-123");
+    await wrapper
+      .findAll('input[autocomplete="new-password"]')[1]
+      .setValue("draft-password-123");
+
+    await primaryButton("Secciones")!.trigger("click");
+    await wrapper
+      .findAll(".settings-secondary > button")
+      .find((item) => item.text().includes("Crowdfunding"))!
+      .trigger("click");
+    await wrapper.get<HTMLInputElement>(".tax-rate-field input").setValue(21.5);
+
+    await primaryButton("Cuenta")!.trigger("click");
+    expect(
+      (wrapper.get('input[autocomplete="name"]').element as HTMLInputElement)
+        .value,
+    ).toBe("Draft user");
+    expect(
+      (
+        wrapper.get('input[autocomplete="current-password"]')
+          .element as HTMLInputElement
+      ).value,
+    ).toBe("draft-current");
+    expect(
+      (
+        wrapper.findAll('input[autocomplete="new-password"]')[0]
+          .element as HTMLInputElement
+      ).value,
+    ).toBe("draft-password-123");
+
+    await primaryButton("Secciones")!.trigger("click");
+    await wrapper
+      .findAll(".settings-secondary > button")
+      .find((item) => item.text().includes("Crowdfunding"))!
+      .trigger("click");
+    expect(
+      (wrapper.get(".tax-rate-field input").element as HTMLInputElement).value,
+    ).toBe("21.5");
+  });
+
   it("supports listbox keyboard navigation and preserves focus after transfer", async () => {
     vi.stubGlobal(
       "fetch",

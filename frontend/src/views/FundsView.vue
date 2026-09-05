@@ -992,35 +992,36 @@ onMounted(loadDashboard);
         @edit-fund="openFundEditor"
         @sort="sortPositions"
       />
+    </template>
+    <FundMovementsPanel
+      v-show="!loading && !error"
+      :orders="orders"
+      :positions="positions"
+      :selected-account-label="selectedAccountLabel"
+      :account-key="selectedAccount"
+      :format-money="money"
+      :format-quantity="quantity"
+      :display-date="displayDate"
+      :position-identity="positionIdentity"
+      @add="openNewMovement"
+      @edit="openEditMovement"
+      @delete="askDeleteOrder"
+    />
+    <MovementEditorDialog
+      ref="movementEditor"
+      kind="fund"
+      :accounts="accounts"
+      :assets="movementAssets"
+      :selected-account="selectedAccount"
+      @saved="loadDashboard"
+    />
+    <MovementDeleteDialog
+      ref="movementDelete"
+      kind="fund"
+      @deleted="loadDashboard"
+    />
 
-      <FundMovementsPanel
-        :orders="orders"
-        :positions="positions"
-        :selected-account-label="selectedAccountLabel"
-        :account-key="selectedAccount"
-        :format-money="money"
-        :format-quantity="quantity"
-        :display-date="displayDate"
-        :position-identity="positionIdentity"
-        @add="openNewMovement"
-        @edit="openEditMovement"
-        @delete="askDeleteOrder"
-      />
-
-      <MovementEditorDialog
-        ref="movementEditor"
-        kind="fund"
-        :accounts="accounts"
-        :assets="movementAssets"
-        :selected-account="selectedAccount"
-        @saved="loadDashboard"
-      />
-      <MovementDeleteDialog
-        ref="movementDelete"
-        kind="fund"
-        @deleted="loadDashboard"
-      />
-
+    <template v-if="!loading && !error">
       <dialog
         ref="calendarDialog"
         class="fund-dialog"
