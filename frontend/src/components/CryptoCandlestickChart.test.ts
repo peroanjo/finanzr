@@ -85,6 +85,86 @@ describe("CryptoCandlestickChart", () => {
     expect(wrapper.find(".chart-tooltip").exists()).toBe(false);
   });
 
+  it("keeps candle density close to the readable two-year series", () => {
+    const start = Date.UTC(2025, 0, 1);
+    const densePoints = Array.from({ length: 365 }, (_, index) => {
+      const value = 100 + index;
+      return {
+        date: new Date(start + index * 86_400_000).toISOString().slice(0, 10),
+        open: value,
+        high: value + 3,
+        low: value - 2,
+        close: value + 1,
+      };
+    });
+    const wrapper = mount(CryptoCandlestickChart, {
+      props: { points: densePoints, operations: [], averagePrice: null },
+    });
+    const candleBodies = wrapper.findAll(".candles g rect");
+
+    expect(candleBodies).toHaveLength(92);
+    expect(Number(candleBodies[0]?.attributes("width"))).toBeGreaterThan(5);
+  });
+
+  it("keeps the selected candle duration exact without growing the chart", () => {
+    const start = Date.UTC(2026, 0, 1);
+    const densePoints = Array.from({ length: 365 }, (_, index) => ({
+      date: new Date(start + index * 3_600_000).toISOString(),
+      open: 100 + index,
+      high: 103 + index,
+      low: 98 + index,
+      close: 101 + index,
+    }));
+    const wrapper = mount(CryptoCandlestickChart, {
+      props: {
+        points: densePoints,
+        operations: [],
+        averagePrice: null,
+        densityMode: "manual",
+      },
+    });
+
+    expect(wrapper.findAll(".candles g rect")).toHaveLength(365);
+    expect(
+      wrapper.get(".candlestick-stage").attributes("style"),
+    ).toBeUndefined();
+  });
+
+  it("renders intraday candles with distinct timestamps and time labels", async () => {
+    const intradayPoints = Array.from({ length: 162 }, (_, index) => {
+      const timestamp = Date.UTC(2026, 7, 3, 13) + index * 3_600_000;
+      const value = 100 + index;
+      return {
+        date: new Date(timestamp).toISOString(),
+        open: value,
+        high: value + 3,
+        low: value - 2,
+        close: value + 1,
+      };
+    });
+    const wrapper = mount(CryptoCandlestickChart, {
+      props: { points: intradayPoints, operations: [], averagePrice: null },
+    });
+    const svg = wrapper.get("svg").element;
+    vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 370,
+      right: 1000,
+      bottom: 370,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    expect(wrapper.findAll(".candles g rect")).toHaveLength(81);
+    await wrapper
+      .get("svg")
+      .trigger("pointermove", { clientX: 900, clientY: 160 });
+    expect(wrapper.get(".tooltip-date").text()).toMatch(/\d{2}:\d{2}/);
+  });
+
   it("shows the selected dates and price change while dragging a period", async () => {
     const wrapper = mount(CryptoCandlestickChart, {
       props: { points, operations: [], averagePrice: 70000 },

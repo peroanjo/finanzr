@@ -18,9 +18,15 @@ vi.stubGlobal("localStorage", {
 
 vi.mock("../CryptoCandlestickChart.vue", () => ({
   default: {
-    props: ["points", "operations", "averagePrice", "operationMarkerShape"],
+    props: [
+      "points",
+      "operations",
+      "averagePrice",
+      "operationMarkerShape",
+      "densityMode",
+    ],
     template:
-      '<div data-testid="stock-chart" :data-marker-shape="operationMarkerShape">{{ points.length }}-{{ operations.length }}</div>',
+      '<div data-testid="stock-chart" :data-marker-shape="operationMarkerShape" :data-density-mode="densityMode">{{ points.length }}-{{ operations.length }}</div>',
   },
 }));
 
@@ -99,6 +105,11 @@ const baseProps: StockPositionsPanelProps = {
   chartRangeLabel: "1 year",
   ranges: [{ key: "1y", label: "1Y" }],
   chartRange: "1y",
+  candleInterval: "auto",
+  candleIntervals: [
+    { key: "auto", label: "Auto" },
+    { key: "1d", label: "1 day" },
+  ],
   formatMoney: (value) => `€${value}`,
   formatPercentage: (value) => `${value * 100}%`,
   formatQuantity: (value) => String(value),
@@ -157,10 +168,17 @@ describe("StockPositionsPanel", () => {
         .get('[data-testid="stock-chart"]')
         .attributes("data-marker-shape"),
     ).toBe("pin");
+    expect(
+      wrapper
+        .get('[data-testid="stock-chart"]')
+        .attributes("data-density-mode"),
+    ).toBe("auto");
 
     await wrapper.get(".fund-range-control button").trigger("click");
+    await wrapper.get(".candle-interval-control select").setValue("1d");
     await wrapper.get(".fund-edit-icon-button").trigger("click");
     expect(wrapper.emitted("select-chart-range")).toEqual([["1y"]]);
+    expect(wrapper.emitted("select-candle-interval")).toEqual([["1d"]]);
     expect(wrapper.emitted("edit-position")?.[0]).toEqual([position]);
 
     await wrapper.setProps({ chartPoints: [], chartError: "Unavailable" });

@@ -105,6 +105,15 @@ export const sharedMessages = defineMessageCatalog(
         totalAndFee: "Total {total} · Fee {fee}",
         chartAdjustment: "Chart adjustment · {label}",
         close: "Close {value}",
+        intervals: {
+          auto: "Auto",
+          "15m": "15 min",
+          "1h": "1 h",
+          "4h": "4 h",
+          "1d": "1 day",
+          "1wk": "1 week",
+          "1mo": "1 month",
+        },
       },
       fundPerformance: {
         return: "Return",
@@ -314,6 +323,15 @@ export const sharedMessages = defineMessageCatalog(
         totalAndFee: "Total {total} · Comisión {fee}",
         chartAdjustment: "Ajuste gráfico · {label}",
         close: "Cierre {value}",
+        intervals: {
+          auto: "Auto",
+          "15m": "15 min",
+          "1h": "1 h",
+          "4h": "4 h",
+          "1d": "1 día",
+          "1wk": "1 sem.",
+          "1mo": "1 mes",
+        },
       },
       fundPerformance: {
         return: "Rendimiento",

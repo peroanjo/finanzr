@@ -42,3 +42,33 @@ def test_yahoo_chart_maps_dashboard_ranges(
 
     assert captured["range"] == provider_range
     assert points[0]["close"] == 11
+
+
+def test_yahoo_chart_preserves_intraday_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_get(_host: str, _path: str, _params: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "chart": {
+                "result": [
+                    {
+                        "meta": {"currency": "EUR"},
+                        "timestamp": [1_700_000_000],
+                        "indicators": {
+                            "quote": [
+                                {
+                                    "open": [10],
+                                    "high": [12],
+                                    "low": [9],
+                                    "close": [11],
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        }
+
+    monkeypatch.setattr(yahoo, "_get", fake_get)
+
+    _, points = yahoo.chart("BTC-EUR", range_name="1m", interval="1h")
+
+    assert points[0]["fecha"] == "2023-11-14T22:13+00:00"

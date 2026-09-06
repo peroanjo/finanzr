@@ -32,6 +32,14 @@ import type {
   EditableAsset,
 } from "../components/assetEditor";
 import { adaptCryptoChart } from "../domain/investments";
+import {
+  MARKET_CHART_INTERVALS,
+  isMarketChartIntervalAvailable,
+  marketChartDays,
+  marketChartInterval,
+  marketChartIntervalForRange,
+  type CandleIntervalSelection,
+} from "../domain/investments/marketChartInterval";
 import { reportingCurrency } from "../i18n";
 import type {
   CryptoChartResponse,
@@ -176,6 +184,7 @@ const selectedAccount = ref(
 const selectedInstrumentId = ref("");
 const range = ref<PerformanceRange>(cryptoPreferences.range);
 const chartRange = ref<PerformanceRange>("1y");
+const candleInterval = ref<CandleIntervalSelection>("auto");
 const mode = ref<CryptoPerformanceMode>(cryptoPreferences.mode);
 const loading = ref(true);
 const performanceLoading = ref(false);
@@ -253,6 +262,36 @@ const ranges = computed<Array<{ key: PerformanceRange; label: string }>>(() => [
   { key: "2y", label: t("crypto.ranges.twoYears") },
   { key: "custom", label: t("crypto.ranges.calendar") },
 ]);
+const presetChartDays: Record<Exclude<PerformanceRange, "custom">, number> = {
+  "6m": 183,
+  "1y": 366,
+  "2y": 731,
+};
+const chartLookbackDays = computed(() =>
+  chartRange.value === "custom"
+    ? marketChartDays(chartCustomStart.value, chartCustomEnd.value)
+    : presetChartDays[chartRange.value],
+);
+const candleIntervals = computed(() => [
+  {
+    key: "auto" as const,
+    label: t("shared.candlestick.intervals.auto"),
+  },
+  ...MARKET_CHART_INTERVALS.map((interval) => ({
+    key: interval,
+    label: t(`shared.candlestick.intervals.${interval}`),
+    disabled: !isMarketChartIntervalAvailable(
+      interval,
+      chartLookbackDays.value,
+    ),
+  })),
+]);
+const resolvedCandleInterval = computed(() => {
+  if (candleInterval.value !== "auto") return candleInterval.value;
+  return chartRange.value === "custom"
+    ? marketChartInterval(chartCustomStart.value, chartCustomEnd.value)
+    : marketChartIntervalForRange(chartRange.value);
+});
 const customRangeValid = computed(() =>
   Boolean(
     draftStart.value &&
@@ -691,14 +730,9 @@ async function deleteAccount() {
 
 function chartQuery() {
   if (chartRange.value === "custom") {
-    const days =
-      Math.abs(
-        Date.parse(chartCustomEnd.value) - Date.parse(chartCustomStart.value),
-      ) / 86_400_000;
-    const interval = days > 1500 ? "1mo" : days > 400 ? "1wk" : "1d";
-    return `start=${encodeURIComponent(chartCustomStart.value)}&end=${encodeURIComponent(chartCustomEnd.value)}&interval=${interval}`;
+    return `start=${encodeURIComponent(chartCustomStart.value)}&end=${encodeURIComponent(chartCustomEnd.value)}&interval=${resolvedCandleInterval.value}`;
   }
-  return `range=${chartRange.value}&interval=${chartRange.value === "2y" ? "1wk" : "1d"}`;
+  return `range=${chartRange.value}&interval=${resolvedCandleInterval.value}`;
 }
 
 async function loadChart(generation = dashboardGeneration) {
@@ -801,6 +835,25 @@ async function selectChartRange(value: PerformanceRange) {
     return;
   }
   chartRange.value = value;
+  ensureCandleIntervalAvailable();
+  await loadChart();
+}
+
+function ensureCandleIntervalAvailable() {
+  if (
+    candleInterval.value !== "auto" &&
+    !isMarketChartIntervalAvailable(
+      candleInterval.value,
+      chartLookbackDays.value,
+    )
+  ) {
+    candleInterval.value = "auto";
+  }
+}
+
+async function selectCandleInterval(value: CandleIntervalSelection) {
+  if (value === candleInterval.value) return;
+  candleInterval.value = value;
   await loadChart();
 }
 
@@ -813,6 +866,7 @@ async function applyChartCustomRange() {
   chartCustomStart.value = chartDraftStart.value;
   chartCustomEnd.value = chartDraftEnd.value;
   chartRange.value = "custom";
+  ensureCandleIntervalAvailable();
   closeChartCalendar();
   await loadChart();
 }
@@ -1099,6 +1153,8 @@ onMounted(loadDashboard);
         :chart-range-label="chartRangeLabel"
         :ranges="ranges"
         :chart-range="chartRange"
+        :candle-interval="candleInterval"
+        :candle-intervals="candleIntervals"
         :format-money="money"
         :format-percentage="percentage"
         :format-quantity="(value) => n(value, 'quantity')"
@@ -1111,6 +1167,7 @@ onMounted(loadDashboard);
         :detail-id="detailId"
         @toggle-position="togglePosition"
         @select-chart-range="selectChartRange"
+        @select-candle-interval="selectCandleInterval"
         @retry-chart="loadChart"
         @edit-position="
           (position) =>

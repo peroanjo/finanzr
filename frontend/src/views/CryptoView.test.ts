@@ -25,9 +25,15 @@ vi.mock("../api/client", () => ({
 vi.mock("../components/CryptoCandlestickChart.vue", () => ({
   default: {
     name: "CryptoCandlestickChart",
-    props: ["points", "operations", "averagePrice", "operationMarkerShape"],
+    props: [
+      "points",
+      "operations",
+      "averagePrice",
+      "operationMarkerShape",
+      "densityMode",
+    ],
     template:
-      '<div data-testid="crypto-chart" :data-marker-shape="operationMarkerShape">{{ points.length }}-{{ operations.length }}-{{ averagePrice }}</div>',
+      '<div data-testid="crypto-chart" :data-marker-shape="operationMarkerShape" :data-density-mode="densityMode">{{ points.length }}-{{ operations.length }}-{{ averagePrice }}</div>',
   },
 }));
 vi.mock("../components/FundPerformanceChart.vue", () => ({
@@ -705,8 +711,40 @@ describe("CryptoView canonical migration", () => {
     expect(wrapper.findAll(".fund-inline-detail-row")).toHaveLength(1);
     expect(wrapper.find('[data-testid="crypto-chart"]').exists()).toBe(true);
     expect(apiMock).toHaveBeenCalledWith(
-      "/crypto-chart/00000000-0000-0000-0000-000000000520?range=1y&interval=1d",
+      "/crypto-chart/00000000-0000-0000-0000-000000000520?range=1y&interval=1wk",
     );
+  });
+
+  it("offers automatic and manual candle durations", async () => {
+    const wrapper = mount(CryptoView);
+    await flushPromises();
+    await wrapper.findAll(".fund-position-row")[0].trigger("click");
+    await flushPromises();
+
+    const interval = wrapper.get(
+      '.fund-inline-price-panel select[aria-label="Duración de las velas"]',
+    );
+    expect((interval.element as HTMLSelectElement).value).toBe("auto");
+    expect(interval.findAll("option").map((option) => option.text())).toEqual([
+      "Auto",
+      "15 min",
+      "1 h",
+      "4 h",
+      "1 día",
+      "1 sem.",
+      "1 mes",
+    ]);
+
+    await interval.setValue("4h");
+    await flushPromises();
+    expect(apiMock).toHaveBeenCalledWith(
+      "/crypto-chart/00000000-0000-0000-0000-000000000501?range=1y&interval=4h",
+    );
+    expect(
+      wrapper
+        .get('[data-testid="crypto-chart"]')
+        .attributes("data-density-mode"),
+    ).toBe("manual");
   });
 
   it("sorts positions, collapses sections and preserves exact crypto quantities", async () => {

@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ChartOperation } from "../domain/chartOperations";
+import { condenseCandlesticks } from "../domain/investments/candlestickDensity";
 import type { NormalizedCandlestickChartPoint } from "../domain/investments";
 import { reportingCurrency } from "../i18n";
 
@@ -10,10 +11,12 @@ const props = withDefaults(
     points: NormalizedCandlestickChartPoint[];
     operations: ChartOperation[];
     averagePrice: number | null;
+    densityMode?: "auto" | "manual";
     /** Trade pins are kept explicit so consuming views can document their visual contract. */
     operationMarkerShape?: "pin";
   }>(),
   {
+    densityMode: "auto",
     operationMarkerShape: "pin",
   },
 );
@@ -24,6 +27,9 @@ const height = 370;
 const bounds = { left: 20, right: 82, top: 18, bottom: 42 };
 const plotWidth = width - bounds.left - bounds.right;
 const plotHeight = height - bounds.top - bounds.bottom;
+const idealCandleBodyWidth = 5.3;
+const targetCandleCount = Math.floor((plotWidth * 0.62) / idealCandleBodyWidth);
+const maximumReadableCandleCount = 120;
 const markerGap = 5;
 const singlePinWidth = 18;
 const groupedPinWidth = 25;
@@ -69,12 +75,31 @@ const shortDate = computed(
   () =>
     new Intl.DateTimeFormat(locale.value, { day: "2-digit", month: "short" }),
 );
+const shortDateTime = computed(
+  () =>
+    new Intl.DateTimeFormat(locale.value, {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+);
 const longDate = computed(
   () =>
     new Intl.DateTimeFormat(locale.value, {
       day: "numeric",
       month: "short",
       year: "numeric",
+    }),
+);
+const longDateTime = computed(
+  () =>
+    new Intl.DateTimeFormat(locale.value, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }),
 );
 const fullDate = computed(
@@ -106,19 +131,44 @@ const percentage = computed(
     }),
 );
 
+function pointDate(value: string) {
+  return new Date(value.includes("T") ? value : `${value}T00:00:00Z`);
+}
+
+function pointTimestamp(value: string) {
+  return pointDate(value).getTime();
+}
+
+function pointLabel(value: string) {
+  return (value.includes("T") ? longDateTime.value : longDate.value).format(
+    pointDate(value),
+  );
+}
+
+const chartPoints = computed(() =>
+  props.densityMode === "auto"
+    ? condenseCandlesticks(props.points, {
+        targetCount: targetCandleCount,
+        maximumCount: maximumReadableCandleCount,
+      })
+    : props.points,
+);
+const sourceTimestamps = computed(() =>
+  props.points.map((point) => pointTimestamp(point.date)),
+);
 const timestamps = computed(() =>
-  props.points.map((point) => Date.parse(`${point.date}T00:00:00Z`)),
+  chartPoints.value.map((point) => pointTimestamp(point.date)),
 );
 const domain = computed(() => {
-  const values = props.points.flatMap((point) => [point.low, point.high]);
+  const values = chartPoints.value.flatMap((point) => [point.low, point.high]);
   if (props.averagePrice && props.averagePrice > 0)
     values.push(props.averagePrice);
   props.operations.forEach((operation) => {
     const timestamp = Date.parse(
       `${operation.trade_date.slice(0, 10)}T00:00:00Z`,
     );
-    const first = timestamps.value[0] ?? 0;
-    const last = timestamps.value.at(-1) ?? 0;
+    const first = sourceTimestamps.value[0] ?? 0;
+    const last = sourceTimestamps.value.at(-1) ?? 0;
     if (operation.unit_price > 0 && timestamp >= first && timestamp <= last) {
       values.push(operation.unit_price);
     }
@@ -133,13 +183,13 @@ const domain = computed(() => {
   return { minimum: minimum - valuePadding, maximum: maximum + valuePadding };
 });
 const timeDomain = computed(() => ({
-  minimum: timestamps.value[0] ?? 0,
-  maximum: timestamps.value.at(-1) ?? 1,
+  minimum: sourceTimestamps.value[0] ?? 0,
+  maximum: sourceTimestamps.value.at(-1) ?? 1,
 }));
 const candleWidth = computed(() =>
   Math.max(
-    2,
-    Math.min(13, (plotWidth / Math.max(props.points.length, 1)) * 0.62),
+    props.densityMode === "auto" ? 2 : 0.7,
+    Math.min(13, (plotWidth / Math.max(chartPoints.value.length, 1)) * 0.62),
   ),
 );
 
@@ -156,7 +206,7 @@ function yFor(value: number) {
 }
 
 const candles = computed(() =>
-  props.points.map((point, index) => {
+  chartPoints.value.map((point, index) => {
     const x = xFor(timestamps.value[index]);
     const openY = yFor(point.open);
     const closeY = yFor(point.close);
@@ -263,7 +313,7 @@ const selectedRange = computed(() => {
     direction,
     label,
     formattedChange,
-    dates: `${fullDate.value.format(new Date(`${start.date}T00:00:00Z`))} → ${fullDate.value.format(new Date(`${end.date}T00:00:00Z`))}`,
+    dates: `${fullDate.value.format(pointDate(start.date))} → ${fullDate.value.format(pointDate(end.date))}`,
     x: start.x,
     width: Math.max(end.x - start.x, candleWidth.value),
   };
@@ -297,18 +347,18 @@ const yTicks = computed(() =>
   }),
 );
 const xTicks = computed(() => {
-  if (!props.points.length) return [];
-  const count = Math.min(6, props.points.length);
+  if (!chartPoints.value.length) return [];
+  const count = Math.min(6, chartPoints.value.length);
   return Array.from({ length: count }, (_, index) => {
     const pointIndex = Math.round(
-      (index * (props.points.length - 1)) / Math.max(count - 1, 1),
+      (index * (chartPoints.value.length - 1)) / Math.max(count - 1, 1),
     );
-    const point = props.points[pointIndex];
+    const point = chartPoints.value[pointIndex];
     return {
       date: point.date,
       x: xFor(timestamps.value[pointIndex]),
-      label: shortDate.value
-        .format(new Date(`${point.date}T00:00:00Z`))
+      label: (point.date.includes("T") ? shortDateTime.value : shortDate.value)
+        .format(pointDate(point.date))
         .replace(".", ""),
     };
   });
@@ -910,9 +960,7 @@ function handlePointerLeave(event: PointerEvent) {
               rx="1.5"
             />
             <text class="tooltip-date" :x="tooltip.x + 14" :y="tooltip.y + 21">
-              {{
-                longDate.format(new Date(`${tooltip.candle.date}T00:00:00Z`))
-              }}
+              {{ pointLabel(tooltip.candle.date) }}
             </text>
             <text class="tooltip-value" :x="tooltip.x + 14" :y="tooltip.y + 43">
               {{
@@ -931,13 +979,13 @@ function handlePointerLeave(event: PointerEvent) {
 <style scoped>
 .candlestick-scroll {
   width: 100%;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--fz-line) transparent;
+  min-width: 0;
+  overflow: hidden;
 }
 .candlestick-stage {
   position: relative;
-  min-width: 720px;
+  width: 100%;
+  min-width: 0;
 }
 .candlestick-chart {
   width: 100%;

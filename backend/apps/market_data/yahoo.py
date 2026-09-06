@@ -69,12 +69,18 @@ def chart(
         raise MarketDataError(_("Unrecognized market data response")) from exc
     timestamps = result.get("timestamp", [])
     points = []
+    intraday = interval.endswith("m") or interval.endswith("h")
     for index, timestamp in enumerate(timestamps):
         close = quote_data.get("close", [None] * len(timestamps))[index]
         if close is None:
             continue
+        timestamp_value = datetime.fromtimestamp(timestamp, UTC)
         point = {
-            "fecha": datetime.fromtimestamp(timestamp, UTC).date().isoformat(),
+            "fecha": (
+                timestamp_value.isoformat(timespec="minutes")
+                if intraday
+                else timestamp_value.date().isoformat()
+            ),
             "precio": float(close),
         }
         for source, target in (
