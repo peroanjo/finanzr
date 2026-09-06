@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import ImportStatementDialog from "../components/ImportStatementDialog.vue";
 import { fundsMessages } from "../i18n/fundsMessages";
 import { applyLocale, applyReportingCurrency, registerMessages } from "../i18n";
-import type { FundPosition } from "../types/api";
+import type { FundAnalysisResponse, FundPosition } from "../types/api";
 import FundsView from "./FundsView.vue";
 
 registerMessages(fundsMessages);
@@ -299,6 +299,14 @@ const chartInstrumentId = instruments[0].id;
 const secondaryChartInstrumentId = instruments[1].id;
 let positionsOverride: FundPosition[] | null = null;
 let instrumentsOverride: typeof instruments | null = null;
+const fundAnalysis = (
+  nextPositions: FundPosition[],
+  realizedPnl = 40,
+): FundAnalysisResponse => ({
+  positions: nextPositions,
+  realized_pnl: realizedPnl,
+  base_currency: "EUR",
+});
 
 describe("FundsView", () => {
   beforeEach(() => {
@@ -364,11 +372,12 @@ describe("FundsView", () => {
       }
       if (path === "/fund-accounts") return accountRows;
       if (path === "/importers") return [fundImporter];
-      if (path === "/fund-analysis") return positionsOverride ?? positions;
+      if (path === "/fund-analysis")
+        return fundAnalysis(positionsOverride ?? positions);
       if (path === `/fund-analysis?account_id=${accountOneId}`)
-        return positions;
+        return fundAnalysis(positions);
       if (path === `/fund-analysis?account_id=${accountTwoId}`)
-        return accountTwoPositions;
+        return fundAnalysis(accountTwoPositions, 15);
       if (path === "/orders" || path === `/orders?account_id=${accountOneId}`)
         return orders;
       if (path === `/orders?account_id=${accountTwoId}`) return [];
@@ -376,7 +385,7 @@ describe("FundsView", () => {
         path === `/fund-analysis?account_id=${accountThreeId}` ||
         path === `/orders?account_id=${accountThreeId}`
       )
-        return [];
+        return path.startsWith("/fund-analysis") ? fundAnalysis([]) : [];
       if (path === "/funds") return instrumentsOverride ?? instruments;
       if (path === "/fund-prices") return prices;
       if (path.startsWith("/fund-chart/")) return chart;
@@ -433,6 +442,7 @@ describe("FundsView", () => {
     );
     expect(wrapper.text()).toContain("1200,00");
     expect(wrapper.text()).toContain("1000,00");
+    expect(wrapper.get(".fund-kpi-panel").text()).toContain("40,00");
     expect(wrapper.text()).toContain("20 %");
     expect(wrapper.text()).toContain("01/01/2026 → 01/07/2026");
     expect(wrapper.get(".fund-utility").text()).toContain("01 jul 2026");
@@ -611,7 +621,8 @@ describe("FundsView", () => {
     apiMock.mockImplementation(async (path) => {
       if (path === "/fund-accounts") return accountRows;
       if (path === "/importers") return [fundImporter];
-      if (path === "/fund-analysis" || path === "/orders") return [];
+      if (path === "/fund-analysis") return fundAnalysis([]);
+      if (path === "/orders") return [];
       if (path === "/funds" || path === "/fund-prices") return [];
       if (path.startsWith("/investment-performance/fund?"))
         return { ...performance, data: [] };
@@ -1001,10 +1012,12 @@ describe("FundsView", () => {
       if (path === "/fund-accounts") return accountRows;
       if (path === "/importers") return [fundImporter];
       if (path === `/fund-analysis?account_id=${accountOneId}`)
-        return stalePositions;
+        return stalePositions.then((nextPositions) =>
+          fundAnalysis(nextPositions),
+        );
       if (path === `/orders?account_id=${accountOneId}`) return orders;
       if (path === `/fund-analysis?account_id=${accountTwoId}`)
-        return [latestPosition];
+        return fundAnalysis([latestPosition], 15);
       if (path === `/orders?account_id=${accountTwoId}`) return [];
       if (path === "/funds") return instruments;
       if (path === "/fund-prices") return prices;
@@ -1034,6 +1047,8 @@ describe("FundsView", () => {
     expect(window.location.search).toBe(`?account=${accountTwoId}`);
     expect(distribution.text()).toContain("Cuenta dos actual");
     expect(distribution.text()).not.toContain("Cuenta uno antigua");
+    expect(wrapper.get(".fund-kpi-panel").text()).toContain("15,00");
+    expect(wrapper.get(".fund-kpi-panel").text()).not.toContain("40,00");
 
     resolveStalePositions([oldPosition]);
     await flushPromises();
@@ -1044,6 +1059,8 @@ describe("FundsView", () => {
     expect(
       wrapper.get('[data-testid="fund-position-allocation"]').text(),
     ).not.toContain("Cuenta uno antigua");
+    expect(wrapper.get(".fund-kpi-panel").text()).toContain("15,00");
+    expect(wrapper.get(".fund-kpi-panel").text()).not.toContain("40,00");
     expect(
       apiMock.mock.calls.filter(([path]) =>
         String(path).startsWith("/investment-performance/fund?"),
@@ -1067,7 +1084,8 @@ describe("FundsView", () => {
     apiMock.mockImplementation(async (path) => {
       if (path === "/fund-accounts") return accountRows;
       if (path === "/importers") return [fundImporter];
-      if (path === `/fund-analysis?account_id=${accountTwoId}`) return [];
+      if (path === `/fund-analysis?account_id=${accountTwoId}`)
+        return fundAnalysis([]);
       if (path === `/orders?account_id=${accountTwoId}`) return [];
       if (path === "/funds") return instruments;
       if (path === "/fund-prices") return prices;

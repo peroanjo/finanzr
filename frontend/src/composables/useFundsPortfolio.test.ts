@@ -101,6 +101,7 @@ function makePrice(overrides: Partial<FundPrice> = {}): FundPrice {
 function createPortfolio({
   positions: positionRows = [],
   orders: orderRows = [],
+  realizedPnl: reportedRealizedPnl = 0,
   instruments: instrumentRows = [],
   prices: priceRows = [],
   selectedFund: selectedFundId = "",
@@ -108,6 +109,7 @@ function createPortfolio({
 }: {
   positions?: FundPosition[];
   orders?: FundOrder[];
+  realizedPnl?: number;
   instruments?: FundInstrument[];
   prices?: FundPrice[];
   selectedFund?: string;
@@ -115,6 +117,7 @@ function createPortfolio({
 } = {}) {
   const positions = ref(positionRows);
   const orders = ref(orderRows);
+  const realizedPnl = ref(reportedRealizedPnl);
   const instruments = ref(instrumentRows);
   const prices = ref(priceRows);
   const selectedFund = ref(selectedFundId);
@@ -122,6 +125,7 @@ function createPortfolio({
   const portfolio = useFundsPortfolio({
     positions,
     orders,
+    realizedPnl,
     instruments,
     prices,
     selectedFund,
@@ -131,6 +135,7 @@ function createPortfolio({
     ...portfolio,
     positions,
     orders,
+    reportedRealizedPnl: realizedPnl,
     instruments,
     prices,
     selectedFund,
@@ -196,7 +201,7 @@ describe("useFundsPortfolio", () => {
     expect(portfolio.totalPnl.value).toBe(200);
   });
 
-  it("calculates realized P&L per ISIN with transfer types and base amounts", () => {
+  it("uses the reported realized P&L independently from movement orders", () => {
     const portfolio = createPortfolio({
       orders: [
         makeOrder({
@@ -243,34 +248,15 @@ describe("useFundsPortfolio", () => {
           net_amount: 75,
           base_net_amount: 75,
         }),
-        makeOrder({
-          id: "ignored-buy",
-          isin: "FUND-C",
-          operation_type: "buy",
-          quantity: 1,
-          net_amount: 100,
-        }),
-        makeOrder({
-          id: "ignored-sale",
-          isin: "FUND-C",
-          operation_type: "sell",
-          quantity: 1,
-          net_amount: 150,
-        }),
       ],
+      realizedPnl: 115,
     });
 
-    expect(
-      portfolio.baseAmount(
-        makeOrder({ net_amount: 240, base_net_amount: 200 }),
-      ),
-    ).toBe(200);
-    expect(
-      portfolio.baseAmount(
-        makeOrder({ net_amount: 240, base_net_amount: null }),
-      ),
-    ).toBe(240);
-    expect(portfolio.realizedPnl.value).toBeCloseTo(115);
+    expect(portfolio.realizedPnl.value).toBe(115);
+    portfolio.orders.value = [];
+    expect(portfolio.realizedPnl.value).toBe(115);
+    portfolio.reportedRealizedPnl.value = 42;
+    expect(portfolio.realizedPnl.value).toBe(42);
   });
 
   it("normalizes top positions with nullable values and direct return", () => {

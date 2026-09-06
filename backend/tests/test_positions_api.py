@@ -7,9 +7,12 @@ from apps.api.position_projection import PositionProjectionError, native_positio
 from apps.market_data.models import (
     Instrument,
     InstrumentIdentifier,
+    WorkspaceInstrument,
 )
 from apps.portfolio.models import ManualAsset
+from apps.transactions.models import Transaction
 from apps.users.models import User
+from apps.workspaces.models import Workspace
 from rest_framework.test import APIClient
 
 
@@ -40,7 +43,9 @@ def test_analysis_endpoints_expose_only_the_native_position_contract(
     for endpoint, keys in expected.items():
         response = client.get(endpoint)
         assert response.status_code == 200, (endpoint, response.content)
-        for row in response.json():
+        payload = response.json()
+        rows = payload["positions"] if endpoint == "/api/fund-analysis" else payload
+        for row in rows:
             assert set(row) == keys
             UUID(row["instrument_id"])
             assert row["kind"] in {"fund", "stock", "crypto"}
@@ -56,6 +61,103 @@ def test_analysis_endpoints_expose_only_the_native_position_contract(
                 "pnl_realizada",
                 "moneda",
             } & set(row)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_fund_analysis_exposes_authoritative_realized_pnl_by_account_scope(
+    traded_context: tuple[APIClient, User],
+) -> None:
+    client, user = traded_context
+    workspace = user.memberships.get().workspace
+    account_one = Account.objects.get(kind=Account.Kind.FUNDS)
+    account_two = Account.objects.create(
+        workspace=workspace,
+        name="Synthetic second fund account",
+        kind=Account.Kind.FUNDS,
+        currency="EUR",
+    )
+    instrument = Instrument.objects.create(
+        kind=Instrument.Kind.FUND,
+        name="Synthetic aggregate fund",
+        quote_currency="EUR",
+    )
+    InstrumentIdentifier.objects.create(
+        instrument=instrument,
+        scheme=InstrumentIdentifier.Scheme.ISIN,
+        value="SYNTH-AGGREGATE-001",
+        venue="",
+        is_primary=True,
+    )
+    WorkspaceInstrument.objects.create(workspace=workspace, instrument=instrument)
+
+    def add_order(
+        account: Account,
+        operation_type: str,
+        quantity: str,
+        net_amount: str,
+        base_net_amount: str | None,
+    ) -> None:
+        Transaction.objects.create(
+            account=account,
+            instrument=instrument,
+            trade_date="2026-03-01",
+            operation_type=operation_type,
+            cash_flow_type=Transaction.CashFlowType.NONE,
+            quantity=quantity,
+            unit_price=net_amount,
+            net_amount=net_amount,
+            fee=0,
+            currency="EUR",
+            base_currency="EUR",
+            base_net_amount=base_net_amount,
+            base_unit_price=base_net_amount,
+            base_fee=0,
+        )
+
+    add_order(account_one, Transaction.OperationType.BUY, "10", "100", "100")
+    add_order(account_one, Transaction.OperationType.SELL, "4", "60", "60")
+    add_order(account_one, Transaction.OperationType.BUY, "2", "30", None)
+    add_order(account_one, Transaction.OperationType.SELL, "3", "51", "51")
+    add_order(account_two, Transaction.OperationType.TRANSFER_IN, "5", "50", "50")
+    add_order(account_two, Transaction.OperationType.TRANSFER_OUT, "5", "65", "65")
+
+    baseline_all_accounts = client.get("/api/fund-analysis?account_id=all")
+    assert baseline_all_accounts.status_code == 200
+
+    foreign_workspace = Workspace.objects.create(
+        name="Synthetic foreign fund workspace",
+        slug="synthetic-foreign-fund",
+        base_currency="EUR",
+    )
+    foreign_account = Account.objects.create(
+        workspace=foreign_workspace,
+        name="Synthetic foreign fund account",
+        kind=Account.Kind.FUNDS,
+        currency="EUR",
+    )
+    add_order(foreign_account, Transaction.OperationType.BUY, "100", "100", "100")
+    add_order(foreign_account, Transaction.OperationType.SELL, "100", "1000", "1000")
+
+    all_accounts = client.get("/api/fund-analysis?account_id=all")
+    first_account = client.get(f"/api/fund-analysis?account_id={account_one.id}")
+    second_account = client.get(f"/api/fund-analysis?account_id={account_two.id}")
+
+    assert all_accounts.status_code == 200
+    assert first_account.status_code == 200
+    assert second_account.status_code == 200
+    assert all_accounts.json()["base_currency"] == "EUR"
+    assert all_accounts.json()["realized_pnl"] == pytest.approx(
+        baseline_all_accounts.json()["realized_pnl"]
+    )
+    assert all_accounts.json()["realized_pnl"] == pytest.approx(48.9411764706)
+    assert first_account.json()["realized_pnl"] == pytest.approx(35.1666666667)
+    assert second_account.json()["realized_pnl"] == pytest.approx(15)
+    assert not any(
+        row["instrument_id"] == str(instrument.id) for row in second_account.json()["positions"]
+    )
+    assert any(
+        row["instrument_id"] == str(instrument.id) for row in all_accounts.json()["positions"]
+    )
 
 
 def test_native_position_projection_fails_loudly_for_an_orphan() -> None:

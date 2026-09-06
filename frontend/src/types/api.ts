@@ -366,6 +366,11 @@ export interface FundPosition extends NativePosition {
   average_price: number;
   return_percent: number | null;
 }
+export interface FundAnalysisResponse {
+  positions: FundPosition[];
+  realized_pnl: number;
+  base_currency: string;
+}
 export interface FundOrder extends TransactionDtoBase {
   isin: string;
 }

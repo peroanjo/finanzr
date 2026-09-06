@@ -188,7 +188,8 @@ def test_manual_fund_canonical_operations_drive_positions_and_source_history(
     transaction_id = created_row["id"]
     position_after_buy = client.get(f"/api/fund-analysis?account_id={account.id}")
     assert position_after_buy.status_code == 200
-    assert position_after_buy.json()[0]["quantity"] == pytest.approx(12)
+    assert position_after_buy.json()["positions"][0]["quantity"] == pytest.approx(12)
+    assert position_after_buy.json()["realized_pnl"] == pytest.approx(0)
 
     edited = client.put(
         f"/api/orders/{transaction_id}",
@@ -202,7 +203,8 @@ def test_manual_fund_canonical_operations_drive_positions_and_source_history(
     assert edited_row["provider_operation_type"] == "REEMBOLSO"
     position_after_sell = client.get(f"/api/fund-analysis?account_id={account.id}")
     assert position_after_sell.status_code == 200
-    assert position_after_sell.json()[0]["quantity"] == pytest.approx(8)
+    assert position_after_sell.json()["positions"][0]["quantity"] == pytest.approx(8)
+    assert position_after_sell.json()["realized_pnl"] == pytest.approx(0)
 
     portfolio = client.get("/api/portfolio-analysis")
     assert portfolio.status_code == 200

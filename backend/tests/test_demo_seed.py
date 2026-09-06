@@ -72,7 +72,7 @@ def test_seed_demo_data_is_idempotent_and_serves_representative_sections() -> No
         }
         for item in investment_history
     )
-    assert len(client.get("/api/fund-analysis").json()) == 4
+    assert len(client.get("/api/fund-analysis").json()["positions"]) == 4
     assert len(client.get("/api/stock-analysis").json()) == 4
     assert len(client.get("/api/crypto-analysis").json()) == 2
     assert len(client.get("/api/real-estate").json()) == 2

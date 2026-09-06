@@ -30,7 +30,7 @@ def test_read_endpoints_are_served_from_django_models(api_context: tuple[APIClie
         "/api/fund-prices": list,
         "/api/stock-prices": list,
         "/api/crypto-prices": list,
-        "/api/fund-analysis": list,
+        "/api/fund-analysis": dict,
         "/api/stock-analysis": list,
         "/api/crypto-analysis": list,
         "/api/stock-splits": list,

@@ -28,6 +28,7 @@ export type FundPositionAriaSort = "none" | "ascending" | "descending";
 export interface UseFundsPortfolioOptions {
   positions: Ref<FundPosition[]>;
   orders: Ref<FundOrder[]>;
+  realizedPnl: Ref<number>;
   instruments: Ref<FundInstrument[]>;
   prices: Ref<FundPrice[]>;
   selectedFund: Ref<string>;
@@ -51,7 +52,6 @@ export interface UseFundsPortfolio {
   positionSortKey: Ref<FundPositionSortKey>;
   positionSortDirection: Ref<FundSortDirection>;
   sortedPositions: ComputedRef<FundPosition[]>;
-  baseAmount: (item: FundOrder) => number;
   sortPositions: (key: FundPositionSortKey) => void;
   positionAriaSort: (key: FundPositionSortKey) => FundPositionAriaSort;
 }
@@ -59,8 +59,15 @@ export interface UseFundsPortfolio {
 export function useFundsPortfolio(
   options: UseFundsPortfolioOptions,
 ): UseFundsPortfolio {
-  const { positions, orders, instruments, prices, selectedFund, locale } =
-    options;
+  const {
+    positions,
+    orders,
+    realizedPnl: reportedRealizedPnl,
+    instruments,
+    prices,
+    selectedFund,
+    locale,
+  } = options;
   const positionSortKey = ref<FundPositionSortKey>("value");
   const positionSortDirection = ref<FundSortDirection>("desc");
 
@@ -99,7 +106,7 @@ export function useFundsPortfolio(
   const openReturn = computed(() =>
     totalInvested.value ? unrealizedPnl.value / totalInvested.value : 0,
   );
-  const realizedPnl = computed(() => calculateRealizedPnl(orders.value));
+  const realizedPnl = computed(() => reportedRealizedPnl.value);
   const totalPnl = computed(() => unrealizedPnl.value + realizedPnl.value);
   const selectedFundPosition = computed(
     () =>
@@ -173,39 +180,6 @@ export function useFundsPortfolio(
     });
   });
 
-  function baseAmount(item: FundOrder) {
-    return item.base_net_amount ?? item.net_amount;
-  }
-
-  function calculateRealizedPnl(items: FundOrder[]) {
-    const buyTypes = new Set(["buy", "transfer_in"]);
-    const sellTypes = new Set(["transfer_out", "sell"]);
-    const grouped = new Map<string, FundOrder[]>();
-    items.forEach((item) => {
-      grouped.set(item.isin, [...(grouped.get(item.isin) ?? []), item]);
-    });
-    let total = 0;
-    grouped.forEach((fundOrders) => {
-      let boughtQuantity = 0;
-      let buyCost = 0;
-      let soldQuantity = 0;
-      let saleValue = 0;
-      fundOrders.forEach((item) => {
-        if (buyTypes.has(item.operation_type)) {
-          boughtQuantity += item.quantity;
-          buyCost += baseAmount(item);
-        } else if (sellTypes.has(item.operation_type)) {
-          soldQuantity += item.quantity;
-          saleValue += baseAmount(item);
-        }
-      });
-      if (boughtQuantity > 0 && soldQuantity > 0) {
-        total += saleValue - (buyCost / boughtQuantity) * soldQuantity;
-      }
-    });
-    return total;
-  }
-
   function sortPositions(key: FundPositionSortKey) {
     if (positionSortKey.value === key) {
       positionSortDirection.value =
@@ -238,7 +212,6 @@ export function useFundsPortfolio(
     positionSortKey,
     positionSortDirection,
     sortedPositions,
-    baseAmount,
     sortPositions,
     positionAriaSort,
   };

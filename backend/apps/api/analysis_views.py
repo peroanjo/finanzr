@@ -37,7 +37,7 @@ from apps.market_data.models import (
     StockSplit,
 )
 from finanzr.domain.crypto import calculate_crypto_positions
-from finanzr.domain.funds import calculate_fund_positions
+from finanzr.domain.funds import calculate_fund_positions, calculate_fund_realized_pnl
 from finanzr.domain.real_estate import live_capital
 from finanzr.domain.stocks import calculate_stock_positions
 
@@ -98,14 +98,21 @@ def analysis(request: Request, kind: str) -> Response:
         return Response({"error": str(exc)}, status=502)
     base_currency = normalize_currency(workspace(request).base_currency)
     instruments = workspace_instruments(request, kind)
-    return Response(
-        native_position_rows(
-            positions,
-            instruments,
-            kind=kind,
-            base_currency=base_currency,
-        )
+    native_positions = native_position_rows(
+        positions,
+        instruments,
+        kind=kind,
+        base_currency=base_currency,
     )
+    if kind == Instrument.Kind.FUND:
+        return Response(
+            {
+                "positions": native_positions,
+                "realized_pnl": float(calculate_fund_realized_pnl(rows)),
+                "base_currency": base_currency,
+            }
+        )
+    return Response(native_positions)
 
 
 @api_view(["GET"])

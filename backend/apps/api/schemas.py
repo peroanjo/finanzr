@@ -698,6 +698,12 @@ class NativeFundPositionResponseSerializer(NativePositionResponseSerializer):
     return_percent = serializers.FloatField(allow_null=True)
 
 
+class FundAnalysisResponseSerializer(serializers.Serializer[dict[str, Any]]):
+    positions = NativeFundPositionResponseSerializer(many=True)
+    realized_pnl = serializers.FloatField()
+    base_currency = serializers.CharField()
+
+
 class NativeStockPositionResponseSerializer(NativePositionResponseSerializer):
     """Stock position response with a literal discriminator."""
 

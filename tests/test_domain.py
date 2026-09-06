@@ -1,10 +1,11 @@
 """Pruebas directas del dominio, sin importar dependencias web ni pandas."""
 
 import unittest
+from decimal import Decimal
 from uuid import UUID
 
 from finanzr.domain.crypto import calculate_crypto_positions
-from finanzr.domain.funds import calculate_fund_positions
+from finanzr.domain.funds import calculate_fund_positions, calculate_fund_realized_pnl
 from finanzr.domain.investments import monthly_pnl
 from finanzr.domain.net_worth import current_total, monthly_history
 from finanzr.domain.real_estate import live_capital, live_capital_for_month, new_capital
@@ -127,6 +128,57 @@ class TestRealEstateDomain(unittest.TestCase):
 
 
 class TestPositionDomain(unittest.TestCase):
+    def test_fund_realized_pnl_uses_aggregate_cost_policy_and_base_fallback(self):
+        orders = [
+            {
+                "isin": "FUND",
+                "tipo_operacion": "SUSCRIPCION",
+                "titulos": "10",
+                "importe_neto": "100",
+                "importe_base": "100",
+            },
+            {
+                "isin": "FUND",
+                "tipo_operacion": "REEMBOLSO",
+                "titulos": "4",
+                "importe_neto": "60",
+                "importe_base": "60",
+            },
+            {
+                "isin": "FUND",
+                "tipo_operacion": "SUSCRIPCION",
+                "titulos": "2",
+                "importe_neto": "30",
+                "importe_base": None,
+            },
+            {
+                "isin": "FUND",
+                "tipo_operacion": "REEMBOLSO",
+                "titulos": "3",
+                "importe_neto": "51",
+                "importe_base": "51",
+            },
+            {
+                "isin": "FUND",
+                "tipo_operacion": "SUSCR.POR TRASPASO I",
+                "titulos": "5",
+                "importe_neto": "50",
+                "importe_base": "50",
+            },
+            {
+                "isin": "FUND",
+                "tipo_operacion": "REEMB.POR TRASPASO I",
+                "titulos": "5",
+                "importe_neto": "65",
+                "importe_base": "65",
+            },
+        ]
+
+        result = calculate_fund_realized_pnl(orders)
+
+        self.assertAlmostEqual(result, Decimal("832") / Decimal("17"), places=24)
+        self.assertEqual(calculate_fund_realized_pnl([]), Decimal("0"))
+
     def test_stock_position_combines_split_and_proportional_sale(self):
         orders = [
             {
