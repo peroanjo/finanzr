@@ -21,7 +21,6 @@ from apps.api.account_queries import (
     kind_accounts,
     resolve_provider,
 )
-from apps.api.cache_invalidation import invalidate_cache
 from apps.api.context import workspace
 from apps.api.investment_projection import investment_account_row, investment_snapshot_row
 from apps.api.permissions import forbidden_if_readonly
@@ -107,7 +106,6 @@ def account_collection(request: Request, kind: str) -> Response:
         currency=account_currency,
         external_id=None,
     )
-    invalidate_cache()
     return Response(account_row(item), status=201)
 
 
@@ -127,7 +125,6 @@ def account_detail(request: Request, kind: str, account_id: UUID) -> Response:
             Transaction.objects.filter(import_batch__account=item).update(import_batch=None)
             item.import_batches.all().delete()
             item.delete()
-        invalidate_cache()
         return Response({"ok": True})
     serializer = TradedAccountUpdateRequestSerializer(data=payload(request))
     if not serializer.is_valid():
@@ -149,7 +146,6 @@ def account_detail(request: Request, kind: str, account_id: UUID) -> Response:
     item.provider = provider
     item.provider_label = provider_label
     item.save()
-    invalidate_cache()
     return Response(account_row(item))
 
 
@@ -181,7 +177,6 @@ def savings_accounts(request: Request) -> Response:
         currency=account_currency,
         external_id=None,
     )
-    invalidate_cache()
     return Response(savings_account_row(item), status=201)
 
 
@@ -194,7 +189,6 @@ def savings_account(request: Request, account_id: UUID) -> Response:
         item.transactions.all().delete()
         item.snapshots.all().delete()
         item.delete()
-        invalidate_cache()
         return Response({"ok": True})
     serializer = SavingsAccountUpdateRequestSerializer(data=payload(request))
     if not serializer.is_valid():
@@ -211,7 +205,6 @@ def savings_account(request: Request, account_id: UUID) -> Response:
     item.provider = provider
     item.provider_label = provider_label
     item.save()
-    invalidate_cache()
     return Response(savings_account_row(item))
 
 
@@ -243,7 +236,6 @@ def investment_accounts(request: Request) -> Response:
         currency=account_currency,
         external_id=None,
     )
-    invalidate_cache()
     return Response(investment_account_row(item), status=201)
 
 
@@ -256,7 +248,6 @@ def investment_account(request: Request, account_id: UUID) -> Response:
         item.transactions.all().delete()
         item.snapshots.all().delete()
         item.delete()
-        invalidate_cache()
         return Response({"ok": True})
     serializer = InvestmentAccountUpdateRequestSerializer(data=payload(request))
     if not serializer.is_valid():
@@ -273,7 +264,6 @@ def investment_account(request: Request, account_id: UUID) -> Response:
     item.provider = provider
     item.provider_label = provider_label
     item.save()
-    invalidate_cache()
     return Response(investment_account_row(item))
 
 

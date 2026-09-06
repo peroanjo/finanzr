@@ -121,19 +121,6 @@ static frontend behind the configured ingress. Operators must provide their own
 HTTPS, DNS, firewall, secret and backup policy; no public host or operator
 identity is encoded in this repository.
 
-Production derived responses use Django's `FileBasedCache` at
-`DJANGO_CACHE_LOCATION` (default `/tmp/finanzr-cache`). The documented compose
-shape gives one backend container two Gunicorn workers and a shared writable
-`/tmp` tmpfs, so both workers see the same cache files. Performance cache keys
-append a shared epoch marker whose timeout is `None`; mutations publish a new
-marker only after commit. The marker and each response are published with
-atomic file-cache replacements, so an in-flight pre-mutation GET can finish
-writing only its old-epoch key and cannot be read by a post-mutation GET.
-Response TTLs remain one hour. The cache is disposable and is cleared by
-container replacement. Running multiple backend containers is not covered by
-this file cache; that topology requires a separately operated shared cache
-backend and an explicit deployment decision.
-
 ## Design records
 
 The workspace boundary, unified account/transaction model and portfolio

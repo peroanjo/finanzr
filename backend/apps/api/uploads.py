@@ -19,7 +19,6 @@ from rest_framework.response import Response
 
 from apps.accounts.models import Account
 from apps.api.account_queries import find_traded_account
-from apps.api.cache_invalidation import invalidate_cache
 from apps.api.context import workspace
 from apps.api.permissions import forbidden_if_readonly
 from apps.api.schemas import AccountUploadRequestSerializer, UploadRequestSerializer
@@ -289,7 +288,6 @@ def upload(
     response = {"imported": imported, "skipped": batch.skipped_rows, "total": batch.source_rows}
     if slug == "kraken_spot":
         response["pares_ignorados"] = parsed.metadata.get("skipped_pairs", [])
-    invalidate_cache()
     return Response(response)
 
 
