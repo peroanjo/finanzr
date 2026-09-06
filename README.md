@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/finanzr-hero.webp" alt="Finanzr demo showing Overview, Portfolio, Funds, Stocks and Crypto" width="100%">
+<img src="docs/assets/screenshots/demo-overview.jpg" alt="Finanzr overview showing synthetic net worth, allocation and historical trajectory" width="100%">
 
 <h1>Finanzr</h1>
 
@@ -42,34 +42,29 @@ be imported into fund, stock and crypto accounts.
 
 ## See it in action
 
-Every screen below was captured in English from a demo workspace created with
-`seed_demo_data`. All names, holdings and values are synthetic.
+The overview above and the four focused screens below were captured in Spanish,
+the product default, from a workspace created with `seed_demo_data`. All names,
+holdings and values are synthetic.
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="docs/assets/screenshots/demo-overview.jpg" alt="Finanzr Overview with demo net worth and allocation"><br>
-      <sub><strong>Overview</strong> · Net worth, trajectory and allocation</sub>
-    </td>
-    <td width="50%" align="center">
       <img src="docs/assets/screenshots/demo-portfolio.jpg" alt="Finanzr Portfolio with demo composition and exposures"><br>
-      <sub><strong>Portfolio</strong> · Composition and concentration</sub>
+      <sub><strong>Portfolio</strong> · One consolidated view, grouped by asset class</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/screenshots/demo-funds.jpg" alt="Finanzr fund portfolio performance chart and positions"><br>
+      <sub><strong>Funds</strong> · Value, contributed capital and position-level returns</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="docs/assets/screenshots/demo-funds.jpg" alt="Finanzr Funds with demo positions and KPIs"><br>
-      <sub><strong>Funds</strong> · Positions, prices and performance</sub>
+      <img src="docs/assets/screenshots/demo-stocks.jpg" alt="Finanzr stock candlestick chart with average price, trades and portfolio movements"><br>
+      <sub><strong>Stocks & ETFs</strong> · Adaptive candles, trade markers and movements</sub>
     </td>
     <td width="50%" align="center">
-      <img src="docs/assets/screenshots/demo-stocks.jpg" alt="Finanzr Stocks and ETFs with demo positions and KPIs"><br>
-      <sub><strong>Stocks & ETFs</strong> · P&L and market value</sub>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <img src="docs/assets/screenshots/demo-crypto.jpg" alt="Finanzr Crypto with demo assets and performance" width="70%"><br>
-      <sub><strong>Crypto</strong> · Accounts, positions and performance</sub>
+      <img src="docs/assets/screenshots/demo-crypto.jpg" alt="Finanzr crypto candlestick chart with automatic interval selection and synthetic transactions"><br>
+      <sub><strong>Crypto</strong> · Automatic intervals, price history and transactions</sub>
     </td>
   </tr>
 </table>

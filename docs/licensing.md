@@ -39,13 +39,9 @@ installed wheels or sdist metadata during release preparation.
 - The frontend uses a text-based mark and CSS styling created in this project;
   no unprovenanced raster logo is distributed.
 - The files in `docs/assets/screenshots/` are real application captures from an
-  isolated English-language workspace created with `seed_demo_data` on
-  2026-08-26. Every displayed identity, holding and value is synthetic.
-- `docs/assets/finanzr-hero.webp` was composed specifically for this repository
-  from those five captures with OpenAI's image-generation tooling on
-  2026-08-26. It contains no operational data. To the extent that copyright
-  applies to the generated output, it is distributed as project artwork under
-  the repository license.
+  isolated Spanish-language workspace created with `seed_demo_data` on
+  2026-09-07. Every displayed identity, holding and value is synthetic. The
+  overview capture is also used as the README header image.
 - The bundled HTML entry point references Chart.js, chartjs-chart-financial and
   Google Fonts from public CDNs. These are external runtime dependencies, not a
   grant to mirror or redistribute them. Verify their upstream licenses,
