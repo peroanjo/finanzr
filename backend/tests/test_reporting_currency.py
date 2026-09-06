@@ -10,7 +10,6 @@ from apps.portfolio.models import ManualAsset
 from apps.real_estate.models import RealEstateInvestment
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from rest_framework.test import APIClient
 
@@ -104,10 +103,9 @@ def test_implicit_amounts_are_labeled_with_the_workspace_currency() -> None:
 
 
 @pytest.mark.django_db
-def test_fund_history_cache_is_isolated_by_workspace_and_reporting_currency(
+def test_fund_history_is_isolated_by_workspace_and_reporting_currency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    cache.clear()
     _eur_workspace, eur_client = workspace_client("eur-fund-cache", "EUR")
     _usd_workspace, usd_client = workspace_client("usd-fund-cache", "USD")
     rows = [

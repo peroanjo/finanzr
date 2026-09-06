@@ -16,7 +16,6 @@ from apps.market_data.yahoo import MarketDataError
 from apps.transactions.models import Transaction
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
-from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -31,7 +30,6 @@ def test_fund_performance_uses_market_history_and_filters_by_account(
     traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, _ = traded_context
-    cache.clear()
     created = client.post(
         "/api/fund-accounts",
         {
@@ -592,7 +590,7 @@ def test_named_range_bounds_exclude_old_and_future_transactions_but_keep_termina
 
 
 @pytest.mark.django_db
-def test_transient_history_failure_does_not_warm_aggregate_cache(
+def test_transient_history_failure_retries_on_next_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _workspace, client = _workspace_client("performance-failure")
@@ -630,7 +628,44 @@ def test_transient_history_failure_does_not_warm_aggregate_cache(
 
 
 @pytest.mark.django_db
-def test_transient_ticker_discovery_failure_does_not_warm_aggregate_cache(
+def test_successful_history_is_reloaded_on_next_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _workspace, client = _workspace_client("performance-history-refresh")
+    rows = [_record(1, "FUND", "2026-01-01", "SUSCRIPCION", 1, 100)]
+    calls: list[int] = []
+    monkeypatch.setattr(performance_views, "transaction_calculation_rows", lambda *_args: rows)
+    monkeypatch.setattr(
+        performance_views,
+        "workspace_instrument",
+        lambda *_args: type("InstrumentStub", (), {"kind": "fund"})(),
+    )
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda _instrument: "FUND")
+
+    def chart(*_args: object, **_kwargs: object) -> tuple[dict[str, str], list[dict[str, object]]]:
+        calls.append(1)
+        return {"currency": "EUR"}, [{"fecha": "2026-01-01", "precio": 100 + len(calls) * 10}]
+
+    monkeypatch.setattr(performance_views, "yahoo_chart", chart)
+    monkeypatch.setattr(
+        performance_views,
+        "rates_to_base",
+        lambda _quote, _base, dates, **_kwargs: {
+            value: FxConversion(Decimal("1"), value, "test") for value in dates
+        },
+    )
+
+    query = "?start=2026-01-01&end=2026-02-01"
+    first = client.get(f"/api/investment-performance/fund{query}")
+    second = client.get(f"/api/investment-performance/fund{query}")
+
+    assert first.json()["data"][0]["value"] == 110.0
+    assert second.json()["data"][0]["value"] == 120.0
+    assert len(calls) == 2
+
+
+@pytest.mark.django_db
+def test_transient_ticker_discovery_failure_retries_on_next_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _workspace, client = _workspace_client("performance-ticker-failure")
@@ -668,7 +703,9 @@ def test_transient_ticker_discovery_failure_does_not_warm_aggregate_cache(
 
 
 @pytest.mark.django_db
-def test_stock_split_mutation_invalidates_performance_cache() -> None:
+def test_performance_recalculates_after_stock_split_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     workspace, client = _workspace_client("performance-split-cache")
     instrument = Instrument.objects.create(kind="stock", name="Stock", quote_currency="EUR")
     InstrumentIdentifier.objects.create(
@@ -678,8 +715,46 @@ def test_stock_split_mutation_invalidates_performance_cache() -> None:
         is_primary=True,
     )
     WorkspaceInstrument.objects.create(workspace=workspace, instrument=instrument)
-    cache_key = f"investment-performance:v2:{workspace.pk}:stock:all:1y:EUR:saveback=0"
-    cache.set(cache_key, {"data": ["stale"]}, timeout=3600)
+    rows = [_record(1, "STOCK", "2026-01-01", "buy", 1, 100, kind="stock")]
+    calculations: list[int] = []
+    monkeypatch.setattr(performance_views, "transaction_calculation_rows", lambda *_args: rows)
+    monkeypatch.setattr(
+        performance_views,
+        "workspace_instrument",
+        lambda *_args: type("InstrumentStub", (), {"kind": "stock"})(),
+    )
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda _instrument: "STOCK")
+    monkeypatch.setattr(
+        performance_views,
+        "yahoo_chart",
+        lambda *_args, **_kwargs: ({"currency": "EUR"}, [{"fecha": "2026-01-01", "precio": 110}]),
+    )
+    monkeypatch.setattr(
+        performance_views,
+        "rates_to_base",
+        lambda _quote, _base, dates, **_kwargs: {
+            value: FxConversion(Decimal("1"), value, "test") for value in dates
+        },
+    )
+
+    def calculate(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+        calculations.append(1)
+        value = len(calculations)
+        return [
+            {
+                "fecha": "2026-01-01",
+                "valor": value,
+                "invertido": 100,
+                "pnl": value,
+                "pnl_pct": value,
+            }
+        ]
+
+    monkeypatch.setattr(performance_views, "calculate_investment_performance", calculate)
+
+    first = client.get("/api/investment-performance/stock")
+    assert first.status_code == 200
+    assert first.json()["data"][0]["value"] == 1
 
     response = client.post(
         "/api/stock-splits",
@@ -692,9 +767,7 @@ def test_stock_split_mutation_invalidates_performance_cache() -> None:
     )
 
     assert response.status_code == 200
-    assert cache.get(cache_key) is None
-    cache.set(cache_key, {"data": ["stale"]}, timeout=3600)
-    split_id = response.json()["id"]
-    deleted = client.delete(f"/api/stock-splits/{split_id}")
-    assert deleted.status_code == 200
-    assert cache.get(cache_key) is None
+    second = client.get("/api/investment-performance/stock")
+    assert second.status_code == 200
+    assert second.json()["data"][0]["value"] == 2
+    assert len(calculations) == 2

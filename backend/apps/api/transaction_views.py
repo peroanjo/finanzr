@@ -4,7 +4,6 @@ from datetime import date
 from typing import cast
 from uuid import UUID
 
-from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext as _
@@ -259,7 +258,6 @@ def save_manual_transaction(
             },
             status=400,
         )
-    cache.clear()
     return Response(transaction_row(item), status=201 if creating else 200)
 
 
@@ -311,7 +309,6 @@ def transaction_detail(request: Request, kind: str, transaction_id: UUID) -> Res
         )
     )
     item.delete()
-    cache.clear()
     return Response({"ok": True})
 
 

@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
-from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -289,7 +288,6 @@ def upload(
     response = {"imported": imported, "skipped": batch.skipped_rows, "total": batch.source_rows}
     if slug == "kraken_spot":
         response["pares_ignorados"] = parsed.metadata.get("skipped_pairs", [])
-    cache.clear()
     return Response(response)
 
 

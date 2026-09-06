@@ -5,7 +5,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from typing import Any
 
-from django.core.cache import cache
 from django.http import Http404
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -123,14 +122,6 @@ def investment_performance(request: Request, kind: str) -> Response:
     else:
         named_start, named_end = _named_performance_bounds(range_name)
         timeline_start, timeline_end = named_start.isoformat(), named_end.isoformat()
-    cache_key = (
-        f"investment-performance:v2:{current_workspace.pk}:{kind}:{account_value}:"
-        f"{response_range}:{base_currency}:saveback={int(ignore_savebacks)}"
-    )
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return Response(cached)
-
     rows = transaction_calculation_rows(request, instrument_kind, selected_account)
     result_base: dict[str, Any] = {
         "range": response_range,
@@ -139,13 +130,11 @@ def investment_performance(request: Request, kind: str) -> Response:
         "data": [],
     }
     if not rows:
-        cache.set(cache_key, result_base, timeout=3600)
         return Response(result_base)
 
     asset_key = "symbol" if kind == "crypto" else "isin"
     assets = sorted({str(row.get(asset_key, "")) for row in rows if row.get(asset_key)})
     tickers: dict[str, str] = {}
-    history_failed = False
     for asset in assets:
         try:
             instrument = workspace_instrument(request, identifier_scheme, asset)
@@ -154,21 +143,13 @@ def investment_performance(request: Request, kind: str) -> Response:
             tickers[asset] = yahoo_ticker(instrument)
         except (Http404, MarketDataError):
             # Missing identifiers/tickers are isolated to that instrument.
-            history_failed = True
             continue
 
     interval = "1wk" if range_name == "2y" else "1d"
     if start_date and end_date and (end_date - start_date).days > 540:
         interval = "1wk"
 
-    def load_history(asset: str, ticker: str) -> tuple[str, dict[str, float], bool]:
-        history_key = (
-            f"investment-history:{current_workspace.pk}:{kind}:{ticker}:"
-            f"{base_currency}:{response_range}:{interval}"
-        )
-        history = cache.get(history_key)
-        if history is not None:
-            return asset, history, False
+    def load_history(asset: str, ticker: str) -> tuple[str, dict[str, float]]:
         try:
             meta, points = yahoo_chart(
                 ticker,
@@ -190,7 +171,7 @@ def investment_performance(request: Request, kind: str) -> Response:
                     if start_date <= point_date <= end_date
                 ]
             if not dated_points:
-                return asset, {}, False
+                return asset, {}
             conversions = rates_to_base(
                 currency,
                 base_currency,
@@ -206,10 +187,9 @@ def investment_performance(request: Request, kind: str) -> Response:
                 converted[point_date.isoformat()] = round(
                     float(str(raw_price)) * float(conversion.rate), 8
                 )
-            cache.set(history_key, converted, timeout=3600)
-            return asset, converted, False
+            return asset, converted
         except (MarketDataError, CurrencyConversionError, ValueError, KeyError):
-            return asset, {}, True
+            return asset, {}
 
     histories: dict[str, dict[str, float]] = {}
     with ThreadPoolExecutor(max_workers=min(6, max(1, len(tickers)))) as executor:
@@ -217,9 +197,8 @@ def investment_performance(request: Request, kind: str) -> Response:
             executor.submit(load_history, asset, ticker): asset for asset, ticker in tickers.items()
         }
         for future in as_completed(futures):
-            asset, history, failed = future.result()
+            asset, history = future.result()
             histories[asset] = history
-            history_failed = history_failed or failed
 
     split_rows: list[StockSplitCalculationRow] | tuple[()] = (
         [
@@ -253,8 +232,6 @@ def investment_performance(request: Request, kind: str) -> Response:
             timeline_end=timeline_end,
         )
     ]
-    if not history_failed:
-        cache.set(cache_key, result_base, timeout=3600)
     return Response(result_base)
 
 

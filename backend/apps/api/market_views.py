@@ -5,7 +5,6 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
@@ -108,7 +107,6 @@ def update_price(request: Request, instrument_id: UUID, kind: str) -> Response:
             "source": "manual",
         },
     )
-    cache.clear()
     return Response({"ok": True})
 
 
@@ -160,7 +158,6 @@ def stock_splits(request: Request) -> Response:
                 "confirmed_by": cast(User, request.user),
             },
         )
-    cache.clear()
     return Response(_stock_split_row(split), status=200)
 
 
@@ -176,7 +173,6 @@ def stock_split_detail(request: Request, split_id: UUID) -> Response:
         pk=split_id,
     )
     split.delete()
-    cache.clear()
     return Response({"ok": True})
 
 
@@ -320,7 +316,6 @@ def fetch_prices(request: Request, kind: str) -> Response:
         except (MarketDataError, CurrencyConversionError) as exc:
             result["error"] = str(exc)
         results.append(result)
-    cache.clear()
     return Response({"results": results})
 
 

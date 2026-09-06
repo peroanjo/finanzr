@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
@@ -215,7 +214,6 @@ def create_instrument(request: Request, kind: str) -> Response:
             if key not in existing_keys:
                 InstrumentIdentifier.objects.create(instrument=item, **row)
     WorkspaceInstrument.objects.get_or_create(workspace=current_workspace, instrument=item)
-    cache.clear()
     return Response(instrument_row(item), status=201)
 
 
@@ -397,7 +395,6 @@ def update_instrument(request: Request, instrument_id: UUID, kind: str) -> Respo
     _instrument_metadata(item, data)
     item.save()
     item.refresh_from_db()
-    cache.clear()
     return Response(instrument_row(item))
 
 

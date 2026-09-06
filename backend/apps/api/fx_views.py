@@ -5,7 +5,6 @@ from decimal import InvalidOperation
 from typing import Any
 from uuid import UUID
 
-from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import Q
 from django.utils import timezone
@@ -72,7 +71,6 @@ def fx_rates(request: Request) -> Response:
             rate_date=rate_date,
             defaults={"rate": val, "source": "manual"},
         )
-        cache.clear()
         return Response(rate_row(fx_obj, "workspace"), status=201 if _created else 200)
 
     provider_rates = FxRate.objects.all()
@@ -121,10 +119,8 @@ def fx_rate_detail(request: Request, rate_id: UUID) -> Response:
                 quote_currency=obj.quote_currency,
                 base_currency=obj.base_currency,
             ).delete()
-            cache.clear()
             return Response({"ok": True, "deleted_count": deleted_count})
         obj.delete()
-        cache.clear()
         return Response({"ok": True, "deleted_count": 1})
 
     data = payload(request)
@@ -178,7 +174,6 @@ def fx_rate_detail(request: Request, rate_id: UUID) -> Response:
             {"error": _("An override already exists for this pair and date")},
             status=400,
         )
-    cache.clear()
     return Response(
         {
             "id": obj.pk,
@@ -216,7 +211,6 @@ def fetch_fx_rates(request: Request) -> Response:
         except CurrencyConversionError as exc:
             errors.append(f"{quote}/{base}: {exc}")
 
-    cache.clear()
     return Response(
         {
             "ok": True,
