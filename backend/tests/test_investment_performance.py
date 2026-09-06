@@ -628,6 +628,42 @@ def test_transient_history_failure_retries_on_next_request(
 
 
 @pytest.mark.django_db
+def test_successful_history_is_reloaded_on_next_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _workspace, client = _workspace_client("performance-history-refresh")
+    rows = [_record(1, "FUND", "2026-01-01", "SUSCRIPCION", 1, 100)]
+    calls: list[int] = []
+    monkeypatch.setattr(performance_views, "transaction_calculation_rows", lambda *_args: rows)
+    monkeypatch.setattr(
+        performance_views,
+        "workspace_instrument",
+        lambda *_args: type("InstrumentStub", (), {"kind": "fund"})(),
+    )
+    monkeypatch.setattr(performance_views, "yahoo_ticker", lambda _instrument: "FUND")
+
+    def chart(*_args: object, **_kwargs: object) -> tuple[dict[str, str], list[dict[str, object]]]:
+        calls.append(1)
+        return {"currency": "EUR"}, [{"fecha": "2026-01-01", "precio": 100 + len(calls) * 10}]
+
+    monkeypatch.setattr(performance_views, "yahoo_chart", chart)
+    monkeypatch.setattr(
+        performance_views,
+        "rates_to_base",
+        lambda _quote, _base, dates, **_kwargs: {
+            value: FxConversion(Decimal("1"), value, "test") for value in dates
+        },
+    )
+
+    first = client.get("/api/investment-performance/fund")
+    second = client.get("/api/investment-performance/fund")
+
+    assert first.json()["data"][0]["value"] == 110.0
+    assert second.json()["data"][0]["value"] == 120.0
+    assert len(calls) == 2
+
+
+@pytest.mark.django_db
 def test_transient_ticker_discovery_failure_retries_on_next_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

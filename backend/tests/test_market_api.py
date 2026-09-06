@@ -17,7 +17,6 @@ from apps.market_data.yahoo import MarketDataError
 from apps.transactions.models import Transaction
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
-from django.core.cache import cache
 from django.db import connection
 from rest_framework.test import APIClient
 
@@ -416,8 +415,6 @@ def test_native_stock_split_contract_rejects_invalid_payloads_without_mutation(
     assert split.confirmed_by_id == owner.pk
     assert StockSplit.objects.filter(workspace=split.workspace).count() == split_count
 
-    cache_key = "native-stock-split-invalid-payload"
-    cache.set(cache_key, "sentinel", timeout=3600)
     valid_body = {
         "instrument_id": str(stock.pk),
         "effective_date": split.effective_date.isoformat(),
@@ -445,7 +442,6 @@ def test_native_stock_split_contract_rejects_invalid_payloads_without_mutation(
     for body in invalid_payloads:
         response = client.post("/api/stock-splits", body, format="json")
         assert response.status_code == 400, (body, response.content)
-        assert cache.get(cache_key) == "sentinel"
 
     split.refresh_from_db()
     if maximum is not None:
@@ -500,8 +496,6 @@ def test_stock_split_instrument_isolation_rejects_foreign_post_and_hides_foreign
     assert str(current_split.pk) in listed_ids
     assert str(foreign_split.pk) not in listed_ids
 
-    cache_key = "foreign-stock-split-isolation"
-    cache.set(cache_key, "sentinel", timeout=3600)
     response = client.post(
         "/api/stock-splits",
         {
@@ -512,7 +506,6 @@ def test_stock_split_instrument_isolation_rejects_foreign_post_and_hides_foreign
         format="json",
     )
     assert response.status_code == 400
-    assert cache.get(cache_key) == "sentinel"
     assert StockSplit.objects.filter(pk=current_split.pk).exists()
     assert StockSplit.objects.filter(pk=foreign_split.pk).exists()
 
@@ -546,11 +539,8 @@ def test_stock_split_delete_is_scoped_and_rejects_non_native_routes(
         "malformed": "/api/stock-splits/not-a-uuid",
         "legacy": "/api/stock-splits/SYNTH-STOCK-001/2026-01-01",
     }
-    cache_key = f"stock-split-delete-rejection-{target}"
-    cache.set(cache_key, "sentinel", timeout=3600)
     response = client.delete(targets[target])
     assert response.status_code == 404
-    assert cache.get(cache_key) == "sentinel"
     assert StockSplit.objects.filter(pk=current_split.pk).exists()
     if wrong_kind_split:
         assert StockSplit.objects.filter(pk=wrong_kind_split.pk).exists()
@@ -578,8 +568,6 @@ def test_viewer_cannot_mutate_stock_splits(
     session["active_workspace_id"] = str(current_workspace.pk)
     session.save()
 
-    cache_key = "stock-split-viewer-rejection"
-    cache.set(cache_key, "sentinel", timeout=3600)
     body = {
         "instrument_id": str(stock.pk),
         "effective_date": split.effective_date.isoformat(),
@@ -588,7 +576,6 @@ def test_viewer_cannot_mutate_stock_splits(
     post = viewer_client.post("/api/stock-splits", body, format="json")
     delete = viewer_client.delete(f"/api/stock-splits/{split.pk}")
     assert post.status_code == delete.status_code == 403
-    assert cache.get(cache_key) == "sentinel"
     assert StockSplit.objects.filter(pk=split.pk).exists()
 
 

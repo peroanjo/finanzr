@@ -16,7 +16,6 @@ from apps.market_data.models import (
 from apps.transactions.models import Transaction
 from apps.users.models import User
 from apps.workspaces.models import Workspace
-from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from finanzr.domain.stocks import calculate_stock_positions
@@ -306,7 +305,6 @@ def test_performance_ignores_identifierless_split_rows(
         ratio=Decimal("2"),
         source="synthetic-performance-blank",
     )
-    cache.clear()
     projected: list[list[dict[str, Any]]] = []
 
     def capture_performance(_rows: Any, _histories: Any, **kwargs: Any) -> list[dict[str, Any]]:
