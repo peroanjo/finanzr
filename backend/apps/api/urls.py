@@ -136,7 +136,6 @@ urlpatterns = [
     path("stock-orders/<uuid:transaction_id>", stock_transaction_detail),
     path("crypto-orders", crypto_orders),
     path("crypto-orders/upload-kraken-pro", upload_kraken_pro),
-    path("crypto-orders/upload-kraken", upload_kraken_pro),
     path("crypto-orders/<uuid:transaction_id>", crypto_transaction_detail),
     path("fund-prices", fund_prices),
     path("fund-prices/<uuid:instrument_id>", fund_price_detail),

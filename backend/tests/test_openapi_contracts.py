@@ -605,6 +605,8 @@ class OpenApiMutationContractTests(SimpleTestCase):
         )
         assert set(direct_upload_schema["properties"]) == {"file", "account_id"}
         assert set(direct_upload_schema["required"]) == {"file", "account_id"}
+        assert "/api/crypto-orders/upload-kraken-pro" in document["paths"]
+        assert "/api/crypto-orders/upload-kraken" not in document["paths"]
 
         fx = document["paths"]["/api/fx-rates"]["post"]
         fx_properties = self._resolve(

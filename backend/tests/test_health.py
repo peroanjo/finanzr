@@ -1,6 +1,6 @@
 import pytest
 from django.test import Client
-from django.urls import reverse
+from django.urls import resolve, reverse
 
 
 @pytest.mark.django_db
@@ -18,6 +18,16 @@ def test_openapi_schema_is_available(client: Client) -> None:
     assert response.status_code == 200
     assert "application/vnd.oai.openapi" in response["Content-Type"]
     assert b"/api/health/" in response.content
+
+
+@pytest.mark.django_db
+def test_retired_kraken_upload_alias_returns_404(client: Client) -> None:
+    response = client.post("/api/crypto-orders/upload-kraken")
+
+    assert response.status_code == 404
+    assert resolve("/api/crypto-orders/upload-kraken-pro").route == (
+        "api/crypto-orders/upload-kraken-pro"
+    )
 
 
 @pytest.mark.django_db

@@ -6,6 +6,9 @@ private operational history.
 
 ## [Unreleased]
 
+- Retired the duplicate `/api/crypto-orders/upload-kraken` upload route. Use
+  `/api/crypto-orders/upload-kraken-pro`; the stable `kraken_spot` importer
+  contract and existing import batches remain supported.
 - Continue improving the Vue/Django/PostgreSQL application and its production
   readiness.
 - Keep Spanish and English user-facing catalogs aligned.
