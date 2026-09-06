@@ -1330,125 +1330,6 @@ onMounted(loadDashboard);
   margin: 0 auto;
   padding: 8px 48px 56px;
 }
-.fund-account-actions select,
-.fund-account-actions button,
-.fund-account-actions summary {
-  min-height: 34px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 710;
-}
-.fund-account-actions select {
-  min-width: 174px;
-  padding: 8px 30px 8px 11px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-ink);
-}
-.fund-account-actions button,
-.fund-account-actions summary {
-  padding: 8px 11px;
-  background: transparent;
-  color: var(--fz-muted);
-  cursor: pointer;
-}
-.fund-account-actions button:hover,
-.fund-account-actions summary:hover {
-  border-color: var(--fz-accent);
-  color: var(--fz-ink);
-}
-.fund-account-actions details {
-  position: relative;
-}
-.fund-account-actions summary {
-  display: grid;
-  place-items: center;
-  list-style: none;
-}
-.fund-account-actions summary::-webkit-details-marker {
-  display: none;
-}
-.fund-import-popover {
-  position: absolute;
-  z-index: 5;
-  top: calc(100% + 9px);
-  right: 0;
-  width: min(370px, 80vw);
-  padding: 12px;
-  border: 1px solid var(--fz-line);
-  border-radius: 14px;
-  background: var(--fz-surface);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16);
-}
-.fund-import-popover p {
-  margin: 5px 0 0;
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-:deep(.import-compact) {
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 9px;
-  border: 0;
-  background: transparent;
-}
-:deep(.import-compact h2) {
-  display: none;
-}
-:deep(.import-compact select),
-:deep(.import-compact input) {
-  min-width: 0;
-  width: 100%;
-  padding: 9px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 9px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-ink);
-  font-size: 11px;
-}
-:deep(.import-compact button) {
-  padding: 9px 11px;
-  border: 0;
-  border-radius: 9px;
-  background: var(--fz-accent);
-  color: #f4fff9;
-  font-size: 11px;
-  font-weight: 720;
-}
-:deep(.import-compact p) {
-  min-height: 12px;
-  margin: 0;
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-.fund-panel-header h2 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 750;
-  letter-spacing: -0.03em;
-}
-.fund-asset-head {
-  padding: 0 8px 8px;
-  color: var(--fz-muted);
-  font-size: 10px;
-}
-.fund-kpi strong {
-  overflow: hidden;
-  font-size: 14px;
-  font-weight: 760;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fund-kpi.primary strong {
-  font-size: 25px;
-}
-.fund-utility strong {
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
 .fund-performance-panel {
   margin-top: 18px;
   padding: 24px;
@@ -1484,18 +1365,6 @@ onMounted(loadDashboard);
 .fund-dialog h2 {
   margin: 0;
   font-size: 18px;
-}
-.fund-dialog header > button {
-  width: 31px;
-  height: 31px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--fz-line);
-  border-radius: 9px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-muted);
-  font-size: 18px;
-  cursor: pointer;
 }
 .fund-calendar-fields,
 .fund-account-fields {
@@ -1581,12 +1450,6 @@ onMounted(loadDashboard);
   background: transparent;
   color: var(--fz-negative);
 }
-.confirm-dialog > form > p {
-  margin: 22px 0 0;
-  color: var(--fz-muted);
-  font-size: 10px;
-  line-height: 1.6;
-}
 .fund-dialog footer button:disabled {
   opacity: 0.48;
   cursor: not-allowed;
@@ -1618,47 +1481,9 @@ onMounted(loadDashboard);
   grid-column: 1 / -1;
 }
 
-@media (max-width: 1050px) {
-  .fund-top-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .fund-kpi-panel {
-    order: -1;
-  }
-  .fund-kpi-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 @media (max-width: 720px) {
   .funds-page {
     padding: 4px 18px 32px;
-  }
-  .fund-account-bar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .fund-account-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .fund-account-actions label {
-    grid-column: 1 / -1;
-  }
-  .fund-account-actions select {
-    width: 100%;
-    min-width: 0;
-  }
-  .fund-assets-panel,
-  .fund-kpi-panel {
-    padding: 19px 17px;
-    border-radius: 18px;
-  }
-  .fund-kpi-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .fund-performance-panel {
-    padding: 19px 17px;
-    border-radius: 18px;
   }
   .fund-calendar-fields,
   .fund-account-fields {
@@ -1669,6 +1494,10 @@ onMounted(loadDashboard);
   }
   .fund-calendar-fields > span {
     display: none;
+  }
+  .fund-performance-panel {
+    padding: 19px 17px;
+    border-radius: 18px;
   }
   .funds-loading {
     grid-template-columns: minmax(0, 1fr);
@@ -1682,45 +1511,13 @@ onMounted(loadDashboard);
 .section-label {
   font-size: 10px;
 }
-.fund-account-copy small,
-.fund-import-popover p,
-:deep(.import-compact p),
-.fund-asset-head,
-.fund-asset-cell small,
-.fund-asset-id small,
-.fund-kpi small,
-.fund-kpi span,
-.fund-utility small,
-.fund-utility span,
 .fund-account-fields em {
   font-size: 10px;
 }
-.fund-account-actions select,
-.fund-account-actions button,
-.fund-account-actions summary,
-:deep(.import-compact select),
-:deep(.import-compact input),
-:deep(.import-compact button),
-.fund-asset-head,
-.fund-action-button,
-.fund-live,
 .fund-calendar-fields label span,
 .fund-account-fields label span,
 .fund-dialog-error {
   font-size: 11px;
-}
-.fund-panel-header h2 {
-  font-size: 20px;
-}
-.fund-asset-cell strong,
-.fund-utility strong {
-  font-size: 11px;
-}
-.fund-kpi strong {
-  font-size: 16px;
-}
-.fund-kpi.primary strong {
-  font-size: 27px;
 }
 .fund-calendar-fields input,
 .fund-account-fields input,
