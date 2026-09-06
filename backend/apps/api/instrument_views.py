@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
@@ -14,6 +13,7 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.api.cache_invalidation import invalidate_cache
 from apps.api.context import workspace
 from apps.api.instrument_queries import instrument_rows
 from apps.api.market_data_projection import (
@@ -215,7 +215,7 @@ def create_instrument(request: Request, kind: str) -> Response:
             if key not in existing_keys:
                 InstrumentIdentifier.objects.create(instrument=item, **row)
     WorkspaceInstrument.objects.get_or_create(workspace=current_workspace, instrument=item)
-    cache.clear()
+    invalidate_cache()
     return Response(instrument_row(item), status=201)
 
 
@@ -397,7 +397,7 @@ def update_instrument(request: Request, instrument_id: UUID, kind: str) -> Respo
     _instrument_metadata(item, data)
     item.save()
     item.refresh_from_db()
-    cache.clear()
+    invalidate_cache()
     return Response(instrument_row(item))
 
 

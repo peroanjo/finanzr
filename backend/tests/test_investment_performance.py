@@ -667,7 +667,7 @@ def test_transient_ticker_discovery_failure_does_not_warm_aggregate_cache(
     assert len(discoveries) == 2
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_stock_split_mutation_invalidates_performance_cache() -> None:
     workspace, client = _workspace_client("performance-split-cache")
     instrument = Instrument.objects.create(kind="stock", name="Stock", quote_currency="EUR")

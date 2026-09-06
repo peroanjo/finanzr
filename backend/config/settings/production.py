@@ -7,6 +7,13 @@ if SECRET_KEY == "unsafe-development-only":  # noqa: F405
 
 DEBUG = False
 LAN_MODE = env_bool("FINANZR_LAN_MODE", False)  # noqa: F405
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": env("DJANGO_CACHE_LOCATION", "/tmp/finanzr-cache"),  # noqa: F405
+        "TIMEOUT": 3600,
+    }
+}
 SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", True) and not LAN_MODE  # noqa: F405
 SESSION_COOKIE_SECURE = not LAN_MODE
 CSRF_COOKIE_SECURE = not LAN_MODE

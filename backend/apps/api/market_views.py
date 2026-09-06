@@ -5,7 +5,6 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
@@ -16,6 +15,7 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.api.cache_invalidation import invalidate_cache
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instruments
 from apps.api.market_queries import price_rows, yahoo_ticker
@@ -108,7 +108,7 @@ def update_price(request: Request, instrument_id: UUID, kind: str) -> Response:
             "source": "manual",
         },
     )
-    cache.clear()
+    invalidate_cache()
     return Response({"ok": True})
 
 
@@ -160,7 +160,7 @@ def stock_splits(request: Request) -> Response:
                 "confirmed_by": cast(User, request.user),
             },
         )
-    cache.clear()
+    invalidate_cache()
     return Response(_stock_split_row(split), status=200)
 
 
@@ -176,7 +176,7 @@ def stock_split_detail(request: Request, split_id: UUID) -> Response:
         pk=split_id,
     )
     split.delete()
-    cache.clear()
+    invalidate_cache()
     return Response({"ok": True})
 
 
@@ -320,7 +320,7 @@ def fetch_prices(request: Request, kind: str) -> Response:
         except (MarketDataError, CurrencyConversionError) as exc:
             result["error"] = str(exc)
         results.append(result)
-    cache.clear()
+    invalidate_cache()
     return Response({"results": results})
 
 
