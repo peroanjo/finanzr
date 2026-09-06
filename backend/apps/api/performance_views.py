@@ -14,6 +14,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.models import Account
+from apps.api.cache_invalidation import cache_epoch
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instrument
 from apps.api.market_data_projection import (
@@ -123,9 +124,10 @@ def investment_performance(request: Request, kind: str) -> Response:
     else:
         named_start, named_end = _named_performance_bounds(range_name)
         timeline_start, timeline_end = named_start.isoformat(), named_end.isoformat()
+    epoch = cache_epoch()
     cache_key = (
         f"investment-performance:v2:{current_workspace.pk}:{kind}:{account_value}:"
-        f"{response_range}:{base_currency}:saveback={int(ignore_savebacks)}"
+        f"{response_range}:{base_currency}:saveback={int(ignore_savebacks)}:epoch={epoch}"
     )
     cached = cache.get(cache_key)
     if cached is not None:
@@ -164,7 +166,7 @@ def investment_performance(request: Request, kind: str) -> Response:
     def load_history(asset: str, ticker: str) -> tuple[str, dict[str, float], bool]:
         history_key = (
             f"investment-history:{current_workspace.pk}:{kind}:{ticker}:"
-            f"{base_currency}:{response_range}:{interval}"
+            f"{base_currency}:{response_range}:{interval}:epoch={epoch}"
         )
         history = cache.get(history_key)
         if history is not None:

@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 from apps.accounts.models import Account
 from apps.api import performance_views
+from apps.api.cache_invalidation import cache_epoch
 from apps.market_data.fx import FxConversion
 from apps.market_data.models import (
     Instrument,
@@ -678,8 +679,10 @@ def test_stock_split_mutation_invalidates_performance_cache() -> None:
         is_primary=True,
     )
     WorkspaceInstrument.objects.create(workspace=workspace, instrument=instrument)
-    cache_key = f"investment-performance:v2:{workspace.pk}:stock:all:1y:EUR:saveback=0"
-    cache.set(cache_key, {"data": ["stale"]}, timeout=3600)
+    old_epoch = cache_epoch()
+    base_cache_key = f"investment-performance:v2:{workspace.pk}:stock:all:1y:EUR:saveback=0"
+    old_cache_key = f"{base_cache_key}:epoch={old_epoch}"
+    cache.set(old_cache_key, {"data": ["stale"]}, timeout=3600)
 
     response = client.post(
         "/api/stock-splits",
@@ -692,9 +695,14 @@ def test_stock_split_mutation_invalidates_performance_cache() -> None:
     )
 
     assert response.status_code == 200
-    assert cache.get(cache_key) is None
-    cache.set(cache_key, {"data": ["stale"]}, timeout=3600)
+    new_epoch = cache_epoch()
+    assert new_epoch != old_epoch
+    new_cache_key = f"{base_cache_key}:epoch={new_epoch}"
+    assert cache.get(new_cache_key) is None
+    cache.set(new_cache_key, {"data": ["stale"]}, timeout=3600)
     split_id = response.json()["id"]
     deleted = client.delete(f"/api/stock-splits/{split_id}")
     assert deleted.status_code == 200
-    assert cache.get(cache_key) is None
+    deleted_epoch = cache_epoch()
+    assert deleted_epoch != new_epoch
+    assert cache.get(f"{base_cache_key}:epoch={deleted_epoch}") is None
