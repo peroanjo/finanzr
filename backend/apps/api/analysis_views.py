@@ -15,13 +15,14 @@ from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instruments
 from apps.api.market_data_projection import (
     instrument_calculation_row,
+    stock_split_calculation_rows,
 )
 from apps.api.market_queries import (
     calculation_price_rows,
 )
 from apps.api.portfolio_queries import _summary_manual_assets
 from apps.api.position_projection import native_position_rows
-from apps.api.projection import identifier, number, provider_name
+from apps.api.projection import number, provider_name
 from apps.api.real_estate_queries import real_estate_records
 from apps.api.transaction_queries import (
     selected_traded_account,
@@ -33,7 +34,6 @@ from apps.market_data.fx import (
 )
 from apps.market_data.models import (
     Instrument,
-    InstrumentIdentifier,
     StockSplit,
 )
 from finanzr.domain.crypto import calculate_crypto_positions
@@ -65,16 +65,11 @@ def analyzed_positions(
                 else row
                 for row in rows
             ]
-        splits = [
-            {
-                "isin": identifier(s.instrument, InstrumentIdentifier.Scheme.ISIN),
-                "fecha": s.effective_date.isoformat(),
-                "ratio": number(s.ratio),
-            }
-            for s in StockSplit.objects.filter(workspace=workspace(request))
+        splits = stock_split_calculation_rows(
+            StockSplit.objects.filter(workspace=workspace(request))
             .select_related("instrument")
             .prefetch_related("instrument__identifiers")
-        ]
+        )
         return calculate_stock_positions(rows, price_map, splits)
     if kind == "crypto":
         return calculate_crypto_positions(rows, price_map)

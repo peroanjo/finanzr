@@ -11,6 +11,7 @@ from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instruments
 from apps.api.market_data_projection import (
     instrument_calculation_row,
+    stock_split_calculation_rows,
 )
 from apps.api.portfolio_queries import _summary_manual_assets
 from apps.api.projection import identifier, number
@@ -201,18 +202,11 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
         else {}
     )
     split_rows: list[dict[str, Any]] = (
-        [
-            {
-                "isin": identifier(split.instrument, InstrumentIdentifier.Scheme.ISIN),
-                "fecha": split.effective_date.isoformat(),
-                "ratio": number(split.ratio),
-            }
-            for split in StockSplit.objects.filter(
-                workspace=current_workspace, instrument_id__in=instrument_ids
-            )
+        stock_split_calculation_rows(
+            StockSplit.objects.filter(workspace=current_workspace, instrument_id__in=instrument_ids)
             .select_related("instrument")
             .prefetch_related("instrument__identifiers")
-        ]
+        )
         if kind == "stock"
         else []
     )

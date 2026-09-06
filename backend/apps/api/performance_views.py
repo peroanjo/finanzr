@@ -16,10 +16,10 @@ from rest_framework.response import Response
 from apps.accounts.models import Account
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instrument
+from apps.api.market_data_projection import stock_split_calculation_rows
 from apps.api.market_queries import (
     yahoo_ticker,
 )
-from apps.api.projection import number, select_identifier
 from apps.api.transaction_queries import (
     selected_traded_account,
     transaction_calculation_rows,
@@ -91,28 +91,6 @@ def _named_performance_bounds(range_name: str) -> tuple[date, date]:
         day=min(end.day, monthrange(year, month + 1)[1]),
     )
     return start, end
-
-
-def _stock_split_rows(request: Request) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    splits = (
-        StockSplit.objects.filter(workspace=workspace(request))
-        .select_related("instrument")
-        .prefetch_related("instrument__identifiers")
-    )
-    for split in splits:
-        identity = select_identifier(
-            split.instrument.identifiers.all(), InstrumentIdentifier.Scheme.ISIN
-        )
-        if identity:
-            rows.append(
-                {
-                    "isin": identity.value,
-                    "fecha": split.effective_date.isoformat(),
-                    "ratio": number(split.ratio),
-                }
-            )
-    return rows
 
 
 def investment_performance(request: Request, kind: str) -> Response:
@@ -240,7 +218,19 @@ def investment_performance(request: Request, kind: str) -> Response:
             histories[asset] = history
             history_failed = history_failed or failed
 
-    split_rows = _stock_split_rows(request) if kind == "stock" else ()
+    split_rows = (
+        [
+            row
+            for row in stock_split_calculation_rows(
+                StockSplit.objects.filter(workspace=workspace(request))
+                .select_related("instrument")
+                .prefetch_related("instrument__identifiers")
+            )
+            if row["isin"]
+        ]
+        if kind == "stock"
+        else ()
+    )
     result_base["data"] = [
         {
             "date": point["fecha"],
