@@ -655,8 +655,9 @@ def test_successful_history_is_reloaded_on_next_request(
         },
     )
 
-    first = client.get("/api/investment-performance/fund")
-    second = client.get("/api/investment-performance/fund")
+    query = "?start=2026-01-01&end=2026-02-01"
+    first = client.get(f"/api/investment-performance/fund{query}")
+    second = client.get(f"/api/investment-performance/fund{query}")
 
     assert first.json()["data"][0]["value"] == 110.0
     assert second.json()["data"][0]["value"] == 120.0
