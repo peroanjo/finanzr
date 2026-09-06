@@ -7,7 +7,7 @@ import InvestmentAllocationStrip, {
 } from "../investments/InvestmentAllocationStrip.vue";
 import InvestmentAddAssetButton from "../investments/InvestmentAddAssetButton.vue";
 import InvestmentCollapseButton from "../investments/InvestmentCollapseButton.vue";
-import type { ChartOperation } from "../../domain/chartOperationFixes";
+import type { ChartOperation } from "../../domain/chartOperations";
 import type { NormalizedCandlestickChartPoint } from "../../domain/investments";
 import type {
   CryptoPositionSortKey,

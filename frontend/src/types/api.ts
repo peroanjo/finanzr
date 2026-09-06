@@ -345,6 +345,13 @@ export interface StockOrder extends TransactionDtoBase {
   isin: string;
   is_saveback: boolean;
 }
+export interface StockSplit {
+  id: string;
+  instrument_id: string;
+  effective_date: string;
+  ratio: number;
+  source: string;
+}
 export interface StockInstrument extends Instrument {
   kind: "stock" | "etf";
 }

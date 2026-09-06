@@ -41,6 +41,7 @@ import type {
   StockOrder,
   StockPosition,
   StockPrice,
+  StockSplit,
   InvestmentPerformanceResponse,
   PriceFetchResponse,
 } from "../types/api";
@@ -60,6 +61,7 @@ const positions = ref<StockPosition[]>([]);
 const orders = ref<StockOrder[]>([]);
 const instruments = ref<StockInstrument[]>([]);
 const prices = ref<StockPrice[]>([]);
+const splits = ref<StockSplit[]>([]);
 const performance = ref<InvestmentPerformanceResponse | null>(null);
 const chart = ref<StockChartResponse | null>(null);
 const selectedAccount = ref(
@@ -141,6 +143,7 @@ const {
   positions,
   orders,
   instruments,
+  splits,
   selectedInstrumentId,
   locale,
 });
@@ -456,7 +459,7 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
       syncAccountUrl();
     }
     const query = accountQuery();
-    const [nextPositions, nextOrders, nextInstruments, nextPrices] =
+    const [nextPositions, nextOrders, nextInstruments, nextPrices, nextSplits] =
       await Promise.all([
         api<StockPosition[]>(`/stock-analysis${query}`),
         api<StockOrder[]>(
@@ -466,12 +469,14 @@ async function loadDashboard(showLoading = true, loadSelectedChart = true) {
         ),
         api<StockInstrument[]>("/stocks"),
         api<StockPrice[]>("/stock-prices"),
+        api<StockSplit[]>("/stock-splits"),
       ]);
     if (generation !== dashboardGeneration) return;
     positions.value = nextPositions;
     orders.value = nextOrders;
     instruments.value = nextInstruments;
     prices.value = nextPrices;
+    splits.value = nextSplits;
     const available = openPositions.value.map(
       (position) => position.instrument_id,
     );

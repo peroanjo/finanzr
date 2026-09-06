@@ -1,13 +1,18 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import {
-  applyAdHocChartOperationFixes,
+  applyStockSplitChartOperations,
   type ChartOperation,
-} from "../domain/chartOperationFixes";
+} from "../domain/chartOperations";
 import {
   toInvestmentOverviewPosition,
   type InvestmentOverviewPosition,
 } from "../domain/investments";
-import type { StockInstrument, StockOrder, StockPosition } from "../types/api";
+import type {
+  StockInstrument,
+  StockOrder,
+  StockPosition,
+  StockSplit,
+} from "../types/api";
 import {
   instrumentById,
   instrumentIdentity,
@@ -32,6 +37,7 @@ export interface UseStocksPortfolioOptions {
   positions: StockPortfolioSource<StockPosition[]>;
   orders: StockPortfolioSource<StockOrder[]>;
   instruments: StockPortfolioSource<StockInstrument[]>;
+  splits: StockPortfolioSource<StockSplit[]>;
   selectedInstrumentId: StockPortfolioSource<string>;
   locale: StockPortfolioSource<string>;
 }
@@ -64,8 +70,14 @@ export interface UseStocksPortfolio {
 export function useStocksPortfolio(
   options: UseStocksPortfolioOptions,
 ): UseStocksPortfolio {
-  const { positions, orders, instruments, selectedInstrumentId, locale } =
-    options;
+  const {
+    positions,
+    orders,
+    instruments,
+    splits,
+    selectedInstrumentId,
+    locale,
+  } = options;
   const positionSortKey = ref<StockPositionSortKey>("value");
   const positionSortDirection = ref<StockSortDirection>("desc");
 
@@ -129,7 +141,7 @@ export function useStocksPortfolio(
     orders.value.filter((order) => order.isin === selectedIdentity.value),
   );
   const selectedChartOrders = computed(() =>
-    applyAdHocChartOperationFixes(
+    applyStockSplitChartOperations(
       selectedOrders.value.map((order) => ({
         ...order,
         // Chart tooltips use reporting-currency values while retaining source fields for the movement table.
@@ -137,6 +149,9 @@ export function useStocksPortfolio(
         net_amount: order.base_net_amount ?? order.net_amount,
         fee: order.base_fee ?? order.fee,
       })),
+      splits.value.filter(
+        (split) => split.instrument_id === selectedInstrumentId.value,
+      ),
     ),
   );
   const averagePrice = computed(() =>

@@ -5,7 +5,7 @@ import { instrumentTicker } from "../domain/instruments";
 import ImportStatementDialog from "../components/ImportStatementDialog.vue";
 import { applyLocale, applyReportingCurrency, registerMessages } from "../i18n";
 import { stocksMessages } from "../i18n/stocksMessages";
-import type { StockInstrument, StockOrder } from "../types/api";
+import type { StockInstrument, StockOrder, StockSplit } from "../types/api";
 import StocksView from "./StocksView.vue";
 
 registerMessages(stocksMessages);
@@ -21,7 +21,7 @@ vi.mock("../components/CryptoCandlestickChart.vue", () => ({
   default: {
     props: ["points", "operations", "averagePrice", "operationMarkerShape"],
     template:
-      '<div data-testid="stock-chart" :data-marker-shape="operationMarkerShape">{{ points.length }}-{{ operations.length }}</div>',
+      '<div data-testid="stock-chart" :data-marker-shape="operationMarkerShape" :data-first-quantity="operations[0]?.quantity" :data-first-unit-price="operations[0]?.unit_price" :data-first-adjustment="operations[0]?.chartAdjustment?.id">{{ points.length }}-{{ operations.length }}</div>',
   },
 }));
 vi.mock("../components/FundPerformanceChart.vue", () => ({
@@ -148,6 +148,15 @@ const stockOrders = [
     asset_name: `Test stock ${index}`,
     is_saveback: false,
   })),
+];
+const stockSplits: StockSplit[] = [
+  {
+    id: "split-dashboard",
+    instrument_id: position.instrument_id,
+    effective_date: "2026-06-01",
+    ratio: 3,
+    source: "synthetic-test",
+  },
 ];
 const closedPosition = {
   instrument_id: "00000000-0000-0000-0000-000000000601",
@@ -310,6 +319,7 @@ describe("StocksView", () => {
             source: "yahoo",
           },
         ];
+      if (path === "/stock-splits") return stockSplits;
       if (path.startsWith("/stock-chart/00000000-0000-0000-0000-000000000603?"))
         return {
           instrument_id: "00000000-0000-0000-0000-000000000603",
@@ -592,6 +602,23 @@ describe("StocksView", () => {
     expect(wrapper.get('[data-testid="stock-chart"]').text()).toBe("2-1");
   });
 
+  it("applies the workspace split to the selected chart operation", async () => {
+    const wrapper = mount(StocksView);
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="Mostrar histórico de NVIDIA"]')
+      .trigger("click");
+    await flushPromises();
+
+    const chart = wrapper.get('[data-testid="stock-chart"]');
+    expect(chart.attributes("data-first-quantity")).toBe("3");
+    expect(chart.attributes("data-first-unit-price")).toBe(String(100 / 3));
+    expect(chart.attributes("data-first-adjustment")).toBe(
+      "stock-splits:split-dashboard",
+    );
+  });
+
   it("requests canonical ranges, keeps the candle range when switching rows, and commits custom dates", async () => {
     const wrapper = mount(StocksView);
     await flushPromises();
@@ -823,6 +850,20 @@ describe("StocksView", () => {
     const oldPositions = new Promise((resolve) => {
       resolveOldPositions = resolve;
     });
+    let resolveOldSplits: (value: StockSplit[]) => void = () => undefined;
+    const oldSplits = new Promise<StockSplit[]>((resolve) => {
+      resolveOldSplits = resolve;
+    });
+    const latestSplits: StockSplit[] = [
+      {
+        id: "split-current-dashboard",
+        instrument_id: secondAccountInstrument.id,
+        effective_date: "2026-01-01",
+        ratio: 2,
+        source: "synthetic-current",
+      },
+    ];
+    let splitRequests = 0;
     const latestPosition = {
       ...secondAccountPosition,
       name: "Second account current",
@@ -866,6 +907,8 @@ describe("StocksView", () => {
           secondAccountInstrument,
         ];
       if (path === "/stock-prices") return [];
+      if (path === "/stock-splits")
+        return ++splitRequests === 1 ? oldSplits : latestSplits;
       if (path.startsWith("/investment-performance/stock?")) {
         return {
           ...performance,
@@ -882,18 +925,33 @@ describe("StocksView", () => {
     selectElement.value = accountOneId;
     selectElement.dispatchEvent(new Event("change", { bubbles: true }));
     await Promise.resolve();
+    await Promise.resolve();
     selectElement.value = accountTwoId;
     selectElement.dispatchEvent(new Event("change", { bubbles: true }));
     await flushPromises();
 
     expect(window.location.search).toBe(`?account=${accountTwoId}`);
+    expect(splitRequests).toBe(2);
     expect(wrapper.text()).toContain("Second account current");
     expect(wrapper.text()).not.toContain("Stale account one");
+    expect((wrapper.vm as unknown as { splits: StockSplit[] }).splits).toEqual(
+      latestSplits,
+    );
 
     resolveOldPositions([{ ...position, name: "Stale account one" }]);
+    resolveOldSplits([
+      {
+        ...latestSplits[0],
+        id: "split-stale-dashboard",
+        source: "synthetic-stale",
+      },
+    ]);
     await flushPromises();
     expect(wrapper.text()).toContain("Second account current");
     expect(wrapper.text()).not.toContain("Stale account one");
+    expect((wrapper.vm as unknown as { splits: StockSplit[] }).splits).toEqual(
+      latestSplits,
+    );
   });
 
   it("keeps the latest performance response when an older range fails", async () => {

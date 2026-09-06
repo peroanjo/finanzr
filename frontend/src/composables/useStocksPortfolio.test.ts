@@ -2,7 +2,12 @@ import { ref } from "vue";
 import { describe, expect, it } from "vitest";
 import { useStocksPortfolio } from "./useStocksPortfolio";
 import type { StockPositionSortKey } from "./useStocksPortfolio";
-import type { StockInstrument, StockOrder, StockPosition } from "../types/api";
+import type {
+  StockInstrument,
+  StockOrder,
+  StockPosition,
+  StockSplit,
+} from "../types/api";
 
 function makePosition(overrides: Partial<StockPosition> = {}): StockPosition {
   return {
@@ -78,24 +83,28 @@ function createPortfolio({
   positions: positionRows = [],
   orders: orderRows = [],
   instruments: instrumentRows = [],
+  splits: splitRows = [],
   selectedInstrumentId: selectedAsset = "",
   locale: currentLocale = "en",
 }: {
   positions?: StockPosition[];
   orders?: StockOrder[];
   instruments?: StockInstrument[];
+  splits?: StockSplit[];
   selectedInstrumentId?: string;
   locale?: string;
 } = {}) {
   const positions = ref(positionRows);
   const orders = ref(orderRows);
   const instruments = ref(instrumentRows);
+  const splits = ref(splitRows);
   const selectedInstrumentId = ref(selectedAsset);
   const locale = ref(currentLocale);
   const portfolio = useStocksPortfolio({
     positions,
     orders,
     instruments,
+    splits,
     selectedInstrumentId,
     locale,
   });
@@ -104,6 +113,7 @@ function createPortfolio({
     positions,
     orders,
     instruments,
+    splits,
     selectedInstrumentId,
     locale,
   };
@@ -292,10 +302,10 @@ describe("useStocksPortfolio", () => {
     expect(portfolio.pricedPositions.value).toBe(2);
   });
 
-  it("uses base currency fallbacks and preserves source orders before chart fixes", () => {
+  it("uses base currency fallbacks and preserves source orders before chart adjustments", () => {
     const sourceWithBase = makeOrder({
-      id: "byd-before-split",
-      isin: "CNE100000296",
+      id: "synthetic-before-split",
+      isin: "SYNTHETIC-ISIN",
       trade_date: "2025-02-03",
       quantity: 1,
       net_amount: 34.07,
@@ -326,14 +336,14 @@ describe("useStocksPortfolio", () => {
     });
     const portfolio = createPortfolio({
       orders: [sourceWithBase, sourceWithoutBase, sourceWithZeroBase],
-      selectedInstrumentId: "CNE100000296",
+      selectedInstrumentId: "SYNTHETIC-ISIN",
       instruments: [
         makeInstrument({
-          id: "CNE100000296",
+          id: "SYNTHETIC-ISIN",
           identifiers: [
             {
               scheme: "isin",
-              value: "CNE100000296",
+              value: "SYNTHETIC-ISIN",
               venue: "",
               is_primary: true,
             },
@@ -351,6 +361,15 @@ describe("useStocksPortfolio", () => {
             { scheme: "isin", value: "ZERO-BASE", venue: "", is_primary: true },
           ],
         }),
+      ],
+      splits: [
+        {
+          id: "split-canonical",
+          instrument_id: "SYNTHETIC-ISIN",
+          effective_date: "2025-06-10",
+          ratio: 3,
+          source: "synthetic-test",
+        },
       ],
     });
 
@@ -371,7 +390,7 @@ describe("useStocksPortfolio", () => {
       fee: 0.5,
       quantity: 3,
       chartAdjustment: {
-        id: "byd-pre-june-10-2025-split-3-to-1",
+        id: "stock-splits:split-canonical",
       },
     });
     expect(sourceWithBase).toMatchObject({

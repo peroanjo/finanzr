@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { ChartOperation } from "../domain/chartOperationFixes";
+import type { ChartOperation } from "../domain/chartOperations";
 import type { NormalizedCandlestickChartPoint } from "../domain/investments";
 import { reportingCurrency } from "../i18n";
 
