@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
@@ -45,6 +45,12 @@ from apps.market_data.yahoo import (
     chart as yahoo_chart,
 )
 from apps.users.models import User
+
+SUPPORTED_MARKET_CHART_INTERVALS = {"15m", "1h", "4h", "1d", "1wk", "1mo"}
+
+
+def _market_point_date(value: object) -> date:
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
 
 
 def price_list(request: Request, kind: str) -> Response:
@@ -195,7 +201,7 @@ def market_chart(request: Request, kind: str, instrument_id: UUID) -> Response:
         meta, points = yahoo_chart(
             ticker,
             range_name=request.query_params.get("range", "1y"),
-            interval=interval if interval in {"1d", "1wk", "1mo"} else "1d",
+            interval=interval if interval in SUPPORTED_MARKET_CHART_INTERVALS else "1d",
             start=request.query_params.get("start"),
             end=request.query_params.get("end"),
         )
@@ -205,7 +211,7 @@ def market_chart(request: Request, kind: str, instrument_id: UUID) -> Response:
             conversions = rates_to_base(
                 currency,
                 base_currency,
-                [date.fromisoformat(str(row["fecha"])) for row in points],
+                [_market_point_date(row["fecha"]) for row in points],
                 workspace=workspace(request),
             )
         except CurrencyConversionError as exc:
@@ -216,7 +222,7 @@ def market_chart(request: Request, kind: str, instrument_id: UUID) -> Response:
                     "date": row["fecha"],
                     "close": round(
                         float(row["precio"])
-                        * float(conversions[date.fromisoformat(row["fecha"])].rate),
+                        * float(conversions[_market_point_date(row["fecha"])].rate),
                         6,
                     ),
                 }
@@ -229,7 +235,7 @@ def market_chart(request: Request, kind: str, instrument_id: UUID) -> Response:
                     **{
                         key: round(
                             float(row[key])
-                            * float(conversions[date.fromisoformat(row["fecha"])].rate),
+                            * float(conversions[_market_point_date(row["fecha"])].rate),
                             6,
                         )
                         for key in ("open", "high", "low", "close")

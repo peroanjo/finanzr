@@ -19,9 +19,15 @@ vi.mock("../api/client", () => ({
 }));
 vi.mock("../components/CryptoCandlestickChart.vue", () => ({
   default: {
-    props: ["points", "operations", "averagePrice", "operationMarkerShape"],
+    props: [
+      "points",
+      "operations",
+      "averagePrice",
+      "operationMarkerShape",
+      "densityMode",
+    ],
     template:
-      '<div data-testid="stock-chart" :data-marker-shape="operationMarkerShape" :data-first-quantity="operations[0]?.quantity" :data-first-unit-price="operations[0]?.unit_price" :data-first-adjustment="operations[0]?.chartAdjustment?.id">{{ points.length }}-{{ operations.length }}</div>',
+      '<div data-testid="stock-chart" :data-marker-shape="operationMarkerShape" :data-density-mode="densityMode" :data-first-quantity="operations[0]?.quantity" :data-first-unit-price="operations[0]?.unit_price" :data-first-adjustment="operations[0]?.chartAdjustment?.id">{{ points.length }}-{{ operations.length }}</div>',
   },
 }));
 vi.mock("../components/FundPerformanceChart.vue", () => ({
@@ -536,7 +542,7 @@ describe("StocksView", () => {
       expect.objectContaining({ method: "PUT" }),
     );
     expect(apiMock).toHaveBeenCalledWith(
-      "/stock-chart/00000000-0000-0000-0000-000000000601?range=1y&interval=1d",
+      "/stock-chart/00000000-0000-0000-0000-000000000601?range=1y&interval=1wk",
     );
     expect(wrapper.get('[data-testid="stock-chart"]').text()).toBe("1-0");
     expect(wrapper.get(".fund-position-row.active").text()).toContain(
@@ -676,6 +682,34 @@ describe("StocksView", () => {
     expect(apiMock).toHaveBeenCalledWith(
       "/investment-performance/stock?account_id=all&start=2026-01-01&end=2026-06-30&ignore_savebacks=true",
     );
+  });
+
+  it("uses Auto by default and reloads exact candles for a manual duration", async () => {
+    const wrapper = mount(StocksView);
+    await flushPromises();
+    await wrapper
+      .get('[aria-label="Mostrar histórico de NVIDIA"]')
+      .trigger("click");
+    await flushPromises();
+
+    const interval = wrapper.get(
+      '.fund-inline-price-panel select[aria-label="Duración de las velas"]',
+    );
+    expect((interval.element as HTMLSelectElement).value).toBe("auto");
+    expect(apiMock).toHaveBeenCalledWith(
+      "/stock-chart/00000000-0000-0000-0000-000000000603?range=1y&interval=1wk",
+    );
+
+    await interval.setValue("1d");
+    await flushPromises();
+    expect(apiMock).toHaveBeenCalledWith(
+      "/stock-chart/00000000-0000-0000-0000-000000000603?range=1y&interval=1d",
+    );
+    expect(
+      wrapper
+        .get('[data-testid="stock-chart"]')
+        .attributes("data-density-mode"),
+    ).toBe("manual");
   });
 
   it("updates translated labels, formats, and accessible names in English", async () => {

@@ -33,7 +33,7 @@ def test_crypto_chart_returns_ohlc_data(
             {"currency": "EUR"},
             [
                 {
-                    "fecha": "2026-07-20",
+                    "fecha": "2026-07-20T12:00+00:00",
                     "precio": 70000,
                     "open": 69000,
                     "high": 71000,
@@ -45,7 +45,7 @@ def test_crypto_chart_returns_ohlc_data(
     )
 
     crypto_id = Instrument.objects.get(kind=Instrument.Kind.CRYPTO).pk
-    response = client.get(f"/api/crypto-chart/{crypto_id}?range=1m&interval=1d")
+    response = client.get(f"/api/crypto-chart/{crypto_id}?range=1m&interval=4h")
 
     assert response.status_code == 200
     assert response.json()["instrument_id"] == str(crypto_id)
@@ -67,6 +67,7 @@ def test_crypto_chart_returns_ohlc_data(
         "close",
     }
     assert response.json()["data"][0]["close"] == 70000
+    assert response.json()["data"][0]["date"] == "2026-07-20T12:00+00:00"
 
 
 @pytest.mark.django_db(transaction=True)

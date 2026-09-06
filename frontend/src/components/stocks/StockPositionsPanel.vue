@@ -9,6 +9,7 @@ import InvestmentAddAssetButton from "../investments/InvestmentAddAssetButton.vu
 import InvestmentCollapseButton from "../investments/InvestmentCollapseButton.vue";
 import type { ChartOperation } from "../../domain/chartOperations";
 import type { NormalizedCandlestickChartPoint } from "../../domain/investments";
+import type { CandleIntervalSelection } from "../../domain/investments/marketChartInterval";
 import type {
   StockPositionSortKey,
   StockSortDirection,
@@ -43,6 +44,12 @@ export interface StockPositionsPanelProps {
     label: string;
   }>;
   chartRange: StockPerformanceRange;
+  candleInterval: CandleIntervalSelection;
+  candleIntervals: ReadonlyArray<{
+    key: CandleIntervalSelection;
+    label: string;
+    disabled?: boolean;
+  }>;
   formatMoney: (value: number) => string;
   formatPercentage: (value: number) => string;
   formatQuantity: (value: number) => string;
@@ -61,6 +68,7 @@ const props = defineProps<StockPositionsPanelProps>();
 const emit = defineEmits<{
   "toggle-position": [instrumentId: string];
   "select-chart-range": [range: StockPerformanceRange];
+  "select-candle-interval": [interval: CandleIntervalSelection];
   "retry-chart": [];
   "edit-position": [position: StockPositionData];
   "add-asset": [];
@@ -81,6 +89,13 @@ function toggleCollapsed() {
 
 function togglePosition(instrumentId: string) {
   emit("toggle-position", instrumentId);
+}
+
+function selectCandleInterval(event: Event) {
+  emit(
+    "select-candle-interval",
+    (event.target as HTMLSelectElement).value as CandleIntervalSelection,
+  );
 }
 </script>
 
@@ -313,20 +328,39 @@ function togglePosition(instrumentId: string) {
                         <p class="fund-range-label">
                           {{ props.chartRangeLabel }}
                         </p>
-                        <div
-                          class="fund-range-control"
-                          :aria-label="t('stocks.chart.rangeAria')"
-                        >
-                          <button
-                            v-for="item in props.ranges"
-                            :key="item.key"
-                            type="button"
-                            :class="{ active: props.chartRange === item.key }"
-                            :aria-pressed="props.chartRange === item.key"
-                            @click="emit('select-chart-range', item.key)"
+                        <div class="fund-chart-controls">
+                          <label class="candle-interval-control">
+                            <span>{{ t("stocks.chart.candleInterval") }}</span>
+                            <select
+                              :value="props.candleInterval"
+                              :aria-label="t('stocks.chart.candleIntervalAria')"
+                              @change="selectCandleInterval"
+                            >
+                              <option
+                                v-for="item in props.candleIntervals"
+                                :key="item.key"
+                                :value="item.key"
+                                :disabled="item.disabled"
+                              >
+                                {{ item.label }}
+                              </option>
+                            </select>
+                          </label>
+                          <div
+                            class="fund-range-control"
+                            :aria-label="t('stocks.chart.rangeAria')"
                           >
-                            {{ item.label }}
-                          </button>
+                            <button
+                              v-for="item in props.ranges"
+                              :key="item.key"
+                              type="button"
+                              :class="{ active: props.chartRange === item.key }"
+                              :aria-pressed="props.chartRange === item.key"
+                              @click="emit('select-chart-range', item.key)"
+                            >
+                              {{ item.label }}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -348,6 +382,9 @@ function togglePosition(instrumentId: string) {
                       :points="props.chartPoints"
                       :operations="props.selectedChartOrders"
                       :average-price="props.averagePrice"
+                      :density-mode="
+                        props.candleInterval === 'auto' ? 'auto' : 'manual'
+                      "
                       operation-marker-shape="pin"
                     />
                     <div v-else class="fund-chart-state">
@@ -512,6 +549,57 @@ function togglePosition(instrumentId: string) {
 .fund-inline-range {
   display: grid;
   justify-items: end;
+  gap: 7px;
+}
+.fund-inline-range .fund-range-label {
+  margin: 0;
+}
+.fund-chart-controls {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.candle-interval-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 4px 4px 9px;
+  border-radius: 12px;
+  background: var(--fz-surface-soft);
+  color: var(--fz-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.candle-interval-control select {
+  min-width: 84px;
+  padding: 7px 25px 7px 9px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--fz-surface);
+  color: var(--fz-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.fund-range-control {
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--fz-surface-soft);
+}
+.fund-range-control button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--fz-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.fund-range-control button.active {
+  background: var(--fz-surface);
+  color: var(--fz-ink);
 }
 .fund-chart-state,
 .fund-empty-compact {
@@ -532,6 +620,18 @@ function togglePosition(instrumentId: string) {
 .negative {
   color: var(--fz-negative);
 }
+@media (max-width: 1280px) {
+  .fund-inline-chart-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .fund-inline-range {
+    justify-items: start;
+  }
+  .fund-chart-controls {
+    justify-content: flex-start;
+  }
+}
 @media (max-width: 1050px) {
   .fund-secondary-header {
     align-items: stretch;
@@ -544,6 +644,9 @@ function togglePosition(instrumentId: string) {
   .fund-inline-range {
     justify-items: start;
   }
+  .fund-chart-controls {
+    justify-content: flex-start;
+  }
 }
 @media (max-width: 720px) {
   .fund-performance-panel {
@@ -554,6 +657,13 @@ function togglePosition(instrumentId: string) {
   }
   .fund-inline-range {
     justify-items: start;
+  }
+  .fund-chart-controls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .fund-inline-range .fund-range-control button {
+    flex: 1;
   }
 }
 </style>
