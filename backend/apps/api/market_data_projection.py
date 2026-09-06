@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypedDict
 
 from apps.api.projection import identifier, number, select_identifier
 from apps.market_data.models import (
@@ -13,6 +13,12 @@ from apps.market_data.models import (
     StockSplit,
     WorkspaceMarketPriceOverride,
 )
+
+
+class StockSplitCalculationRow(TypedDict):
+    isin: str
+    fecha: str
+    ratio: float
 
 
 def instrument_row(instrument: Instrument) -> dict[str, Any]:
@@ -64,9 +70,11 @@ def instrument_calculation_row(instrument: Instrument) -> dict[str, Any]:
     return row
 
 
-def stock_split_calculation_rows(splits: Iterable[StockSplit]) -> list[dict[str, Any]]:
+def stock_split_calculation_rows(
+    splits: Iterable[StockSplit],
+) -> list[StockSplitCalculationRow]:
     """Project stock splits into the private legacy calculator shape."""
-    rows: list[dict[str, Any]] = []
+    rows: list[StockSplitCalculationRow] = []
     for split in splits:
         identity = select_identifier(
             split.instrument.identifiers.all(), InstrumentIdentifier.Scheme.ISIN

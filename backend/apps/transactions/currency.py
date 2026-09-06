@@ -4,15 +4,92 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal, TypedDict, overload
 
 from apps.accounts.models import Account
 from apps.market_data.fx import CurrencyConversionError, normalize_currency, rate_to_base
 from apps.market_data.models import FxRate, WorkspaceFxOverride
 
 
+class ResolvedConversionSnapshot(TypedDict):
+    base_currency: str
+    base_unit_price: Decimal
+    base_net_amount: Decimal
+    base_fee: Decimal
+    fx_rate_to_base: Decimal
+    fx_rate_date: date
+    fx_source: str
+
+
+class PendingConversionSnapshot(TypedDict):
+    base_currency: str
+    base_unit_price: None
+    base_net_amount: None
+    base_fee: None
+    fx_rate_to_base: None
+    fx_rate_date: None
+    fx_source: Literal["pending"]
+
+
+ConversionSnapshot = ResolvedConversionSnapshot | PendingConversionSnapshot
+
+
 def transaction_currency(record: dict[str, Any], account: Account) -> str:
     return normalize_currency(record.get("divisa") or record.get("moneda") or account.currency)
+
+
+@overload
+def conversion_snapshot(
+    *,
+    account: Account,
+    currency: str,
+    trade_date: date,
+    settlement_date: date | None,
+    unit_price: Decimal,
+    net_amount: Decimal,
+    fee: Decimal,
+    provided_rate: Decimal | None = None,
+    provided_rate_date: date | None = None,
+    provided_source: str = "manual",
+    allow_pending: Literal[False] = False,
+    skip_external: bool = False,
+) -> ResolvedConversionSnapshot: ...
+
+
+@overload
+def conversion_snapshot(
+    *,
+    account: Account,
+    currency: str,
+    trade_date: date,
+    settlement_date: date | None,
+    unit_price: Decimal,
+    net_amount: Decimal,
+    fee: Decimal,
+    provided_rate: Decimal | None = None,
+    provided_rate_date: date | None = None,
+    provided_source: str = "manual",
+    allow_pending: Literal[True],
+    skip_external: bool = False,
+) -> ConversionSnapshot: ...
+
+
+@overload
+def conversion_snapshot(
+    *,
+    account: Account,
+    currency: str,
+    trade_date: date,
+    settlement_date: date | None,
+    unit_price: Decimal,
+    net_amount: Decimal,
+    fee: Decimal,
+    provided_rate: Decimal | None = None,
+    provided_rate_date: date | None = None,
+    provided_source: str = "manual",
+    allow_pending: bool,
+    skip_external: bool = False,
+) -> ConversionSnapshot: ...
 
 
 def conversion_snapshot(
@@ -29,7 +106,7 @@ def conversion_snapshot(
     provided_source: str = "manual",
     allow_pending: bool = False,
     skip_external: bool = False,
-) -> dict[str, Any]:
+) -> ConversionSnapshot:
     """Return original and workspace-base values without mutating originals."""
     base_currency = normalize_currency(account.workspace.base_currency)
     conversion_date = settlement_date or trade_date

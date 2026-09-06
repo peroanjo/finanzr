@@ -11,10 +11,12 @@ from apps.market_data.models import (
     WorkspaceInstrument,
 )
 from apps.transactions.models import Transaction
+from apps.users.models import User
 from apps.workspaces.models import Workspace
 from django.apps import apps
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
+from rest_framework.test import APIClient
 
 migration = import_module("apps.market_data.migrations.0010_seed_byd_stock_split")
 BYD_EFFECTIVE_DATE = migration.BYD_EFFECTIVE_DATE
@@ -26,7 +28,9 @@ seed_byd_stock_split = migration.seed_byd_stock_split
 
 
 @pytest.mark.django_db
-def test_seed_byd_split_is_workspace_scoped_idempotent_and_non_destructive(api_session):
+def test_seed_byd_split_is_workspace_scoped_idempotent_and_non_destructive(
+    api_session: tuple[APIClient, User],
+) -> None:
     _client, user = api_session
     linked_workspace = user.memberships.get().workspace
     transaction_workspace = Workspace.objects.create(
@@ -107,7 +111,9 @@ def test_seed_byd_split_is_workspace_scoped_idempotent_and_non_destructive(api_s
 
 
 @pytest.mark.django_db
-def test_seed_byd_split_excludes_non_default_venue_and_wrong_kind(api_session):
+def test_seed_byd_split_excludes_non_default_venue_and_wrong_kind(
+    api_session: tuple[APIClient, User],
+) -> None:
     _client, user = api_session
     workspace = user.memberships.get().workspace
     non_default_stock = Instrument.objects.create(
@@ -141,7 +147,7 @@ def test_seed_byd_split_excludes_non_default_venue_and_wrong_kind(api_session):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_seed_byd_split_runs_against_pre_0010_historical_models():
+def test_seed_byd_split_runs_against_pre_0010_historical_models() -> None:
     executor = MigrationExecutor(connection)
     pre_migration = ("market_data", "0009_native_market_prices")
     executor.migrate([pre_migration])

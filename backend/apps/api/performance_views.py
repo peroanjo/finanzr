@@ -16,7 +16,10 @@ from rest_framework.response import Response
 from apps.accounts.models import Account
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instrument
-from apps.api.market_data_projection import stock_split_calculation_rows
+from apps.api.market_data_projection import (
+    StockSplitCalculationRow,
+    stock_split_calculation_rows,
+)
 from apps.api.market_queries import (
     yahoo_ticker,
 )
@@ -218,7 +221,7 @@ def investment_performance(request: Request, kind: str) -> Response:
             histories[asset] = history
             history_failed = history_failed or failed
 
-    split_rows = (
+    split_rows: list[StockSplitCalculationRow] | tuple[()] = (
         [
             row
             for row in stock_split_calculation_rows(

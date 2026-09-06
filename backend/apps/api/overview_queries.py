@@ -10,6 +10,7 @@ from apps.accounts.models import Account, AccountSnapshot
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instruments
 from apps.api.market_data_projection import (
+    StockSplitCalculationRow,
     instrument_calculation_row,
     stock_split_calculation_rows,
 )
@@ -201,7 +202,7 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
         if kind == "fund"
         else {}
     )
-    split_rows: list[dict[str, Any]] = (
+    split_rows: list[StockSplitCalculationRow] = (
         stock_split_calculation_rows(
             StockSplit.objects.filter(workspace=current_workspace, instrument_id__in=instrument_ids)
             .select_related("instrument")

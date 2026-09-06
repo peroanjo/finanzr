@@ -14,6 +14,7 @@ from apps.api.account_queries import (
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instruments
 from apps.api.market_data_projection import (
+    StockSplitCalculationRow,
     instrument_calculation_row,
     stock_split_calculation_rows,
 )
@@ -65,7 +66,7 @@ def analyzed_positions(
                 else row
                 for row in rows
             ]
-        splits = stock_split_calculation_rows(
+        splits: list[StockSplitCalculationRow] = stock_split_calculation_rows(
             StockSplit.objects.filter(workspace=workspace(request))
             .select_related("instrument")
             .prefetch_related("instrument__identifiers")
