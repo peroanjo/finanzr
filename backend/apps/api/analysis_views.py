@@ -14,14 +14,16 @@ from apps.api.account_queries import (
 from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instruments
 from apps.api.market_data_projection import (
+    StockSplitCalculationRow,
     instrument_calculation_row,
+    stock_split_calculation_rows,
 )
 from apps.api.market_queries import (
     calculation_price_rows,
 )
 from apps.api.portfolio_queries import _summary_manual_assets
 from apps.api.position_projection import native_position_rows
-from apps.api.projection import identifier, number, provider_name
+from apps.api.projection import number, provider_name
 from apps.api.real_estate_queries import real_estate_records
 from apps.api.transaction_queries import (
     selected_traded_account,
@@ -33,11 +35,10 @@ from apps.market_data.fx import (
 )
 from apps.market_data.models import (
     Instrument,
-    InstrumentIdentifier,
     StockSplit,
 )
 from finanzr.domain.crypto import calculate_crypto_positions
-from finanzr.domain.funds import calculate_fund_positions
+from finanzr.domain.funds import calculate_fund_positions, calculate_fund_realized_pnl
 from finanzr.domain.real_estate import live_capital
 from finanzr.domain.stocks import calculate_stock_positions
 
@@ -65,16 +66,11 @@ def analyzed_positions(
                 else row
                 for row in rows
             ]
-        splits = [
-            {
-                "isin": identifier(s.instrument, InstrumentIdentifier.Scheme.ISIN),
-                "fecha": s.effective_date.isoformat(),
-                "ratio": number(s.ratio),
-            }
-            for s in StockSplit.objects.filter(workspace=workspace(request))
+        splits: list[StockSplitCalculationRow] = stock_split_calculation_rows(
+            StockSplit.objects.filter(workspace=workspace(request))
             .select_related("instrument")
             .prefetch_related("instrument__identifiers")
-        ]
+        )
         return calculate_stock_positions(rows, price_map, splits)
     if kind == "crypto":
         return calculate_crypto_positions(rows, price_map)
@@ -98,14 +94,21 @@ def analysis(request: Request, kind: str) -> Response:
         return Response({"error": str(exc)}, status=502)
     base_currency = normalize_currency(workspace(request).base_currency)
     instruments = workspace_instruments(request, kind)
-    return Response(
-        native_position_rows(
-            positions,
-            instruments,
-            kind=kind,
-            base_currency=base_currency,
-        )
+    native_positions = native_position_rows(
+        positions,
+        instruments,
+        kind=kind,
+        base_currency=base_currency,
     )
+    if kind == Instrument.Kind.FUND:
+        return Response(
+            {
+                "positions": native_positions,
+                "realized_pnl": float(calculate_fund_realized_pnl(rows)),
+                "base_currency": base_currency,
+            }
+        )
+    return Response(native_positions)
 
 
 @api_view(["GET"])

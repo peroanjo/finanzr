@@ -345,6 +345,13 @@ export interface StockOrder extends TransactionDtoBase {
   isin: string;
   is_saveback: boolean;
 }
+export interface StockSplit {
+  id: string;
+  instrument_id: string;
+  effective_date: string;
+  ratio: number;
+  source: string;
+}
 export interface StockInstrument extends Instrument {
   kind: "stock" | "etf";
 }
@@ -365,6 +372,11 @@ export interface FundPosition extends NativePosition {
   subtype: string;
   average_price: number;
   return_percent: number | null;
+}
+export interface FundAnalysisResponse {
+  positions: FundPosition[];
+  realized_pnl: number;
+  base_currency: string;
 }
 export interface FundOrder extends TransactionDtoBase {
   isin: string;

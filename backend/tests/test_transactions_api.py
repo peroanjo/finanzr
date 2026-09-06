@@ -1,13 +1,17 @@
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
 import pytest
 from apps.accounts.models import Account
 from apps.imports.models import ImportBatch
+from apps.market_data.fx import CurrencyConversionError
 from apps.market_data.models import (
+    FxRate,
     Instrument,
     InstrumentIdentifier,
 )
+from apps.transactions import currency as transaction_currency
 from apps.transactions.models import Transaction
 from apps.users.models import User
 from apps.workspaces.models import Workspace, WorkspaceMembership
@@ -184,7 +188,8 @@ def test_manual_fund_canonical_operations_drive_positions_and_source_history(
     transaction_id = created_row["id"]
     position_after_buy = client.get(f"/api/fund-analysis?account_id={account.id}")
     assert position_after_buy.status_code == 200
-    assert position_after_buy.json()[0]["quantity"] == pytest.approx(12)
+    assert position_after_buy.json()["positions"][0]["quantity"] == pytest.approx(12)
+    assert position_after_buy.json()["realized_pnl"] == pytest.approx(0)
 
     edited = client.put(
         f"/api/orders/{transaction_id}",
@@ -198,7 +203,8 @@ def test_manual_fund_canonical_operations_drive_positions_and_source_history(
     assert edited_row["provider_operation_type"] == "REEMBOLSO"
     position_after_sell = client.get(f"/api/fund-analysis?account_id={account.id}")
     assert position_after_sell.status_code == 200
-    assert position_after_sell.json()[0]["quantity"] == pytest.approx(8)
+    assert position_after_sell.json()["positions"][0]["quantity"] == pytest.approx(8)
+    assert position_after_sell.json()["realized_pnl"] == pytest.approx(0)
 
     portfolio = client.get("/api/portfolio-analysis")
     assert portfolio.status_code == 200
@@ -665,6 +671,186 @@ def test_fund_and_crypto_movements_can_be_created_and_edited_manually(
     assert created_crypto.status_code == 201
     assert created_crypto.json()["operation_type"] == "buy"
     assert created_crypto.json()["fee"] == 0.5
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_transaction_reuses_currency_snapshot_for_create_and_edit(
+    traded_context: tuple[APIClient, User],
+) -> None:
+    client, user = traded_context
+    workspace = user.memberships.get().workspace
+    account = Account.objects.create(
+        workspace=workspace,
+        name="Synthetic USD funds",
+        kind=Account.Kind.FUNDS,
+        provider_label="Synthetic broker",
+        currency="USD",
+    )
+    fund = Instrument.objects.get(kind=Instrument.Kind.FUND)
+    isin = fund.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+    FxRate.objects.create(
+        quote_currency="USD",
+        base_currency="EUR",
+        rate_date=date(2026, 8, 1),
+        rate=Decimal("0.80"),
+        source="synthetic-market",
+    )
+    FxRate.objects.create(
+        quote_currency="USD",
+        base_currency="EUR",
+        rate_date=date(2026, 8, 3),
+        rate=Decimal("0.90"),
+        source="synthetic-market",
+    )
+
+    created = client.post(
+        "/api/orders",
+        {
+            "account_id": str(account.id),
+            "isin": isin,
+            "trade_date": "2026-08-01",
+            "settlement_date": "2026-08-03",
+            "operation_type": "buy",
+            "quantity": "2.5",
+            "unit_price": "10",
+            "net_amount": "25",
+            "fee": "1.5",
+            "currency": "USD",
+        },
+        format="json",
+    )
+
+    assert created.status_code == 201, created.content
+    item = Transaction.objects.get(pk=created.json()["id"])
+    assert item.currency == "USD"
+    assert item.base_currency == workspace.base_currency == "EUR"
+    assert item.base_unit_price == Decimal("9.00")
+    assert item.base_net_amount == Decimal("22.50")
+    assert item.base_fee == Decimal("1.35")
+    assert item.fx_rate_to_base == Decimal("0.90")
+    assert item.fx_rate_date == date(2026, 8, 3)
+    assert item.fx_source == "synthetic-market"
+
+    edited = client.put(
+        f"/api/orders/{item.id}",
+        {
+            "account_id": str(account.id),
+            "isin": isin,
+            "trade_date": "2026-08-05",
+            "operation_type": "sell",
+            "quantity": "1.5",
+            "unit_price": "12",
+            "net_amount": "18",
+            "fee": "2",
+            "currency": "USD",
+            "fx_rate_to_base": "1.10",
+            "fx_rate_date": "2026-08-06",
+            "fx_source": "synthetic-manual",
+        },
+        format="json",
+    )
+
+    assert edited.status_code == 200, edited.content
+    item.refresh_from_db()
+    assert item.trade_date == date(2026, 8, 5)
+    assert item.settlement_date is None
+    assert item.operation_type == Transaction.OperationType.SELL
+    assert item.unit_price == Decimal("12")
+    assert item.net_amount == Decimal("18")
+    assert item.fee == Decimal("2")
+    assert item.base_currency == "EUR"
+    assert item.base_unit_price == Decimal("13.20")
+    assert item.base_net_amount == Decimal("19.80")
+    assert item.base_fee == Decimal("2.20")
+    assert item.fx_rate_to_base == Decimal("1.10")
+    assert item.fx_rate_date == date(2026, 8, 6)
+    assert item.fx_source == "synthetic-manual"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_transaction_requires_fx_before_persisting(
+    traded_context: tuple[APIClient, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, user = traded_context
+    workspace = user.memberships.get().workspace
+    account = Account.objects.create(
+        workspace=workspace,
+        name="Synthetic missing-rate funds",
+        kind=Account.Kind.FUNDS,
+        provider_label="Synthetic broker",
+        currency="USD",
+    )
+    fund = Instrument.objects.get(kind=Instrument.Kind.FUND)
+    isin = fund.identifiers.get(scheme=InstrumentIdentifier.Scheme.ISIN).value
+
+    def unavailable(*_args: object, **_kwargs: object) -> object:
+        raise CurrencyConversionError("Synthetic exchange rate unavailable")
+
+    monkeypatch.setattr(transaction_currency, "rate_to_base", unavailable)
+    before_count = Transaction.objects.count()
+    payload = {
+        "account_id": str(account.id),
+        "isin": isin,
+        "trade_date": "2026-08-10",
+        "operation_type": "buy",
+        "quantity": "2",
+        "unit_price": "10",
+        "net_amount": "20",
+        "fee": "1",
+        "currency": "USD",
+    }
+
+    created = client.post("/api/orders", payload, format="json")
+
+    assert created.status_code == 400
+    assert "Synthetic exchange rate unavailable" in created.json()["error"]
+    assert Transaction.objects.count() == before_count
+
+    existing = Transaction.objects.filter(account__kind=Account.Kind.FUNDS).first()
+    assert existing is not None
+    original = Transaction.objects.values(
+        "account_id",
+        "trade_date",
+        "settlement_date",
+        "quantity",
+        "unit_price",
+        "net_amount",
+        "fee",
+        "currency",
+        "base_currency",
+        "base_unit_price",
+        "base_net_amount",
+        "base_fee",
+        "fx_rate_to_base",
+        "fx_rate_date",
+        "fx_source",
+    ).get(pk=existing.pk)
+    rejected_edit = client.put(
+        f"/api/orders/{existing.id}",
+        {**payload, "account_id": str(existing.account_id)},
+        format="json",
+    )
+
+    assert rejected_edit.status_code == 400
+    existing.refresh_from_db()
+    current = Transaction.objects.values(
+        "account_id",
+        "trade_date",
+        "settlement_date",
+        "quantity",
+        "unit_price",
+        "net_amount",
+        "fee",
+        "currency",
+        "base_currency",
+        "base_unit_price",
+        "base_net_amount",
+        "base_fee",
+        "fx_rate_to_base",
+        "fx_rate_date",
+        "fx_source",
+    ).get(pk=existing.pk)
+    assert current == original
 
 
 @pytest.mark.django_db(transaction=True)

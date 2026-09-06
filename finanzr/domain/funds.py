@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +12,50 @@ from .positions import base_amount
 
 BUY_TYPES = {"SUSCRIPCION", "SUSCR.POR TRASPASO I"}
 SELL_TYPES = {"REEMB.POR TRASPASO I", "REEMBOLSO"}
+REALIZED_BUY_TYPES = BUY_TYPES | {"buy", "transfer_in"}
+REALIZED_SELL_TYPES = SELL_TYPES | {"sell", "transfer_out"}
+
+
+def _realized_amount(order: Mapping[str, Any]) -> Decimal:
+    if "importe_base" in order or "importe_neto" in order:
+        return base_amount(order)
+    base_value = order.get("base_net_amount")
+    return decimal(order.get("net_amount") if base_value in (None, "") else base_value)
+
+
+def calculate_fund_realized_pnl(orders: Iterable[Mapping[str, Any]]) -> Decimal:
+    """Calculate realized fund P&L using the established aggregate policy.
+
+    Orders are grouped by ISIN, regardless of chronological lot sequence. Buy
+    and transfer-in quantities form one aggregate cost, while sell and
+    transfer-out quantities form one aggregate sale value. The result is the
+    sale value less the proportional average cost of all acquired units.
+    """
+    grouped: dict[str, list[Mapping[str, Any]]] = {}
+    for order in orders:
+        isin = str(order.get("isin", ""))
+        grouped.setdefault(isin, []).append(order)
+
+    total = ZERO
+    for asset_orders in grouped.values():
+        bought_quantity = ZERO
+        buy_cost = ZERO
+        sold_quantity = ZERO
+        sale_value = ZERO
+        for order in asset_orders:
+            operation = str(order.get("tipo_operacion") or order.get("operation_type") or "")
+            raw_quantity = order["titulos"] if "titulos" in order else order.get("quantity")
+            quantity = decimal(raw_quantity)
+            amount = _realized_amount(order)
+            if operation in REALIZED_BUY_TYPES:
+                bought_quantity += quantity
+                buy_cost += amount
+            elif operation in REALIZED_SELL_TYPES:
+                sold_quantity += quantity
+                sale_value += amount
+        if bought_quantity > ZERO and sold_quantity > ZERO:
+            total += sale_value - (buy_cost / bought_quantity) * sold_quantity
+    return total
 
 
 def calculate_fund_positions(

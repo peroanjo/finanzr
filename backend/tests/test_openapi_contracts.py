@@ -399,6 +399,14 @@ class OpenApiMutationContractTests(SimpleTestCase):
             assert set(list_schema["properties"]) == expected_fields
             assert set(list_schema["required"]) == expected_fields
 
+            account_parameter = next(
+                parameter
+                for parameter in document["paths"][collection_path]["get"]["parameters"]
+                if parameter["name"] == "account_id"
+            )
+            assert account_parameter["schema"] == {"type": "string"}
+            assert account_parameter["description"] == "Account UUID or the literal 'all'."
+
             detail_path = f"{collection_path}/{{transaction_id}}"
             detail_response = document["paths"][detail_path]["put"]["responses"]["200"]
             detail_schema_ref = detail_response["content"]["application/json"]["schema"]
@@ -496,8 +504,23 @@ class OpenApiMutationContractTests(SimpleTestCase):
             operation = document["paths"][path]["get"]
             response_schema = self._resolve(
                 document,
-                operation["responses"]["200"]["content"]["application/json"]["schema"]["items"],
+                operation["responses"]["200"]["content"]["application/json"]["schema"],
             )
+            if path == "/api/fund-analysis":
+                assert response_schema["type"] == "object"
+                assert set(response_schema["properties"]) == {
+                    "positions",
+                    "realized_pnl",
+                    "base_currency",
+                }
+                assert response_schema["properties"]["realized_pnl"]["type"] == "number"
+                assert response_schema["properties"]["base_currency"]["type"] == "string"
+                response_schema = self._resolve(
+                    document,
+                    response_schema["properties"]["positions"]["items"],
+                )
+            else:
+                response_schema = self._resolve(document, response_schema["items"])
             assert set(response_schema["properties"]) == fields
             assert response_schema["properties"]["instrument_id"] == {
                 "type": "string",
@@ -515,7 +538,8 @@ class OpenApiMutationContractTests(SimpleTestCase):
                 for parameter in operation["parameters"]
                 if parameter["name"] == "account_id"
             )
-            assert account_parameter["schema"] == {"type": "string", "format": "uuid"}
+            assert account_parameter["schema"] == {"type": "string"}
+            assert account_parameter["description"] == "Account UUID or the literal 'all'."
 
         performance_parameters = document["paths"]["/api/investment-performance/{kind}"]["get"][
             "parameters"

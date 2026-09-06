@@ -98,7 +98,9 @@ def test_fund_performance_uses_market_history_and_filters_by_account(
     analysis = client.get(f"/api/fund-analysis?account_id={account_id}")
     orders = client.get(f"/api/orders?account_id={account_id}")
     assert analysis.status_code == 200
-    assert len(analysis.json()) == 1
+    assert len(analysis.json()["positions"]) == 1
+    assert analysis.json()["realized_pnl"] == pytest.approx(0)
+    assert analysis.json()["base_currency"] == "EUR"
     assert [row["account_id"] for row in orders.json()] == [account_id]
 
 

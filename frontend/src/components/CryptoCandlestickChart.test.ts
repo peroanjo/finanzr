@@ -333,19 +333,19 @@ describe("CryptoCandlestickChart", () => {
 
   it("identifies a historical operation adjusted only for the chart", async () => {
     const adjustedOperation = {
-      id: "byd-pre-split",
+      id: "synthetic-pre-split",
       trade_date: "2025-02-03",
       settlement_date: null,
       quantity: 3,
       net_amount: 34.07,
       fee: 0,
       account_id: "00000000-0000-0000-0000-000000000001",
-      account_name: "Trade Republic",
-      platform: "Trade Republic",
+      account_name: "Synthetic broker",
+      platform: "Synthetic broker",
       operation_type: "buy",
       cash_flow_type: "none",
-      isin: "CNE100000296",
-      asset_name: "BYD",
+      isin: "SYNTHETIC-ISIN",
+      asset_name: "Synthetic stock",
       unit_price: 34.07 / 3,
       currency: "EUR",
       base_currency: "EUR",
@@ -359,13 +359,13 @@ describe("CryptoCandlestickChart", () => {
       provider_operation_type: "Compra",
       is_saveback: false,
       chartAdjustment: {
-        id: "byd-pre-june-10-2025-split-3-to-1",
-        label: "Split BYD 3:1",
+        id: "stock-splits:split-test",
+        label: "Stock splits · 3:1 · 2025-06-10",
       },
     } as StockOrder & {
       chartAdjustment: { id: string; label: string };
     };
-    const bydPoints: NormalizedCandlestickChartPoint[] = [
+    const syntheticPoints: NormalizedCandlestickChartPoint[] = [
       {
         date: "2025-02-03",
         open: 11,
@@ -383,7 +383,7 @@ describe("CryptoCandlestickChart", () => {
     ];
     const wrapper = mount(CryptoCandlestickChart, {
       props: {
-        points: bydPoints,
+        points: syntheticPoints,
         operations: [adjustedOperation],
         averagePrice: null,
       },
@@ -395,8 +395,10 @@ describe("CryptoCandlestickChart", () => {
       .get(".operation-tooltip")
       .text()
       .replaceAll("\u00a0", " ");
-    expect(detail).toContain("3 CNE100000296 · 11 € / ud.");
-    expect(detail).toContain("Ajuste gráfico · Split BYD 3:1");
+    expect(detail).toContain("3 SYNTHETIC-ISIN · 11 € / ud.");
+    expect(detail).toContain(
+      "Ajuste gráfico · Stock splits · 3:1 · 2025-06-10",
+    );
   });
 
   it("translates chart details and regional formats to English", async () => {

@@ -27,6 +27,7 @@ import type {
 } from "../components/movementEditor";
 import type {
   FundAccount,
+  FundAnalysisResponse,
   FundChartResponse,
   FundInstrument,
   FundOrder,
@@ -56,6 +57,7 @@ const accounts = ref<FundAccount[]>([]);
 const importerCatalog = ref<ImporterCatalogItem[]>([]);
 const positions = ref<FundPosition[]>([]);
 const orders = ref<FundOrder[]>([]);
+const reportedRealizedPnl = ref(0);
 const instruments = ref<FundInstrument[]>([]);
 const prices = ref<FundPrice[]>([]);
 const performance = ref<InvestmentPerformanceResponse | null>(null);
@@ -126,6 +128,7 @@ const {
 } = useFundsPortfolio({
   positions,
   orders,
+  realizedPnl: reportedRealizedPnl,
   instruments,
   prices,
   selectedFund,
@@ -461,15 +464,16 @@ async function loadDashboard(showLoading = true) {
       syncAccountUrl();
     }
     const query = accountQuery();
-    const [nextPositions, nextOrders, nextInstruments, nextPrices] =
+    const [nextAnalysis, nextOrders, nextInstruments, nextPrices] =
       await Promise.all([
-        api<FundPosition[]>(`/fund-analysis${query}`),
+        api<FundAnalysisResponse>(`/fund-analysis${query}`),
         api<FundOrder[]>(`/orders${query}`),
         api<FundInstrument[]>("/funds"),
         api<FundPrice[]>("/fund-prices"),
       ]);
     if (generation !== dashboardGeneration) return;
-    positions.value = nextPositions;
+    positions.value = nextAnalysis.positions;
+    reportedRealizedPnl.value = nextAnalysis.realized_pnl;
     orders.value = nextOrders;
     instruments.value = nextInstruments;
     prices.value = nextPrices;

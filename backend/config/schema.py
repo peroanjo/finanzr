@@ -24,6 +24,7 @@ from apps.api.schemas import (
     CsrfSerializer,
     DeleteAccountRequestSerializer,
     FinancialObjectSerializer,
+    FundAnalysisResponseSerializer,
     FundChartResponseSerializer,
     FundTransactionRequestSerializer,
     FundTransactionResponseSerializer,
@@ -47,7 +48,6 @@ from apps.api.schemas import (
     ManualAssetUpdateRequestSerializer,
     MarketChartResponseSerializer,
     NativeCryptoPositionResponseSerializer,
-    NativeFundPositionResponseSerializer,
     NativeInvestmentAccountResponseSerializer,
     NativeInvestmentSnapshotRequestSerializer,
     NativeInvestmentSnapshotResponseSerializer,
@@ -207,9 +207,10 @@ class PublicAutoSchema(AutoSchema):
             parameters.append(
                 OpenApiParameter(
                     name="account_id",
-                    type=OpenApiTypes.UUID,
+                    type=OpenApiTypes.STR,
                     location=OpenApiParameter.QUERY,
                     required=False,
+                    description="Account UUID or the literal 'all'.",
                 )
             )
         elif path == "/api/investment-performance/{kind}" and self.method == "GET":
@@ -451,7 +452,7 @@ class PublicAutoSchema(AutoSchema):
         elif path == "/api/investment-performance/{kind}":
             response = InvestmentPerformanceResponseSerializer
         elif path == "/api/fund-analysis":
-            response = NativeFundPositionResponseSerializer(many=True)
+            response = FundAnalysisResponseSerializer
         elif path == "/api/stock-analysis":
             response = NativeStockPositionResponseSerializer(many=True)
         elif path == "/api/crypto-analysis":
