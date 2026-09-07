@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg
   xmlns="http://www.w3.org/2000/svg"
+  width="2400"
+  height="720"
   viewBox="0 0 1200 360"
   role="img"
   aria-labelledby="title description"
+  shape-rendering="geometricPrecision"
+  text-rendering="geometricPrecision"
 >
   <title id="title">finanzr.</title>
   <desc id="description">
@@ -45,8 +49,8 @@
     <filter id="deep-blur" x="-30%" y="-40%" width="160%" height="180%">
       <feGaussianBlur stdDeviation="28" />
     </filter>
-    <filter id="brand-shadow" x="-30%" y="-30%" width="160%" height="180%">
-      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#020604" flood-opacity="0.36" />
+    <filter id="logo-shadow" x="-40%" y="-40%" width="180%" height="200%">
+      <feGaussianBlur stdDeviation="16" />
     </filter>
   </defs>
 
@@ -95,7 +99,8 @@
       <circle cx="1038" cy="109" r="4" />
     </g>
 
-    <g filter="url(#brand-shadow)">
+    <g transform="translate(72)">
+      <rect x="326" y="132" width="104" height="112" rx="25" fill="#020604" opacity="0.5" filter="url(#logo-shadow)" />
       <rect x="318" y="120" width="120" height="120" rx="29" fill="url(#logo-fill)" />
       <path
         fill="url(#mark-fill)"
