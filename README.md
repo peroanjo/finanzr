@@ -6,10 +6,11 @@
 
 <p>
   <a href="docs/roadmap.md"><img alt="Status: Alpha" src="https://img.shields.io/badge/status-alpha-e7ad61?style=flat-square"></a>
+  <a href="https://github.com/peroanjo/finanzr/releases"><img alt="Latest GitHub release" src="https://img.shields.io/github/v/release/peroanjo/finanzr?include_prereleases&sort=semver&style=flat-square"></a>
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-4bd2a0?style=flat-square"></a>
-  <a href="frontend/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42b883?style=flat-square&logo=vuedotjs&logoColor=white"></a>
-  <a href="backend/"><img alt="Django 5.2" src="https://img.shields.io/badge/Django-5.2-0c4b33?style=flat-square&logo=django&logoColor=white"></a>
-  <a href="compose.yaml"><img alt="PostgreSQL 17" src="https://img.shields.io/badge/PostgreSQL-17-4169e1?style=flat-square&logo=postgresql&logoColor=white"></a>
+  <a href="frontend/package.json"><img alt="Vue" src="https://img.shields.io/badge/Vue-42b883?style=flat-square&logo=vuedotjs&logoColor=white"></a>
+  <a href="backend/requirements/base.txt"><img alt="Django" src="https://img.shields.io/badge/Django-0c4b33?style=flat-square&logo=django&logoColor=white"></a>
+  <a href="compose.yaml"><img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-4169e1?style=flat-square&logo=postgresql&logoColor=white"></a>
   <a href="compose.yaml"><img alt="Docker Compose" src="https://img.shields.io/badge/Docker-Compose-2496ed?style=flat-square&logo=docker&logoColor=white"></a>
   <a href="backend/locale/"><img alt="Languages: Spanish and English" src="https://img.shields.io/badge/i18n-ES%20%C2%B7%20EN-ad95e6?style=flat-square"></a>
 </p>
@@ -119,6 +120,20 @@ contract, registration steps and test requirements.
 
 You need Docker Engine with the Compose plugin.
 
+For an installation intended to be retained, select a published release before
+starting. The source archive for a release is already fixed to that version; in
+a Git checkout, fetch tags and check out the tag explicitly:
+
+```bash
+git fetch --tags
+git checkout v0.1.0-alpha.1
+python3 scripts/check_release.py --tag v0.1.0-alpha.1
+```
+
+Do not deploy a moving branch when you intend to install or update to a release.
+Dependency versions come from the committed Python lockfiles, npm lockfile and
+digest-pinned Dockerfiles/Compose files.
+
 ### 1. Start the application
 
 ```bash
@@ -157,8 +172,9 @@ printf '%s\n' "$FINANZR_LOCAL_OWNER_PASSWORD" | docker compose exec -T backend \
 unset FINANZR_LOCAL_OWNER_PASSWORD
 ```
 
-Replace the email and workspace name with your own values. This account has the
-Finanzr `admin` role; it is not a Django superuser. Open
+Replace the email and workspace name with your own values. This account has an
+`owner` membership with application-administration privileges; it is not a
+Django superuser. Open
 **<http://localhost:5173/app/>** and sign in with the owner email and password.
 
 ### Optional: load the demo account
@@ -258,14 +274,14 @@ be exposed to an untrusted network.
 <details>
 <summary><strong>Updates, backups and rollback</strong></summary>
 
-After checking out the source revision you intend to run, deploy that checkout
-with:
+After checking out the release tag you intend to run, deploy that checkout with:
 
 ```bash
 sudo env FINANZR_PROJECT_DIR='/absolute/path/to/finanzr' ./deploy/deploy.sh
 ```
 
-The script does not fetch or select a release. It creates an encrypted database
+The script deliberately does not fetch or select a release. It verifies the
+version in the checkout, creates an encrypted database
 backup, builds the current checkout, applies migrations, runs Django deployment
 checks and restarts the application containers. Record the previous source
 revision and image digests before updating. If a migration is not reversible,
@@ -296,8 +312,8 @@ primary records.
 
 ## Project status
 
-Finanzr is alpha software under active development. Work required before the
-first versioned release is tracked in [`docs/roadmap.md`](docs/roadmap.md).
+Finanzr is alpha software under active development. Current work is tracked in
+[`docs/roadmap.md`](docs/roadmap.md).
 Architecture decisions live in [`docs/adr/`](docs/adr/).
 
 Contributions are welcome, including new importers and translations. Start with

@@ -8,7 +8,7 @@ x-logging: &default-logging
 
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
     restart: unless-stopped
     env_file: .env.production
     environment:
@@ -88,6 +88,7 @@ services:
       dockerfile: frontend/Dockerfile
       target: production
       args:
+        FINANZR_VERSION: ${FINANZR_VERSION:?Set FINANZR_VERSION to the contents of VERSION}
         FINANZR_COMMIT: ${FINANZR_COMMIT:-desarrollo}
         FINANZR_DEPLOYED_AT: ${FINANZR_DEPLOYED_AT:-}
     environment:
@@ -117,7 +118,7 @@ services:
     logging: *default-logging
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.7.3
+    image: cloudflare/cloudflared:2026.7.3@sha256:e39ee8da81ad5e05d77f38d2f51c60ca51bf2a8450ac3abab50c17fdb91d91bf
     profiles:
       - tunnel
     restart: unless-stopped

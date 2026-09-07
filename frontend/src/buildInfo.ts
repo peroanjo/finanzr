@@ -1,6 +1,7 @@
 import { computed } from "vue";
 import { i18n } from "./i18n";
 
+const rawVersion = import.meta.env.VITE_FINANZR_VERSION?.trim();
 const rawCommit = import.meta.env.VITE_FINANZR_COMMIT?.trim();
 const rawDeployedAt = import.meta.env.VITE_FINANZR_DEPLOYED_AT?.trim();
 
@@ -20,5 +21,6 @@ export const buildDate = computed(() => {
 });
 
 export const buildLabel = computed(
-  () => `${buildCommit.value} · ${buildDate.value}`,
+  () =>
+    `${rawVersion ? `v${rawVersion}` : i18n.global.t("shared.buildInfo.development")} · ${buildCommit.value} · ${buildDate.value}`,
 );

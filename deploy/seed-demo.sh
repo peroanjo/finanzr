@@ -4,6 +4,9 @@ set -eu
 project_dir=${FINANZR_PROJECT_DIR:-/opt/finanzr}
 cd "$project_dir"
 
+. ./deploy/version.sh
+finanzr_load_version
+
 : "${DEMO_PASSWORD:?Define DEMO_PASSWORD con al menos 12 caracteres}"
 demo_email=${DEMO_EMAIL:-demo@finanzr.local}
 

@@ -4,6 +4,9 @@ set -eu
 project_dir=${FINANZR_PROJECT_DIR:-/opt/finanzr}
 cd "$project_dir"
 
+. ./deploy/version.sh
+finanzr_load_version
+
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 destination="/backups/finanzr-$timestamp.json.fernet"
 

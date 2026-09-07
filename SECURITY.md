@@ -7,9 +7,15 @@ discussion.
 
 ## Supported versions
 
-The current `main` line is the only supported alpha line until the project
-publishes a versioned release. Older snapshots may contain known issues and
-should not be exposed to an untrusted network.
+| Version | Supported |
+| --- | --- |
+| `0.1.0-alpha.x` | Yes |
+| Older snapshots | No |
+
+Only the latest published release in the `0.1.0-alpha.x` line and the current
+`main` branch receive security fixes. Pre-release support is best effort and may
+require updating to a newer alpha. Older snapshots should not be exposed to an
+untrusted network.
 
 ## Report a vulnerability privately
 

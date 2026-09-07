@@ -1,7 +1,7 @@
 {
   "name": "finanzr-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -9,6 +9,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
+    "notices:check": "node ../scripts/generate_frontend_notices.mjs --check",
     "test": "vitest run",
     "typecheck": "vue-tsc --noEmit"
   },
