@@ -21,6 +21,7 @@ const { locale } = useLocalePreference();
 const theme = ref<Theme>("light");
 const settingsOpen = ref(false);
 const sidebarCollapsed = ref(false);
+const logoUrl = `${import.meta.env.BASE_URL}finanzr-logo.svg`;
 const overviewLink = computed(() => ({
   to: "/",
   label: t("navigation.overview"),
@@ -148,6 +149,13 @@ onMounted(() => {
     >
       <div class="app-sidebar-header">
         <RouterLink class="app-brand" to="/" :aria-label="t('shell.homeLabel')">
+          <img
+            class="app-brand-mark"
+            :src="logoUrl"
+            alt=""
+            width="30"
+            height="30"
+          />
           <span class="app-brand-name"
             >finanzr<span class="app-brand-dot" aria-hidden="true"
               >.</span
