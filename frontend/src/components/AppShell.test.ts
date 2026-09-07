@@ -50,6 +50,16 @@ describe("AppShell", () => {
     expect(localStorage.getItem("finanzr-sidebar-collapsed")).toBe("true");
   });
 
+  it("shows the Finanzr mark alongside the sidebar wordmark", async () => {
+    const wrapper = mount(AppShell, { global: { stubs } });
+    await flushPromises();
+
+    const mark = wrapper.get(".app-brand-mark");
+    expect(mark.attributes("src")).toMatch(/\/finanzr-logo\.svg$/);
+    expect(mark.attributes("alt")).toBe("");
+    expect(wrapper.get(".app-brand-name").text()).toBe("finanzr.");
+  });
+
   it("organizes navigation by accounts, investments, and tools", async () => {
     const wrapper = mount(AppShell, { global: { stubs } });
     await flushPromises();

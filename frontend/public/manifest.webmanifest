@@ -9,5 +9,13 @@
   "display": "standalone",
   "background_color": "#09110e",
   "theme_color": "#19251e",
-  "display_override": ["window-controls-overlay", "standalone"]
+  "display_override": ["window-controls-overlay", "standalone"],
+  "icons": [
+    {
+      "src": "finanzr-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
