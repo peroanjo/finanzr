@@ -1,4 +1,4 @@
-FROM python:3.14-slim AS base
+FROM python:3.14-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6 AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -8,11 +8,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY backend/requirements /app/backend/requirements
-RUN pip install --upgrade pip && pip install -r /app/backend/requirements/base.txt
+RUN pip install --require-hashes -r /app/backend/requirements/base.lock
+COPY VERSION /app/VERSION
 
 FROM base AS development
 
-RUN pip install -r /app/backend/requirements/dev.txt
+RUN pip install --require-hashes -r /app/backend/requirements/dev.lock
 
 COPY pyproject.toml /app/pyproject.toml
 COPY backend /app/backend

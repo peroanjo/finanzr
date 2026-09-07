@@ -4,6 +4,12 @@ set -eu
 project_dir=${FINANZR_PROJECT_DIR:-/opt/finanzr}
 cd "$project_dir"
 
+. ./deploy/version.sh
+finanzr_load_version
+FINANZR_COMMIT=${FINANZR_COMMIT:-$(git rev-parse --short=7 HEAD 2>/dev/null || printf '%s' source-archive)}
+FINANZR_DEPLOYED_AT=${FINANZR_DEPLOYED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+export FINANZR_VERSION FINANZR_COMMIT FINANZR_DEPLOYED_AT
+
 if [ ! -f .env.production ]; then
     echo "Missing $project_dir/.env.production" >&2
     exit 1

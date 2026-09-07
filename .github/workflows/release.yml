@@ -1,0 +1,38 @@
+name: Release draft
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    name: Verify tag and create draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Check version and tag coherence
+        run: python scripts/check_release.py --tag "$GITHUB_REF_NAME"
+
+      - name: Create draft pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n '1p' VERSION)
+          gh release create "$GITHUB_REF_NAME" \
+            --draft \
+            --prerelease \
+            --title "Finanzr $GITHUB_REF_NAME" \
+            --notes-file ".github/release-notes/$version.md" \
+            --verify-tag

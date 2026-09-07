@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from finanzr import __version__
+
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACKEND_DIR.parent
 
@@ -139,7 +141,7 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "Finanzr API",
     "DESCRIPTION": "API multiusuario de Finanzr",
-    "VERSION": "0.1.0",
+    "VERSION": __version__,
     "SERVE_INCLUDE_SCHEMA": False,
 }
 

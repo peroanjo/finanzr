@@ -31,6 +31,8 @@ and the application stopped. In a LAN installation, add `-f compose.lan.yaml`
 after `-f compose.production.yaml` in every command:
 
 ```bash
+FINANZR_VERSION=$(sed -n '1p' VERSION)
+export FINANZR_VERSION
 docker compose --env-file .env.production -f compose.production.yaml stop backend web
 docker compose --env-file .env.production -f compose.production.yaml exec -T db sh -c \
   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'

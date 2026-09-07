@@ -11,22 +11,26 @@ This file does not name a copyright holder or grant rights on behalf of anyone
 not identified in the applicable work. Contributors must not add another
 person's copyright or contact details without permission.
 
-## Direct dependency inventory
+## Dependency inventory
 
-The following is an initial inventory based on the manifests committed in this
-tree. It is not a substitute for checking the exact installed distribution and
-its transitive notices before redistributing an image.
+The resolved runtime and development inventory, including transitive packages,
+licenses and registry sources, is recorded in
+[`dependency-inventory.md`](dependency-inventory.md). Python artifacts are
+fixed by hash in `backend/requirements/*.lock`; frontend artifacts and integrity
+hashes are fixed by `frontend/package-lock.json`. The direct version ranges
+remain in `backend/requirements/*.txt` and `frontend/package.json` so updates can
+be reviewed deliberately.
 
-| Area | Direct packages | Declared/upstream license family | Evidence and follow-up |
+| Area | Direct packages | Declared/upstream license family | Version source |
 | --- | --- | --- | --- |
-| Backend | Django, Django REST Framework, drf-spectacular | BSD-family | Verify exact notices from the installed distributions. |
-| Backend | psycopg | LGPL family | Preserve its license notices when redistributing binaries. |
-| Backend | gunicorn, python-json-logger | MIT/BSD-family | Verify installed metadata. |
-| Backend | cryptography | Apache-2.0/BSD-family | Verify the selected version and bundled backend notices. |
-| Python development | pytest, pytest-django, ruff, mypy, django-stubs | MIT/BSD-family | Development-only dependencies may still appear in build environments. |
-| Frontend | Vue, Pinia, Vue Router, Vue I18n, Chart.js | MIT | Check the npm lockfile and retain package notices. |
-| Frontend | TypeScript, Vite, Vitest, Vue Test Utils, jsdom, Node types | MIT-family | Development-only dependencies; audit the complete npm tree. |
-| Frontend | `@fontsource-variable/manrope` | SIL Open Font License family | Keep the font's upstream OFL notice with redistributed assets. |
+| Backend | Django, Django REST Framework, drf-spectacular | BSD-family | `backend/requirements/base.txt` and `base.lock` |
+| Backend | psycopg | LGPL-3.0-only | `backend/requirements/base.txt` and `base.lock` |
+| Backend | gunicorn, python-json-logger | MIT/BSD-family | `backend/requirements/base.txt` and `base.lock` |
+| Backend | cryptography | Apache-2.0 OR BSD-3-Clause | `backend/requirements/base.txt` and `base.lock` |
+| Python development | pytest, pytest-django, ruff, mypy, django-stubs | MIT/BSD-family | `backend/requirements/dev.txt` and `dev.lock` |
+| Frontend | Vue, Pinia, Vue Router, Vue I18n, Chart.js | MIT | `frontend/package.json` and `package-lock.json` |
+| Frontend toolchain | TypeScript, Vite, Vitest, Vue Test Utils, jsdom | MIT/Apache-family | `frontend/package.json` and `package-lock.json` |
+| Font | `@fontsource-variable/manrope` | OFL-1.1 | `frontend/public/THIRD_PARTY_NOTICES.txt` |
 
 The npm lockfile records package versions, integrity values and many package
 license fields. A release build must still run a license inventory over the
@@ -38,14 +42,15 @@ installed wheels or sdist metadata during release preparation.
 
 - The frontend uses a text-based mark and CSS styling created in this project;
   no unprovenanced raster logo is distributed.
-- The files in `docs/assets/screenshots/` are real application captures from an
+- The files in `docs/assets/screenshots/` are application captures from an
   isolated Spanish-language workspace created with `seed_demo_data` on
   2026-09-07. Every displayed identity, holding and value is synthetic. The
-  overview capture is also used as the README header image.
-- The bundled HTML entry point references Chart.js, chartjs-chart-financial and
-  Google Fonts from public CDNs. These are external runtime dependencies, not a
-  grant to mirror or redistribute them. Verify their upstream licenses,
-  availability and integrity before using the entry point in a release.
+  README presents the separate vector mark in `docs/assets/finanzr-header.svg`
+  as its header; no screenshot is used as a header image.
+- The current frontend bundles its npm dependencies and Manrope font files. It
+  does not load JavaScript, CSS or fonts from public CDNs. The Manrope copyright
+  and complete OFL-1.1 terms are copied into the built web artifact as
+  `THIRD_PARTY_NOTICES.txt`.
 - No real account exports, screenshots, photographs or customer data are
   intended to be distributed. Demo records and importer fixtures are synthetic.
 

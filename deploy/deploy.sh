@@ -21,10 +21,11 @@ if [ -z "${FINANZR_COMMIT:-}" ] && command -v git >/dev/null 2>&1 \
 fi
 FINANZR_COMMIT=${FINANZR_COMMIT:-unknown}
 FINANZR_DEPLOYED_AT=${FINANZR_DEPLOYED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
-FINANZR_VERSION=${FINANZR_VERSION:-$FINANZR_COMMIT}
+. ./deploy/version.sh
+finanzr_load_version
 export FINANZR_COMMIT FINANZR_DEPLOYED_AT FINANZR_VERSION
 
-echo "Deploying $FINANZR_COMMIT ($FINANZR_DEPLOYED_AT)"
+echo "Deploying Finanzr $FINANZR_VERSION from $FINANZR_COMMIT ($FINANZR_DEPLOYED_AT)"
 ./deploy/backup.sh
 compose_files="-f compose.production.yaml"
 deployment_mode=${FINANZR_LAN:-}

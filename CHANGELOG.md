@@ -6,15 +6,13 @@ private operational history.
 
 ## [Unreleased]
 
-- Retired the duplicate `/api/crypto-orders/upload-kraken` upload route. Use
-  `/api/crypto-orders/upload-kraken-pro`; the stable `kraken_spot` importer
-  contract and existing import batches remain supported.
-- Continue improving the Vue/Django/PostgreSQL application and its production
-  readiness.
-- Keep Spanish and English user-facing catalogs aligned.
-- Improve installation, backup/restore and contributor documentation.
+- No changes yet.
 
-## 0.1.0-alpha.1 — public preparation
+## [0.1.0-alpha.1] - 2026-09-08
+
+First public alpha of the self-hosted Finanzr application.
+
+### Added
 
 - Added workspace, role and session-based application foundations.
 - Added savings, investment balances, funds, stocks/ETFs, crypto, real-estate
@@ -23,6 +21,35 @@ private operational history.
   Trade Republic and KrakenPro statement formats.
 - Added synthetic demo generation and public importer fixtures.
 - Added public community, security and licensing guidance.
+- Added encrypted logical backup and empty-database restoration commands.
+- Added reproducible Python dependency locks, pinned container bases and
+  release metadata checks.
 
-This entry describes the source preparation milestone; it is not a promise that
-all production-readiness gates are complete.
+### Changed
+
+- Established native UUID/English API contracts and aligned the handwritten
+  frontend types with the validated OpenAPI schema.
+- Centralized currency snapshots, stock-split projections and realized-profit
+  calculations in backend/domain code.
+
+### Removed
+
+- Removed the duplicate `/api/crypto-orders/upload-kraken` route. Use
+  `/api/crypto-orders/upload-kraken-pro`; the `kraken_spot` importer contract
+  and existing import batches remain supported.
+
+### Known limitations
+
+- This release distributes source code built with Docker Compose; versioned
+  container images are not published yet.
+- Operators must supply HTTPS/ingress, secrets, monitoring and off-host backup
+  storage. LAN mode deliberately relaxes secure-cookie and redirect settings.
+- Market data is optional external input and may be delayed or unavailable.
+- Importers support only the formats and limits listed in the README. Financial,
+  tax and investment output must be checked against primary records.
+- Schema migrations are forward-oriented. If a migration cannot be reversed,
+  recovery requires the previous source revision and a compatible pre-upgrade
+  backup.
+
+[Unreleased]: https://github.com/peroanjo/finanzr/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/peroanjo/finanzr/releases/tag/v0.1.0-alpha.1
