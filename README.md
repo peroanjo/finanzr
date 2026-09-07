@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/screenshots/demo-overview.jpg" alt="Finanzr overview showing synthetic net worth, allocation and historical trajectory" width="100%">
-
-<h1>Finanzr</h1>
+<img src="docs/assets/finanzr-header.svg" alt="finanzr. over abstract financial charts in green tones" width="100%">
 
 <p>A self-hosted dashboard for tracking savings, investments and net worth.</p>
 
@@ -42,9 +40,11 @@ be imported into fund, stock and crypto accounts.
 
 ## See it in action
 
-The overview above and the four focused screens below were captured in Spanish,
-the product default, from a workspace created with `seed_demo_data`. All names,
-holdings and values are synthetic.
+The five screens below were captured in Spanish, the product default, from a
+workspace created with `seed_demo_data`. All names, holdings and values are
+synthetic.
+
+<img src="docs/assets/screenshots/demo-overview.jpg" alt="Finanzr overview showing synthetic net worth, allocation and historical trajectory" width="100%">
 
 <table>
   <tr>

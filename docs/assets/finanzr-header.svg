@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 360"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">finanzr.</title>
+  <desc id="description">
+    Finanzr logo over an abstract green financial dashboard with charts.
+  </desc>
+
+  <defs>
+    <clipPath id="canvas">
+      <rect width="1200" height="360" rx="28" />
+    </clipPath>
+    <linearGradient id="canvas-fill" x1="72" y1="14" x2="1128" y2="346" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#080d0a" />
+      <stop offset="0.48" stop-color="#101e17" />
+      <stop offset="1" stop-color="#19251e" />
+    </linearGradient>
+    <linearGradient id="chart-area" x1="174" y1="114" x2="174" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4bd2a0" stop-opacity="0.34" />
+      <stop offset="1" stop-color="#4bd2a0" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="logo-fill" x1="324" y1="126" x2="432" y2="234" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#66d8a6" />
+      <stop offset="1" stop-color="#4bc993" />
+    </linearGradient>
+    <linearGradient id="mark-fill" x1="357" y1="144" x2="397" y2="218" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#001d13" />
+      <stop offset="1" stop-color="#002419" />
+    </linearGradient>
+    <radialGradient id="glow-left">
+      <stop stop-color="#4bd2a0" stop-opacity="0.24" />
+      <stop offset="1" stop-color="#4bd2a0" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glow-right">
+      <stop stop-color="#7ee4bb" stop-opacity="0.18" />
+      <stop offset="1" stop-color="#173b2e" stop-opacity="0" />
+    </radialGradient>
+    <filter id="soft-focus" x="-20%" y="-30%" width="140%" height="160%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
+    <filter id="deep-blur" x="-30%" y="-40%" width="160%" height="180%">
+      <feGaussianBlur stdDeviation="28" />
+    </filter>
+    <filter id="brand-shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#020604" flood-opacity="0.36" />
+    </filter>
+  </defs>
+
+  <g clip-path="url(#canvas)">
+    <rect width="1200" height="360" fill="url(#canvas-fill)" />
+
+    <g filter="url(#deep-blur)">
+      <ellipse cx="176" cy="286" rx="264" ry="170" fill="url(#glow-left)" />
+      <ellipse cx="1032" cy="66" rx="260" ry="166" fill="url(#glow-right)" />
+    </g>
+
+    <g opacity="0.15" stroke="#a5b2aa" stroke-width="1">
+      <path d="M0 72h1200M0 144h1200M0 216h1200M0 288h1200" />
+      <path d="M120 0v360M240 0v360M360 0v360M480 0v360M600 0v360M720 0v360M840 0v360M960 0v360M1080 0v360" />
+    </g>
+
+    <g filter="url(#soft-focus)" opacity="0.68">
+      <path
+        fill="url(#chart-area)"
+        d="M-30 312C34 292 73 312 126 278c54-34 86-21 137-72 48-48 76-26 124-79 45-49 93-34 140-83v292H-30Z"
+      />
+      <path
+        d="M-24 309c61-17 100 3 151-31 54-36 87-20 137-72 47-48 77-26 124-79 45-50 92-35 145-90"
+        fill="none"
+        stroke="#55c99a"
+        stroke-linecap="round"
+        stroke-width="7"
+      />
+      <g fill="#4bd2a0">
+        <rect x="788" y="241" width="28" height="82" rx="7" opacity="0.34" />
+        <rect x="838" y="196" width="28" height="127" rx="7" opacity="0.48" />
+        <rect x="888" y="221" width="28" height="102" rx="7" opacity="0.4" />
+        <rect x="938" y="148" width="28" height="175" rx="7" opacity="0.62" />
+        <rect x="988" y="178" width="28" height="145" rx="7" opacity="0.5" />
+        <rect x="1038" y="109" width="28" height="214" rx="7" opacity="0.72" />
+        <rect x="1088" y="137" width="28" height="186" rx="7" opacity="0.58" />
+      </g>
+      <circle cx="1084" cy="88" r="75" fill="none" stroke="#7ee4bb" stroke-width="20" stroke-dasharray="285 190" transform="rotate(-72 1084 88)" opacity="0.52" />
+      <circle cx="1084" cy="88" r="51" fill="none" stroke="#3e9b78" stroke-width="11" stroke-dasharray="120 201" transform="rotate(38 1084 88)" opacity="0.44" />
+    </g>
+
+    <g opacity="0.32" fill="#b8ead5">
+      <circle cx="127" cy="278" r="4" />
+      <circle cx="264" cy="206" r="4" />
+      <circle cx="388" cy="127" r="4" />
+      <circle cx="1038" cy="109" r="4" />
+    </g>
+
+    <g filter="url(#brand-shadow)">
+      <rect x="318" y="120" width="120" height="120" rx="29" fill="url(#logo-fill)" />
+      <path
+        fill="url(#mark-fill)"
+        d="M364.41 213.12a1.41 1.41 0 0 1-1.41-1.4v-38.44c0-10.23 8.29-18.52 18.52-18.52h12.59c.94 0 1.68.78 1.63 1.72-.42 7.95-6.34 14.23-13.99 14.23a5.06 5.06 0 0 0-5.06 5.06v6.03l2.07-1.36a2.34 2.34 0 0 1 1.29-.39h11.2c.86 0 1.52.77 1.39 1.62-.64 4.05-2.43 8.14-6.64 8.14h-7.9c-.78 0-1.41.63-1.41 1.41v20.5c0 .77-.63 1.4-1.41 1.4h-10.87Z"
+      />
+      <text
+        x="474"
+        y="211"
+        fill="#f2f7f4"
+        font-family="Manrope, Inter, ui-sans-serif, system-ui, sans-serif"
+        font-size="82"
+        font-weight="760"
+        letter-spacing="-3.2"
+      >finanzr<tspan fill="#4bd2a0" font-weight="820">.</tspan></text>
+    </g>
+
+    <rect x="0.75" y="0.75" width="1198.5" height="358.5" rx="27.25" fill="none" stroke="#a5b2aa" stroke-opacity="0.16" stroke-width="1.5" />
+  </g>
+</svg>
