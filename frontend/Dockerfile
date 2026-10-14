@@ -18,7 +18,7 @@ ENV VITE_FINANZR_DEPLOYED_AT=${FINANZR_DEPLOYED_AT}
 COPY frontend ./
 RUN npm run build
 
-FROM caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 AS production
+FROM caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f AS production
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv/app
 RUN cp /usr/bin/caddy /usr/local/bin/caddy-unprivileged
