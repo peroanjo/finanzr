@@ -467,4 +467,67 @@ describe("SettingsView", () => {
     expect(wrapper.findAll("svg")).not.toHaveLength(0);
     wrapper.unmount();
   });
+  it.each(["user", "demo"] as const)(
+    "hides version settings for %s accounts",
+    async (role) => {
+      useSessionStore().user!.role = role;
+      const fetchMock = vi.fn(async (_url: string) => ({
+        ok: true,
+        status: 200,
+        json: async () => catalog,
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+      const wrapper = mount(SettingsView);
+      await flushPromises();
+      expect(
+        wrapper
+          .findAll(".settings-primary > button")
+          .some((button) => button.text().includes("Versión")),
+      ).toBe(false);
+      expect(
+        fetchMock.mock.calls.some((args) =>
+          String(args[0]).includes("installation/version"),
+        ),
+      ).toBe(false);
+      wrapper.unmount();
+    },
+  );
+
+  it("opens the Git panel for administrators only on navigation", async () => {
+    const fetchMock = vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        url.includes("installation/version")
+          ? {
+              installed_version: "1.0.0",
+              installed_commit: null,
+              checked_at: "2026-01-01T00:00:00Z",
+              repository_url: "https://github.com/example/synthetic",
+              release_status: "available",
+              release_update: "unknown",
+              releases: [],
+              main: null,
+            }
+          : catalog,
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const button = wrapper
+      .findAll(".settings-primary > button")
+      .find((item) => item.text().includes("Versión"));
+    await button!.trigger("click");
+    await flushPromises();
+    expect(wrapper.get(".settings-secondary .active strong").text()).toBe(
+      "Git",
+    );
+    expect(wrapper.text()).toContain("Versión instalada");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/installation/version",
+      expect.any(Object),
+    );
+    wrapper.unmount();
+  });
 });

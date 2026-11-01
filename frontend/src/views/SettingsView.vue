@@ -14,13 +14,17 @@ import { api, json } from "../api/client";
 import type { ImporterCatalogItem, SummarySourceKey } from "../types/api";
 import NavIcon from "../components/NavIcon.vue";
 import AdminUsersPanel from "../components/settings/AdminUsersPanel.vue";
+import SettingsVersionPanel from "../components/settings/SettingsVersionPanel.vue";
 import SettingsAccountPanel from "../components/settings/SettingsAccountPanel.vue";
 import SettingsImporterDocument from "../components/settings/SettingsImporterDocument.vue";
 import SettingsInstallationPreferencesPanel from "../components/settings/SettingsInstallationPreferencesPanel.vue";
 import SettingsLanguagePanel from "../components/settings/SettingsLanguagePanel.vue";
 import SettingsSummarySourcesPanel from "../components/settings/SettingsSummarySourcesPanel.vue";
 import { useSessionStore } from "../stores/session";
-import { useLocalePreference } from "../i18n";
+import { useLocalePreference, registerMessages } from "../i18n";
+import { versionMessages } from "../i18n/versionMessages";
+
+registerMessages(versionMessages);
 
 const emit = defineEmits<{ close: [] }>();
 const settingsPanelPlaceholder = defineComponent({
@@ -42,7 +46,12 @@ const session = useSessionStore();
 const { t } = useI18n();
 const { locale, supportedLocales } = useLocalePreference();
 const activeSection = ref<
-  "importers" | "sections" | "interface" | "account" | "administration"
+  | "importers"
+  | "sections"
+  | "interface"
+  | "account"
+  | "administration"
+  | "version"
 >("importers");
 const activeProductSection = ref<"summary" | "crowdfunding">("summary");
 const importers = ref<ImporterCatalogItem[]>([]);
@@ -89,6 +98,8 @@ const activeSettingsPanel = computed(() => {
   }
   if (activeSection.value === "interface") return SettingsLanguagePanel;
   if (activeSection.value === "account") return SettingsAccountPanel;
+  if (activeSection.value === "version" && canAdminister.value)
+    return SettingsVersionPanel;
   return null;
 });
 const activeSettingsPanelProps = computed(() => {
@@ -503,6 +514,17 @@ onBeforeUnmount(() => {
             <strong>{{ t("settings.administration") }}</strong>
             <small>{{ t("settings.usersAndAccess") }}</small>
           </button>
+          <button
+            v-if="canAdminister"
+            type="button"
+            :class="{ active: activeSection === 'version' }"
+            :aria-current="activeSection === 'version' ? 'page' : undefined"
+            @click="activeSection = 'version'"
+          >
+            <span><NavIcon name="interface" /></span>
+            <strong>{{ t("version.title") }}</strong>
+            <small>{{ t("version.subtitle") }}</small>
+          </button>
         </nav>
 
         <nav
@@ -627,6 +649,24 @@ onBeforeUnmount(() => {
           </button>
           <footer class="account-access-state">
             <i />{{ t("settings.protectedSession") }}
+          </footer>
+        </nav>
+        <nav
+          v-else-if="activeSection === 'version' && canAdminister"
+          class="settings-secondary account-secondary"
+          :aria-label="t('version.title')"
+        >
+          <header>
+            <p>{{ t("version.title") }}</p>
+          </header>
+          <button class="active" type="button" aria-current="page">
+            <span>Git</span>
+            <p>
+              <strong>Git</strong><small>{{ t("version.subtitle") }}</small>
+            </p>
+          </button>
+          <footer class="account-access-state">
+            <i />{{ t("settings.adminsOnly") }}
           </footer>
         </nav>
         <nav

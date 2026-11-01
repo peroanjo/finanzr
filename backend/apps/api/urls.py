@@ -71,8 +71,10 @@ from .uploads import (
     upload_kraken_pro,
     upload_trade_republic,
 )
+from .version_status import version_status
 
 urlpatterns = [
+    path("installation/version", version_status),
     path("auth/csrf", csrf),
     path("auth/login", login_view),
     path("auth/logout", logout_view),
