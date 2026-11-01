@@ -8,6 +8,7 @@ from rest_framework.request import Request
 
 from apps.api.context import workspace
 from apps.api.market_data_projection import instrument_row
+from apps.api.sharing import visible_accounts
 from apps.market_data.models import (
     Instrument,
     InstrumentIdentifier,
@@ -19,7 +20,7 @@ def workspace_instruments(request: Request, kind: str) -> QuerySet[Instrument]:
     return (
         Instrument.objects.filter(kind=kind)
         .filter(
-            Q(transactions__account__workspace=current_workspace)
+            Q(transactions__account__in=visible_accounts(request))
             | Q(workspace_links__workspace=current_workspace)
         )
         .prefetch_related("identifiers")
@@ -36,7 +37,7 @@ def workspace_instrument(request: Request, scheme: str, value: str) -> Instrumen
     )
     current_workspace = workspace(request)
     if not (
-        identity.instrument.transactions.filter(account__workspace=current_workspace).exists()
+        identity.instrument.transactions.filter(account__in=visible_accounts(request)).exists()
         or identity.instrument.workspace_links.filter(workspace=current_workspace).exists()
     ):
         from django.http import Http404

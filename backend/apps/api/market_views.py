@@ -25,6 +25,7 @@ from apps.api.schemas import (
     PriceRequestSerializer,
     StockSplitRequestSerializer,
 )
+from apps.api.sharing import market_scope, visible_accounts, visible_market_rows
 from apps.market_data.fx import (
     CurrencyConversionError,
     normalize_currency,
@@ -83,7 +84,7 @@ def update_price(request: Request, instrument_id: UUID, kind: str) -> Response:
         Instrument.objects.filter(pk=instrument_id, kind=kind)
         .filter(
             Q(workspace_links__workspace=current_workspace)
-            | Q(transactions__account__workspace=current_workspace)
+            | Q(transactions__account__in=visible_accounts(request))
         )
         .first()
     )
@@ -104,7 +105,7 @@ def update_price(request: Request, instrument_id: UUID, kind: str) -> Response:
         return Response({"error": _("The price cannot be negative")}, status=400)
     now = timezone.now()
     WorkspaceMarketPriceOverride.objects.update_or_create(
-        workspace=workspace(request),
+        workspace=market_scope(request, instrument.pk, write=True),
         instrument=instrument,
         defaults={
             "quoted_at": now,
@@ -128,9 +129,7 @@ def stock_price_detail(request: Request, instrument_id: UUID) -> Response:
 
 @api_view(["GET", "POST"])
 def stock_splits(request: Request) -> Response:
-    current_workspace = workspace(request)
-    queryset = StockSplit.objects.filter(
-        workspace=current_workspace,
+    queryset = visible_market_rows(request, StockSplit).filter(
         instrument__kind=Instrument.Kind.STOCK,
     )
     if request.method == "GET":
@@ -155,7 +154,7 @@ def stock_splits(request: Request) -> Response:
     with transaction.atomic():
         locked_instrument = Instrument.objects.select_for_update().get(pk=instrument.pk)
         split, _created = StockSplit.objects.select_for_update().update_or_create(
-            workspace=current_workspace,
+            workspace=market_scope(request, instrument.pk, write=True),
             instrument=locked_instrument,
             effective_date=data["effective_date"],
             defaults={
@@ -172,12 +171,12 @@ def stock_split_detail(request: Request, split_id: UUID) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
     split = get_object_or_404(
-        StockSplit.objects.filter(
-            workspace=workspace(request),
+        visible_market_rows(request, StockSplit).filter(
             instrument__kind=Instrument.Kind.STOCK,
         ),
         pk=split_id,
     )
+    market_scope(request, split.instrument_id, write=True)
     split.delete()
     return Response({"ok": True})
 
@@ -212,7 +211,7 @@ def market_chart(request: Request, kind: str, instrument_id: UUID) -> Response:
                 currency,
                 base_currency,
                 [_market_point_date(row["fecha"]) for row in points],
-                workspace=workspace(request),
+                workspace=market_scope(request, instrument.pk),
             )
         except CurrencyConversionError as exc:
             return Response({"error": str(exc)}, status=502)
@@ -298,7 +297,7 @@ def fetch_prices(request: Request, kind: str) -> Response:
                 currency,
                 base_currency,
                 timezone.localdate(),
-                workspace=workspace(request),
+                workspace=market_scope(request, instrument.pk),
             )
             conversion_rate = conversion.rate
             price_base = Decimal(str(original)) * conversion_rate

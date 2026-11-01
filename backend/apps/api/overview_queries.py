@@ -17,6 +17,7 @@ from apps.api.market_data_projection import (
 from apps.api.portfolio_queries import _summary_manual_assets
 from apps.api.projection import identifier, number
 from apps.api.real_estate_queries import real_estate_records
+from apps.api.sharing import market_scope, visible_accounts, visible_market_rows
 from apps.api.transaction_projection import (
     _transaction_calculation_row,
 )
@@ -49,7 +50,7 @@ from finanzr.domain.stocks import calculate_stock_positions
 def _market_close_in_base(
     price: MarketPrice | WorkspaceMarketPriceOverride,
     current_workspace: Workspace,
-    conversion_cache: dict[tuple[str, date], Decimal],
+    conversion_cache: dict[tuple[str, str, date], Decimal],
 ) -> Decimal | None:
     """Convert a stored market close without fabricating a missing FX history."""
 
@@ -60,7 +61,7 @@ def _market_close_in_base(
         return None
     if quote_currency == base_currency:
         return price.close
-    cache_key = (quote_currency, price.quoted_at.date())
+    cache_key = (str(current_workspace.pk), quote_currency, price.quoted_at.date())
     if cache_key not in conversion_cache:
         try:
             conversion_cache[cache_key] = rate_to_base(
@@ -101,16 +102,18 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
         ).order_by("instrument_id", "quoted_at", "created_at")
     )
     overrides: list[WorkspaceMarketPriceOverride] = list(
-        WorkspaceMarketPriceOverride.objects.filter(
-            workspace=current_workspace, instrument_id__in=instrument_ids
-        ).order_by("instrument_id", "quoted_at")
+        visible_market_rows(request, WorkspaceMarketPriceOverride)
+        .filter(instrument_id__in=instrument_ids)
+        .order_by("instrument_id", "quoted_at")
     )
-    conversion_cache: dict[tuple[str, date], Decimal] = {}
+    conversion_cache: dict[tuple[str, str, date], Decimal] = {}
     prices_by_month: dict[str, dict[str, tuple[date, Decimal]]] = {}
 
     def add_price(price: MarketPrice | WorkspaceMarketPriceOverride) -> None:
         key = identity_by_instrument.get(price.instrument_id, "")
-        close_value = _market_close_in_base(price, current_workspace, conversion_cache)
+        close_value = _market_close_in_base(
+            price, market_scope(request, price.instrument_id), conversion_cache
+        )
         if not key or close_value is None:
             return
         month = price.quoted_at.date().isoformat()[:7]
@@ -125,11 +128,11 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
         add_price(override)
 
     transactions = list(
-        Transaction.objects.filter(account__workspace=current_workspace, instrument__kind=kind)
+        Transaction.objects.filter(account__in=visible_accounts(request), instrument__kind=kind)
         .select_related("account", "instrument")
         .prefetch_related("instrument__identifiers")
     )
-    transaction_conversion_cache: dict[tuple[str, str, date], Decimal | None] = {}
+    transaction_conversion_cache: dict[tuple[str, str, str, date], Decimal | None] = {}
     base_amounts: dict[Any, float | None] = {}
     invalid_instruments: set[Any] = set()
     for item in transactions:
@@ -143,7 +146,12 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
                 if quote_currency == base_currency:
                     amount = number(item.net_amount)
                 else:
-                    cache_key = (quote_currency, base_currency, item.trade_date)
+                    cache_key = (
+                        str(item.account.workspace_id),
+                        quote_currency,
+                        base_currency,
+                        item.trade_date,
+                    )
                     if cache_key not in transaction_conversion_cache:
                         try:
                             transaction_conversion_cache[cache_key] = rate_to_base(
@@ -151,7 +159,7 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
                                 base_currency,
                                 item.trade_date,
                                 persist=False,
-                                workspace=current_workspace,
+                                workspace=item.account.workspace,
                             ).rate
                         except CurrencyConversionError:
                             transaction_conversion_cache[cache_key] = None
@@ -204,7 +212,8 @@ def _traded_source_history(request: Request, kind: str) -> list[dict[str, Any]]:
     )
     split_rows: list[StockSplitCalculationRow] = (
         stock_split_calculation_rows(
-            StockSplit.objects.filter(workspace=current_workspace, instrument_id__in=instrument_ids)
+            visible_market_rows(request, StockSplit)
+            .filter(instrument_id__in=instrument_ids)
             .select_related("instrument")
             .prefetch_related("instrument__identifiers")
         )
@@ -317,13 +326,13 @@ def _overview_calculation(request: Request) -> tuple[dict[str, Any], list[dict[s
     all_savings = [
         _summary_snapshot_row(x)
         for x in AccountSnapshot.objects.select_related("account").filter(
-            account__workspace=current_workspace, account__kind=Account.Kind.SAVINGS
+            account__in=visible_accounts(request), account__kind=Account.Kind.SAVINGS
         )
     ]
     all_investments = [
         _summary_snapshot_row(x)
         for x in AccountSnapshot.objects.select_related("account").filter(
-            account__workspace=current_workspace, account__kind=Account.Kind.MANUAL_INVESTMENT
+            account__in=visible_accounts(request), account__kind=Account.Kind.MANUAL_INVESTMENT
         )
     ]
     savings = all_savings if "savings" in included_sources else []

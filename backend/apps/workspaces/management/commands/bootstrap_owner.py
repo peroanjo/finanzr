@@ -72,8 +72,14 @@ class Command(BaseCommand):
                 user.save(update_fields=update_fields)
         workspace, _ = Workspace.objects.get_or_create(
             slug=slug,
-            defaults={"name": name, "base_currency": str(options["base_currency"]).upper()},
+            defaults={
+                "name": name,
+                "base_currency": str(options["base_currency"]).upper(),
+                "is_personal": True,
+            },
         )
+        if workspace.is_personal and workspace.memberships.exclude(user=user).exists():
+            raise CommandError("A personal workspace cannot be shared")
         WorkspaceMembership.objects.update_or_create(
             workspace=workspace,
             user=user,

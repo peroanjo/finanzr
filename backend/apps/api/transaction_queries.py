@@ -11,7 +11,7 @@ from apps.accounts.models import Account
 from apps.api.account_queries import (
     find_traded_account,
 )
-from apps.api.context import workspace
+from apps.api.sharing import visible_accounts
 from apps.api.transaction_projection import (
     _transaction_calculation_row,
     transaction_row,
@@ -48,7 +48,7 @@ def transaction_queryset(
     queryset = (
         Transaction.objects.select_related("account", "instrument")
         .prefetch_related("instrument__identifiers")
-        .filter(account__workspace=workspace(request), instrument__kind=kind)
+        .filter(account__in=visible_accounts(request), instrument__kind=kind)
     )
     if selected_account is not None:
         queryset = queryset.filter(account=selected_account)

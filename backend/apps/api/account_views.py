@@ -37,6 +37,7 @@ from apps.api.schemas import (
     TradedAccountRequestSerializer,
     TradedAccountUpdateRequestSerializer,
 )
+from apps.api.sharing import require_resource_write, visible_accounts
 from apps.market_data.fx import (
     CurrencyConversionError,
     normalize_currency,
@@ -114,6 +115,7 @@ def account_detail(request: Request, kind: str, account_id: UUID) -> Response:
         return denied
     item = find_traded_account(request, kind, account_id)
     if request.method == "DELETE":
+        require_resource_write(request, item, delete_resource=True)
         with transaction.atomic():
             # ImportBatch and its transactions both protect the account from
             # deletion, so remove dependents in a deterministic order.
@@ -186,6 +188,7 @@ def savings_account(request: Request, account_id: UUID) -> Response:
         return denied
     item = find_savings_account(request, account_id)
     if request.method == "DELETE":
+        require_resource_write(request, item, delete_resource=True)
         item.transactions.all().delete()
         item.snapshots.all().delete()
         item.delete()
@@ -245,6 +248,7 @@ def investment_account(request: Request, account_id: UUID) -> Response:
         return denied
     item = find_manual_investment_account(request, account_id)
     if request.method == "DELETE":
+        require_resource_write(request, item, delete_resource=True)
         item.transactions.all().delete()
         item.snapshots.all().delete()
         item.delete()
@@ -300,7 +304,7 @@ def crypto_account(request: Request, account_id: UUID) -> Response:
 @api_view(["GET", "POST"])
 def savings_history(request: Request) -> Response:
     queryset = AccountSnapshot.objects.select_related("account").filter(
-        account__workspace=workspace(request), account__kind=Account.Kind.SAVINGS
+        account__in=visible_accounts(request), account__kind=Account.Kind.SAVINGS
     )
     if "cuenta_id" in request.query_params:
         return Response({"error": _("Use account_id for account filtering")}, status=400)
@@ -359,7 +363,7 @@ def savings_history(request: Request) -> Response:
 @api_view(["GET", "POST"])
 def investment_history(request: Request) -> Response:
     queryset = AccountSnapshot.objects.select_related("account").filter(
-        account__workspace=workspace(request), account__kind=Account.Kind.MANUAL_INVESTMENT
+        account__in=visible_accounts(request), account__kind=Account.Kind.MANUAL_INVESTMENT
     )
     if "cuenta_id" in request.query_params:
         return Response({"error": _("Use account_id for account filtering")}, status=400)

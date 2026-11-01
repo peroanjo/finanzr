@@ -43,7 +43,9 @@ from apps.workspaces.models import WorkspaceInvitation, WorkspaceMembership
 
 
 def user_payload(user: User, request: Request) -> dict[str, Any]:
-    memberships = WorkspaceMembership.objects.select_related("workspace").filter(user=user)
+    memberships = WorkspaceMembership.objects.select_related("workspace").filter(
+        user=user, workspace__archived_at__isnull=True
+    )
     active_id = request.session.get("active_workspace_id")
     installation = InstallationSettings.load()
     active_membership_item = (
@@ -84,6 +86,7 @@ def user_payload(user: User, request: Request) -> dict[str, Any]:
                 "id": str(item.workspace_id),
                 "name": item.workspace.name,
                 "slug": item.workspace.slug,
+                "is_personal": item.workspace.is_personal,
                 "base_currency": item.workspace.base_currency,
                 "role": item.role,
             }
@@ -292,7 +295,9 @@ def change_password(request: Request) -> Response:
 def select_workspace(request: Request) -> Response:
     user = cast(User, request.user)
     membership = WorkspaceMembership.objects.filter(
-        user=user, workspace_id=str(payload(request).get("workspace_id", ""))
+        user=user,
+        workspace_id=str(payload(request).get("workspace_id", "")),
+        workspace__archived_at__isnull=True,
     ).first()
     if not membership:
         return Response({"error": _("Workspace not available")}, status=404)
@@ -304,12 +309,20 @@ def select_workspace(request: Request) -> Response:
 def invite(request: Request) -> Response:
     membership = active_membership(request)
     user = cast(User, request.user)
-    if membership.role != WorkspaceMembership.Role.OWNER:
+    if membership.role != WorkspaceMembership.Role.OWNER or membership.workspace.is_personal:
         return Response({"error": _("Only the owner can send invitations")}, status=403)
     data = payload(request)
     role = str(data.get("role", WorkspaceMembership.Role.VIEWER))
     if role not in {WorkspaceMembership.Role.EDITOR, WorkspaceMembership.Role.VIEWER}:
         return Response({"error": _("Invalid role")}, status=400)
+    try:
+        validate_email(str(data.get("email", "")).strip())
+    except ValidationError:
+        return Response({"error": _("Enter a valid email address")}, status=400)
+    if membership.workspace.memberships.filter(
+        user__email__iexact=str(data.get("email", "")).strip()
+    ).exists():
+        return Response({"error": _("Already a member")}, status=409)
     raw_token = secrets.token_urlsafe(32)
     invitation = WorkspaceInvitation.objects.filter(
         workspace=membership.workspace,
@@ -339,15 +352,24 @@ def invite(request: Request) -> Response:
 
 
 @api_view(["POST"])
+@transaction.atomic
 def accept_invitation(request: Request) -> Response:
     user = cast(User, request.user)
     token_hash = hashlib.sha256(str(payload(request).get("token", "")).encode()).hexdigest()
-    invitation = WorkspaceInvitation.objects.filter(
-        token_hash=token_hash, accepted_at__isnull=True, expires_at__gt=timezone.now()
-    ).first()
+    invitation = (
+        WorkspaceInvitation.objects.select_for_update()
+        .filter(
+            workspace__is_personal=False,
+            workspace__archived_at__isnull=True,
+            token_hash=token_hash,
+            accepted_at__isnull=True,
+            expires_at__gt=timezone.now(),
+        )
+        .first()
+    )
     if not invitation or invitation.email.casefold() != user.email.casefold():
         return Response({"error": _("The invitation is invalid or has expired")}, status=400)
-    WorkspaceMembership.objects.update_or_create(
+    WorkspaceMembership.objects.get_or_create(
         workspace=invitation.workspace, user=user, defaults={"role": invitation.role}
     )
     invitation.accepted_at = timezone.now()

@@ -21,6 +21,7 @@ from apps.api.schemas import (
     RealEstateRequestSerializer,
     RealEstateUpdateRequestSerializer,
 )
+from apps.api.sharing import require_resource_write, visible_resources
 from apps.market_data.fx import (
     normalize_currency,
 )
@@ -169,7 +170,8 @@ def real_estate(request: Request) -> Response:
 def real_estate_detail(request: Request, investment_id: UUID) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    item = get_object_or_404(RealEstateInvestment, workspace=workspace(request), pk=investment_id)
+    item = get_object_or_404(visible_resources(request, RealEstateInvestment), pk=investment_id)
+    require_resource_write(request, item, delete_resource=request.method == "DELETE")
     if request.method == "DELETE":
         item.cash_flows.all().delete()
         item.delete()

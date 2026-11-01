@@ -2,6 +2,7 @@ export interface Workspace {
   id: string;
   name: string;
   slug: string;
+  is_personal?: boolean;
   base_currency: string;
   role: "owner" | "editor" | "viewer";
 }

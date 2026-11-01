@@ -25,6 +25,7 @@ def provision_personal_workspace(user: User) -> WorkspaceMembership:
     workspace = Workspace.objects.create(
         name=user.display_name.strip() or user.email,
         slug=slug,
+        is_personal=True,
     )
     return WorkspaceMembership.objects.create(
         workspace=workspace,

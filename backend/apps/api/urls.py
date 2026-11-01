@@ -72,8 +72,22 @@ from .uploads import (
     upload_trade_republic,
 )
 from .version_status import version_status
+from .workspace_views import (
+    create_workspace,
+    invitation_detail,
+    member_detail,
+    share_detail,
+    shares,
+    workspace_settings,
+)
 
 urlpatterns = [
+    path("workspaces", create_workspace),
+    path("workspaces/settings", workspace_settings),
+    path("workspaces/members/<uuid:member_id>", member_detail),
+    path("workspaces/invitations/<uuid:invitation_id>", invitation_detail),
+    path("workspaces/shares", shares),
+    path("workspaces/shares/<uuid:share_id>", share_detail),
     path("installation/version", version_status),
     path("auth/csrf", csrf),
     path("auth/login", login_view),

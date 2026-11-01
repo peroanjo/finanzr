@@ -19,6 +19,7 @@ from apps.api.schemas import (
     ManualAssetRequestSerializer,
     ManualAssetUpdateRequestSerializer,
 )
+from apps.api.sharing import require_resource_write, visible_resources
 from apps.market_data.fx import (
     normalize_currency,
 )
@@ -28,9 +29,11 @@ from apps.portfolio.models import ManualAsset
 @api_view(["GET", "POST"])
 def portfolio(request: Request) -> Response:
     current_workspace = workspace(request)
-    items = ManualAsset.objects.filter(
-        workspace=current_workspace, archived_at__isnull=True
-    ).select_related("provider")
+    items = (
+        visible_resources(request, ManualAsset)
+        .filter(archived_at__isnull=True)
+        .select_related("provider")
+    )
     if request.method == "POST":
         if denied := forbidden_if_readonly(request):
             return denied
@@ -58,7 +61,8 @@ def portfolio(request: Request) -> Response:
 def portfolio_detail(request: Request, asset_id: UUID) -> Response:
     if denied := forbidden_if_readonly(request):
         return denied
-    item = get_object_or_404(ManualAsset, workspace=workspace(request), pk=asset_id)
+    item = get_object_or_404(visible_resources(request, ManualAsset), pk=asset_id)
+    require_resource_write(request, item, delete_resource=request.method == "DELETE")
     if request.method == "DELETE":
         item.delete()
         return Response({"ok": True})

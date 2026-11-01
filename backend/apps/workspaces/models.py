@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 
 class Workspace(TimeStampedModel):
+    is_personal = models.BooleanField(default=False, db_default=False)
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=80, unique=True)
     base_currency = models.CharField(max_length=3, default="EUR")
@@ -35,7 +36,13 @@ class Workspace(TimeStampedModel):
     def has_currency_snapshots(self) -> bool:
         """Return whether changing the reporting currency would mix monetary bases."""
         return (
-            self.accounts.filter(
+            self.asset_shares.exists()
+            or AssetShare.objects.filter(
+                Q(account__workspace=self)
+                | Q(manual_asset__workspace=self)
+                | Q(real_estate__workspace=self)
+            ).exists()
+            or self.accounts.filter(
                 Q(snapshots__isnull=False) | Q(transactions__isnull=False)
             ).exists()
             or self.manual_assets.exists()
@@ -118,3 +125,46 @@ class WorkspaceInvitation(UUIDModel):
 
     def __str__(self) -> str:
         return f"{self.email} · {self.workspace}"
+
+
+class AssetShare(UUIDModel):
+    """Grant access to one canonical resource, never to its owner's other data."""
+
+    class Access(models.TextChoices):
+        READ = "read", _("Read only")
+        EDIT = "edit", _("Can edit")
+
+    target = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="asset_shares")
+    account = models.ForeignKey(
+        "accounts.Account", null=True, blank=True, on_delete=models.CASCADE, related_name="shares"
+    )
+    manual_asset = models.ForeignKey(
+        "portfolio.ManualAsset",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="shares",
+    )
+    real_estate = models.ForeignKey(
+        "real_estate.RealEstateInvestment",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="shares",
+    )
+    access = models.CharField(max_length=8, choices=Access.choices, default=Access.READ)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(account__isnull=False, manual_asset__isnull=True, real_estate__isnull=True)
+                    | Q(account__isnull=True, manual_asset__isnull=False, real_estate__isnull=True)
+                    | Q(account__isnull=True, manual_asset__isnull=True, real_estate__isnull=False)
+                ),
+                name="share_exactly_one_resource",
+            ),
+            models.UniqueConstraint(fields=("target", "account"), name="share_account_unique"),
+            models.UniqueConstraint(fields=("target", "manual_asset"), name="share_manual_unique"),
+            models.UniqueConstraint(fields=("target", "real_estate"), name="share_property_unique"),
+        ]

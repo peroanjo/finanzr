@@ -14,6 +14,8 @@ import { api, json } from "../api/client";
 import type { ImporterCatalogItem, SummarySourceKey } from "../types/api";
 import NavIcon from "../components/NavIcon.vue";
 import AdminUsersPanel from "../components/settings/AdminUsersPanel.vue";
+import SettingsWorkspacePanel from "../components/settings/SettingsWorkspacePanel.vue";
+import { workspaceMessages } from "../i18n/workspaceMessages";
 import SettingsVersionPanel from "../components/settings/SettingsVersionPanel.vue";
 import SettingsAccountPanel from "../components/settings/SettingsAccountPanel.vue";
 import SettingsImporterDocument from "../components/settings/SettingsImporterDocument.vue";
@@ -25,6 +27,7 @@ import { useLocalePreference, registerMessages } from "../i18n";
 import { versionMessages } from "../i18n/versionMessages";
 
 registerMessages(versionMessages);
+registerMessages(workspaceMessages);
 
 const emit = defineEmits<{ close: [] }>();
 const settingsPanelPlaceholder = defineComponent({
@@ -52,6 +55,7 @@ const activeSection = ref<
   | "account"
   | "administration"
   | "version"
+  | "workspace"
 >("importers");
 const activeProductSection = ref<"summary" | "crowdfunding">("summary");
 const importers = ref<ImporterCatalogItem[]>([]);
@@ -96,6 +100,8 @@ const activeSettingsPanel = computed(() => {
       ? SettingsSummarySourcesPanel
       : SettingsInstallationPreferencesPanel;
   }
+  if (activeSection.value === "workspace" && canManageAccount.value)
+    return SettingsWorkspacePanel;
   if (activeSection.value === "interface") return SettingsLanguagePanel;
   if (activeSection.value === "account") return SettingsAccountPanel;
   if (activeSection.value === "version" && canAdminister.value)
@@ -515,6 +521,17 @@ onBeforeUnmount(() => {
             <small>{{ t("settings.usersAndAccess") }}</small>
           </button>
           <button
+            v-if="canManageAccount"
+            type="button"
+            :class="{ active: activeSection === 'workspace' }"
+            :aria-current="activeSection === 'workspace' ? 'page' : undefined"
+            @click="activeSection = 'workspace'"
+          >
+            <span><NavIcon name="user" /></span
+            ><strong>{{ t("workspace.title") }}</strong
+            ><small>{{ t("workspace.subtitle") }}</small>
+          </button>
+          <button
             v-if="canAdminister"
             type="button"
             :class="{ active: activeSection === 'version' }"
@@ -652,6 +669,22 @@ onBeforeUnmount(() => {
           </footer>
         </nav>
         <nav
+          v-else-if="activeSection === 'workspace'"
+          class="settings-secondary account-secondary"
+          :aria-label="t('workspace.title')"
+        >
+          <header>
+            <p>{{ t("workspace.title") }}</p>
+          </header>
+          <button class="active" type="button" aria-current="page">
+            <span><NavIcon name="user" /></span>
+            <p>
+              <strong>{{ t("workspace.members") }}</strong
+              ><small>{{ t("workspace.shareAssets") }}</small>
+            </p>
+          </button>
+        </nav>
+        <nav
           v-else-if="activeSection === 'version' && canAdminister"
           class="settings-secondary account-secondary"
           :aria-label="t('version.title')"
@@ -691,7 +724,7 @@ onBeforeUnmount(() => {
         </nav>
 
         <main class="settings-content">
-          <KeepAlive>
+          <KeepAlive :key="session.user?.active_workspace_id ?? undefined">
             <component
               :is="activeSettingsPanel ?? settingsPanelPlaceholder"
               v-bind="activeSettingsPanelProps"

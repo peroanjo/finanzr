@@ -22,6 +22,7 @@ from apps.api.market_data_projection import (
 from apps.api.market_queries import (
     yahoo_ticker,
 )
+from apps.api.sharing import market_scope, visible_market_rows
 from apps.api.transaction_queries import (
     selected_traded_account,
     transaction_calculation_rows,
@@ -135,12 +136,14 @@ def investment_performance(request: Request, kind: str) -> Response:
     asset_key = "symbol" if kind == "crypto" else "isin"
     assets = sorted({str(row.get(asset_key, "")) for row in rows if row.get(asset_key)})
     tickers: dict[str, str] = {}
+    source_workspaces = {}
     for asset in assets:
         try:
             instrument = workspace_instrument(request, identifier_scheme, asset)
             if getattr(instrument, "kind", instrument_kind) != instrument_kind:
                 continue
             tickers[asset] = yahoo_ticker(instrument)
+            source_workspaces[asset] = market_scope(request, getattr(instrument, "pk", None))
         except (Http404, MarketDataError):
             # Missing identifiers/tickers are isolated to that instrument.
             continue
@@ -176,7 +179,7 @@ def investment_performance(request: Request, kind: str) -> Response:
                 currency,
                 base_currency,
                 [point_date for point_date, _point in dated_points],
-                workspace=current_workspace,
+                workspace=source_workspaces[asset],
             )
             converted: dict[str, float] = {}
             for point_date, point in dated_points:
@@ -204,7 +207,7 @@ def investment_performance(request: Request, kind: str) -> Response:
         [
             row
             for row in stock_split_calculation_rows(
-                StockSplit.objects.filter(workspace=workspace(request))
+                visible_market_rows(request, StockSplit)
                 .select_related("instrument")
                 .prefetch_related("instrument__identifiers")
             )

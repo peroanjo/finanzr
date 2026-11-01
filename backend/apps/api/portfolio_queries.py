@@ -4,8 +4,8 @@ from typing import Any
 
 from rest_framework.request import Request
 
-from apps.api.context import workspace
 from apps.api.projection import number, provider_name
+from apps.api.sharing import visible_resources
 from apps.portfolio.models import ManualAsset
 from finanzr.domain.real_estate import live_capital
 
@@ -42,8 +42,8 @@ def _manual_asset_is_real_estate_duplicate(
 def _summary_manual_assets(request: Request, properties: list[dict[str, Any]]) -> list[ManualAsset]:
     return [
         item
-        for item in ManualAsset.objects.filter(
-            workspace=workspace(request), archived_at__isnull=True
-        ).select_related("provider")
+        for item in visible_resources(request, ManualAsset)
+        .filter(archived_at__isnull=True)
+        .select_related("provider")
         if not _manual_asset_is_real_estate_duplicate(item, properties)
     ]

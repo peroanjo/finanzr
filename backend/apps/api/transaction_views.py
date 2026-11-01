@@ -15,7 +15,6 @@ from apps.accounts.models import Account
 from apps.api.account_queries import (
     find_traded_account,
 )
-from apps.api.context import workspace
 from apps.api.instrument_queries import workspace_instrument
 from apps.api.permissions import forbidden_if_readonly
 from apps.api.projection import provider_name
@@ -25,6 +24,7 @@ from apps.api.schemas import (
     FundTransactionRequestSerializer,
     StockTransactionRequestSerializer,
 )
+from apps.api.sharing import require_resource_write, visible_accounts
 from apps.api.transaction_projection import (
     _calculation_operation_label,
     transaction_row,
@@ -99,6 +99,8 @@ def save_manual_transaction(
     kind: str,
     item: Transaction | None = None,
 ) -> Response:
+    if item is not None:
+        require_resource_write(request, item.account)
     raw_data = payload(request)
     if "cuenta_id" in raw_data or "cuenta_id_original" in raw_data:
         return Response({"error": _("Use account_id for account selection")}, status=400)
@@ -135,6 +137,10 @@ def save_manual_transaction(
     try:
         account_uuid = UUID(str(data["account_id"]))
         account = find_traded_account(request, account_kind, account_uuid)
+        if item is not None and item.account.workspace_id != account.workspace_id:
+            return Response(
+                {"error": _("Transactions cannot move between owning workspaces")}, status=400
+            )
         instrument = workspace_instrument(request, scheme, str(data[asset_key]))
         if instrument.kind != kind:
             return Response({"error": _("The asset does not belong in this section")}, status=400)
@@ -293,7 +299,7 @@ def transaction_detail(request: Request, kind: str, transaction_id: UUID) -> Res
         if "cuenta_id" in data or "cuenta_id_original" in data:
             return Response({"error": _("Use account_id for account selection")}, status=400)
         queryset = Transaction.objects.filter(
-            account__workspace=workspace(request),
+            account__in=visible_accounts(request),
             instrument__kind=kind,
             pk=transaction_id,
         )
@@ -303,11 +309,12 @@ def transaction_detail(request: Request, kind: str, transaction_id: UUID) -> Res
         return Response({"error": _("Use account_id for account selection")}, status=400)
     item = get_object_or_404(
         Transaction.objects.filter(
-            account__workspace=workspace(request),
+            account__in=visible_accounts(request),
             instrument__kind=kind,
             pk=transaction_id,
         )
     )
+    require_resource_write(request, item.account)
     item.delete()
     return Response({"ok": True})
 

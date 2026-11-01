@@ -67,6 +67,8 @@ def instrument(
     kind: str,
     currency: str = "EUR",
     current_workspace: Workspace | None = None,
+    *,
+    allow_catalog_update: bool = True,
 ) -> Instrument:
     is_crypto = kind == Instrument.Kind.CRYPTO
     scheme = "crypto_symbol" if is_crypto else "isin"
@@ -94,7 +96,12 @@ def instrument(
                 ).exists()
             )
         )
-        if not used_elsewhere and locked_instrument.quote_currency == "EUR" and currency != "EUR":
+        if (
+            allow_catalog_update
+            and not used_elsewhere
+            and locked_instrument.quote_currency == "EUR"
+            and currency != "EUR"
+        ):
             locked_instrument.quote_currency = currency
             locked_instrument.save(update_fields=("quote_currency", "updated_at"))
         return locked_instrument
@@ -125,7 +132,14 @@ FUND_OPERATIONS = {
 }
 
 
-def persist_record(record: dict[str, Any], account: Account, kind: str, batch: ImportBatch) -> bool:
+def persist_record(
+    record: dict[str, Any],
+    account: Account,
+    kind: str,
+    batch: ImportBatch,
+    *,
+    allow_catalog_update: bool = True,
+) -> bool:
     operation_label = str(record["tipo_operacion"])
     operation, cash_flow = FUND_OPERATIONS.get(
         operation_label,
@@ -157,7 +171,9 @@ def persist_record(record: dict[str, Any], account: Account, kind: str, batch: I
         account=account,
         external_id=str(record["operacion_id"]),
         defaults={
-            "instrument": instrument(record, kind, currency, account.workspace),
+            "instrument": instrument(
+                record, kind, currency, account.workspace, allow_catalog_update=allow_catalog_update
+            ),
             "import_batch": batch,
             "trade_date": trade_date,
             "settlement_date": settlement_date,
@@ -228,7 +244,7 @@ def upload(
     account = find_traded_account(request, account_kind, selected_account_id)
     digest = hashlib.sha256(raw).hexdigest()
     existing = ImportBatch.objects.filter(
-        workspace=workspace(request),
+        workspace=account.workspace,
         account=account,
         importer_slug=slug,
         content_sha256=digest,
@@ -252,7 +268,7 @@ def upload(
     try:
         with transaction.atomic():
             batch = ImportBatch.objects.create(
-                workspace=workspace(request),
+                workspace=account.workspace,
                 account=account,
                 created_by=cast(User, request.user),
                 importer_slug=slug,
@@ -263,7 +279,14 @@ def upload(
                 started_at=timezone.now(),
             )
             imported = sum(
-                persist_record(record, account, instrument_kind, batch) for record in parsed.records
+                persist_record(
+                    record,
+                    account,
+                    instrument_kind,
+                    batch,
+                    allow_catalog_update=account.workspace_id == workspace(request).pk,
+                )
+                for record in parsed.records
             )
             StoredIssue.objects.bulk_create(
                 [

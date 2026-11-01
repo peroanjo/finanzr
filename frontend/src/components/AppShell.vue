@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
+import {
+  onMounted,
+  onBeforeUnmount,
+  computed,
+  defineAsyncComponent,
+  ref,
+  watch,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import NavIcon from "./NavIcon.vue";
@@ -90,6 +97,13 @@ const initials = computed(() => {
     .map((part) => part[0]?.toUpperCase())
     .join("");
 });
+function syncWorkspace(event: StorageEvent) {
+  if (event.key === "finanzr-workspace-revision" && session.user)
+    void session.restore();
+}
+onMounted(() => window.addEventListener("storage", syncWorkspace));
+onBeforeUnmount(() => window.removeEventListener("storage", syncWorkspace));
+
 const activeWorkspace = computed(
   () =>
     session.user?.workspaces.find(
@@ -239,6 +253,7 @@ onMounted(() => {
           <span class="workspace-copy">
             <small>{{ t("shell.activeSpace") }}</small>
             <select
+              :disabled="session.switchingWorkspace"
               :value="session.user.active_workspace_id ?? ''"
               :aria-label="t('shell.activeWorkspace')"
               @change="

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { api, json } from "../api/client";
+import { api, json, setWorkspaceContext } from "../api/client";
 import type { UserSession } from "../types/api";
 import { applyLocale, applyReportingCurrency } from "../i18n";
 
@@ -15,15 +15,26 @@ export const useSessionStore = defineStore("session", {
     user: null as UserSession | null,
     loading: true,
     summaryRevision: 0,
+    switchingWorkspace: false,
   }),
   actions: {
+    applySession(user: UserSession) {
+      this.user = user;
+      setWorkspaceContext(user.active_workspace_id);
+      applyLocale(user.language);
+      applyWorkspaceCurrency(user);
+    },
     async restore() {
       try {
-        this.user = await api<UserSession>("/auth/me");
-        applyLocale(this.user.language);
-        applyWorkspaceCurrency(this.user);
-      } catch {
+        this.applySession(await api<UserSession>("/auth/me"));
+      } catch (reason) {
+        if (
+          reason instanceof Error &&
+          ["WorkspaceContextChangedError", "AbortError"].includes(reason.name)
+        )
+          return;
         this.user = null;
+        setWorkspaceContext(null);
       } finally {
         this.loading = false;
       }
@@ -33,45 +44,58 @@ export const useSessionStore = defineStore("session", {
         "/auth/login",
         json("POST", { email, password }),
       );
-      applyLocale(this.user.language);
-      applyWorkspaceCurrency(this.user);
+      this.applySession(this.user);
     },
     async logout() {
       await api("/auth/logout", { method: "POST" });
       this.user = null;
+      setWorkspaceContext(null);
       applyReportingCurrency("EUR");
     },
     async selectWorkspace(workspace_id: string) {
-      this.user = await api<UserSession>(
-        "/workspaces/current",
-        json("PUT", { workspace_id }),
-      );
-      applyWorkspaceCurrency(this.user);
+      if (this.switchingWorkspace) return;
+      this.switchingWorkspace = true;
+      try {
+        this.applySession(
+          await api<UserSession>(
+            "/workspaces/current",
+            json("PUT", { workspace_id }),
+          ),
+        );
+        localStorage.setItem("finanzr-workspace-revision", String(Date.now()));
+      } finally {
+        this.switchingWorkspace = false;
+      }
     },
     async updateAccount(
       display_name: string,
       email: string,
       current_password: string,
     ) {
-      this.user = await api<UserSession>(
-        "/auth/account",
-        json("PATCH", { display_name, email, current_password }),
+      this.applySession(
+        await api<UserSession>(
+          "/auth/account",
+          json("PATCH", { display_name, email, current_password }),
+        ),
       );
     },
     async updateLanguage(language: "es-ES" | "en" | null) {
-      this.user = await api<UserSession>(
-        "/auth/preferences",
-        json("PATCH", { language }),
+      this.applySession(
+        await api<UserSession>(
+          "/auth/preferences",
+          json("PATCH", { language }),
+        ),
       );
-      applyLocale(this.user.language);
       return this.user;
     },
     async updateSummarySources(
       summary_sources: UserSession["summary_sources"],
     ) {
-      this.user = await api<UserSession>(
-        "/auth/preferences",
-        json("PATCH", { summary_sources }),
+      this.applySession(
+        await api<UserSession>(
+          "/auth/preferences",
+          json("PATCH", { summary_sources }),
+        ),
       );
       this.summaryRevision += 1;
       window.dispatchEvent(new CustomEvent("finanzr:summary-sources-updated"));

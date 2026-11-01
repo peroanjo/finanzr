@@ -7,25 +7,28 @@ from django.shortcuts import get_object_or_404
 from rest_framework.request import Request
 
 from apps.accounts.models import Account, FinancialProvider
-from apps.api.context import workspace
+from apps.api.sharing import require_resource_write, visible_accounts
 
 
 def kind_accounts(request: Request, kind: str) -> QuerySet[Account]:
-    return Account.objects.filter(workspace=workspace(request), kind=kind, archived_at__isnull=True)
+    return visible_accounts(request).filter(kind=kind, archived_at__isnull=True)
 
 
 def find_traded_account(request: Request, kind: str, account_id: UUID) -> Account:
     """Resolve a traded account by its native UUID within the active workspace."""
 
-    return get_object_or_404(kind_accounts(request, kind), pk=account_id)
+    item = get_object_or_404(kind_accounts(request, kind), pk=account_id)
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        require_resource_write(request, item)
+    return item
 
 
 def find_savings_account(request: Request, account_id: UUID) -> Account:
-    return get_object_or_404(kind_accounts(request, Account.Kind.SAVINGS), pk=account_id)
+    return find_traded_account(request, Account.Kind.SAVINGS, account_id)
 
 
 def find_manual_investment_account(request: Request, account_id: UUID) -> Account:
-    return get_object_or_404(kind_accounts(request, Account.Kind.MANUAL_INVESTMENT), pk=account_id)
+    return find_traded_account(request, Account.Kind.MANUAL_INVESTMENT, account_id)
 
 
 def resolve_provider(label: str) -> tuple[FinancialProvider | None, str]:

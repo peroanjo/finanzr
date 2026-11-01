@@ -531,4 +531,43 @@ describe("SettingsView", () => {
     );
     wrapper.unmount();
   });
+  it("keeps workspace management selected while reloading the newly active workspace", async () => {
+    const session = useSessionStore();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        status: 200,
+        json: async () =>
+          url.includes("workspaces/settings")
+            ? {
+                id: session.user!.active_workspace_id,
+                name: session.user!.active_workspace_id,
+                is_personal: false,
+                role: "owner",
+                members: [],
+                invitations: [],
+              }
+            : url.includes("workspaces/shares")
+              ? { resources: [], targets: [], incoming: [], outgoing: [] }
+              : catalog,
+      })),
+    );
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+    const button = wrapper
+      .findAll(".settings-primary > button")
+      .find((item) => item.text().includes("Espacios"))!;
+    await button.trigger("click");
+    await flushPromises();
+    expect(wrapper.get(".workspace-panel").text()).toContain("workspace-1");
+    session.user!.active_workspace_id = "workspace-2";
+    await flushPromises();
+    expect(wrapper.get(".settings-primary > button.active").text()).toContain(
+      "Espacios",
+    );
+    expect(wrapper.get(".workspace-panel").text()).toContain("workspace-2");
+    expect(wrapper.get(".workspace-panel").text()).not.toContain("workspace-1");
+    wrapper.unmount();
+  });
 });

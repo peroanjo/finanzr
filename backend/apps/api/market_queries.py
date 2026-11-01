@@ -13,6 +13,7 @@ from apps.api.market_data_projection import (
     price_row,
 )
 from apps.api.projection import select_identifier
+from apps.api.sharing import market_scope, visible_market_rows
 from apps.market_data.fx import (
     normalize_currency,
     rate_to_base,
@@ -49,10 +50,10 @@ def _selected_market_prices(
     for provider_price in queryset:
         latest_by_instrument.setdefault(provider_price.instrument_id, provider_price)
     overrides = (
-        WorkspaceMarketPriceOverride.objects.select_related("instrument")
+        visible_market_rows(request, WorkspaceMarketPriceOverride)
+        .select_related("instrument")
         .prefetch_related("instrument__identifiers")
         .filter(
-            workspace=current_workspace,
             instrument__in=instruments,
         )
     )
@@ -74,7 +75,7 @@ def price_rows(request: Request, kind: str) -> list[dict[str, Any]]:
             selected_price.currency,
             base_currency,
             selected_price.quoted_at.date(),
-            workspace=current_workspace,
+            workspace=market_scope(request, selected_price.instrument_id),
         )
         rows.append(
             price_row(
@@ -99,7 +100,7 @@ def calculation_price_rows(request: Request, kind: str) -> list[dict[str, Any]]:
             selected_price.currency,
             base_currency,
             selected_price.quoted_at.date(),
-            workspace=current_workspace,
+            workspace=market_scope(request, selected_price.instrument_id),
         )
         rows.append(
             price_calculation_row(

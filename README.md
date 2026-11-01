@@ -209,6 +209,10 @@ The development stack uses bind mounts and a local PostgreSQL volume. Stop it
 with `docker compose down`; add `-v` only when you intentionally want to delete
 that local database volume.
 
+Shared workspaces can show the same original accounts and assets in personal and
+shared views. See [the workspace guide](docs/shared-workspaces.md) for invitations,
+permissions, and sharing without duplicate imports.
+
 ## Architecture
 
 ```mermaid

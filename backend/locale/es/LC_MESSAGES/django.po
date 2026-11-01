@@ -1023,3 +1023,39 @@ msgstr "usuario"
 #: backend/apps/users/models.py:45
 msgid "users"
 msgstr "usuarios"
+
+msgid "Invalid workspace name"
+msgstr "El nombre del espacio no es válido"
+
+msgid "The last owner cannot leave or be demoted"
+msgstr "El último propietario no puede salir ni perder su rol"
+
+msgid "Invalid share"
+msgstr "Los permisos para compartir no son válidos"
+
+msgid "Invalid resource or workspace"
+msgstr "La cuenta, el activo o el espacio no son válidos"
+
+msgid "The resource already belongs to this workspace"
+msgstr "El elemento ya pertenece a este espacio"
+
+msgid "Shared workspaces must use the same reporting currency"
+msgstr "Los espacios deben usar la misma moneda de referencia para compartir elementos"
+
+msgid "Already a member"
+msgstr "El usuario ya es miembro del espacio"
+
+msgid "Transactions cannot move between owning workspaces"
+msgstr "No se pueden mover movimientos entre espacios propietarios distintos"
+
+msgid "Shared accounts have conflicting market settings"
+msgstr "Las cuentas compartidas tienen ajustes de precios o divisas incompatibles"
+
+msgid "The active workspace changed. Reload before continuing."
+msgstr "El espacio activo ha cambiado. Recarga antes de continuar."
+
+msgid "Can edit"
+msgstr "Puede editar"
+
+msgid "Read only"
+msgstr "Solo lectura"

@@ -57,12 +57,15 @@ cross-domain integration and export cases. Pure financial rules remain in
 
 ## Ownership and boundaries
 
-Every financial row is owned by a workspace. Django resolves the active
+Every financial row is owned by one canonical workspace. Explicit `AssetShare`
+grants can expose an individual account or asset to another shared workspace
+without copying its rows. Django resolves the active
 workspace from the authenticated session and applies role checks at the API
 boundary; clients must not select another user's workspace by posting an ID.
 The roles are `owner`, `editor` and `viewer`. Market metadata may be shared,
 but transactions, balances, imports, audit events and settings remain scoped to
-the owning workspace.
+the owning workspace, with financial reads/writes also honoring explicit resource
+grants. Credentials and workspace settings are never included in those grants.
 
 Administrative user creation provisions a new, empty personal workspace and an
 `owner` membership for that user. It must not grant access to the administrator's
@@ -130,6 +133,7 @@ projection are recorded in:
 - [`adr/0002-unified-accounts-and-transactions.md`](adr/0002-unified-accounts-and-transactions.md)
 - [`adr/0003-portfolio-as-calculated-projection.md`](adr/0003-portfolio-as-calculated-projection.md)
 - [`adr/0004-personal-workspace-provisioning.md`](adr/0004-personal-workspace-provisioning.md)
+- [`adr/0005-shared-workspaces-and-resource-grants.md`](adr/0005-shared-workspaces-and-resource-grants.md)
 
 Changes that alter data ownership, authentication, import semantics, currency
 conversion or backup/restore should add or update an ADR and focused tests.

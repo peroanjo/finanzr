@@ -25,6 +25,7 @@ from apps.api.portfolio_queries import _summary_manual_assets
 from apps.api.position_projection import native_position_rows
 from apps.api.projection import number, provider_name
 from apps.api.real_estate_queries import real_estate_records
+from apps.api.sharing import visible_market_rows
 from apps.api.transaction_queries import (
     selected_traded_account,
     transaction_calculation_rows,
@@ -67,7 +68,7 @@ def analyzed_positions(
                 for row in rows
             ]
         splits: list[StockSplitCalculationRow] = stock_split_calculation_rows(
-            StockSplit.objects.filter(workspace=workspace(request))
+            visible_market_rows(request, StockSplit)
             .select_related("instrument")
             .prefetch_related("instrument__identifiers")
         )
