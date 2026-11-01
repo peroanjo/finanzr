@@ -6,6 +6,7 @@ cd "$project_dir"
 
 . ./deploy/version.sh
 finanzr_load_version
+finanzr_load_git_metadata
 FINANZR_COMMIT=${FINANZR_COMMIT:-$(git rev-parse --short=7 HEAD 2>/dev/null || printf '%s' source-archive)}
 FINANZR_DEPLOYED_AT=${FINANZR_DEPLOYED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 export FINANZR_VERSION FINANZR_COMMIT FINANZR_DEPLOYED_AT

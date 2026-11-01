@@ -9,17 +9,18 @@ const mockApi = vi.mocked(api);
 const response = {
   installed_version: "1.0.0",
   installed_commit: null,
+  installed_branch: "dev",
   comparison_basis: "version_tag",
   repository_url: "https://github.com/example/synthetic",
   checked_at: "2026-01-01T12:00:00Z",
   release_status: "available",
   release_update: "available",
   latest_release: "v2.0.0-alpha.1",
-  main: {
+  branch_comparison: {
     status: "ahead",
     ahead_by: 2,
     behind_by: 0,
-    url: "https://github.com/example/synthetic/compare/v1...main",
+    url: "https://github.com/example/synthetic/compare/v1...dev",
     commits: [
       {
         sha: "a".repeat(40),
@@ -48,7 +49,7 @@ describe("SettingsVersionPanel", () => {
     vi.resetAllMocks();
     i18n.global.locale.value = "es-ES";
   });
-  it("shows release notes as text, build uncertainty and separate main commits", async () => {
+  it("shows release notes as text, build uncertainty and separate branch commits", async () => {
     mockApi.mockResolvedValue(response);
     const wrapper = render();
     await flushPromises();
@@ -59,7 +60,9 @@ describe("SettingsVersionPanel", () => {
     expect(wrapper.text()).toContain("2 commits nuevos");
     expect(wrapper.text()).toContain("Commit de compilación no disponible");
     expect(wrapper.text()).toContain("Preliminar");
-    expect(wrapper.text()).toContain("Última versión publicada en main");
+    expect(wrapper.find("header p").text()).toBe("Git · dev");
+    expect(wrapper.text()).not.toContain("main");
+    expect(wrapper.text()).toContain("Última versión publicada en dev");
     expect(wrapper.text()).toContain("<script>");
     expect(wrapper.find("script").exists()).toBe(false);
     expect(wrapper.find("details").attributes("open")).toBeDefined();
@@ -76,7 +79,7 @@ describe("SettingsVersionPanel", () => {
       ...response,
       releases: [],
       release_update: "unknown",
-      main: null,
+      branch_comparison: null,
     });
     await wrapper.find("button").trigger("click");
     await flushPromises();
@@ -84,5 +87,24 @@ describe("SettingsVersionPanel", () => {
     expect(wrapper.text()).toContain("No se puede determinar");
     expect(wrapper.text()).toContain("No se puede comparar");
     expect(wrapper.text()).toContain("No se han encontrado versiones");
+  });
+  it("does not assume main when the build branch is unknown", async () => {
+    mockApi.mockResolvedValue({
+      ...response,
+      installed_branch: null,
+      branch_comparison: null,
+      releases: [],
+      latest_release: null,
+      release_update: "unknown",
+      release_status: "unavailable",
+    });
+    const wrapper = render();
+    await flushPromises();
+    expect(wrapper.find("header p").text()).toBe("Git");
+    expect(wrapper.text()).toContain(
+      "No se ha podido identificar la rama instalada",
+    );
+    expect(wrapper.text()).not.toContain("main");
+    expect(wrapper.text()).not.toContain("GitHub no está disponible");
   });
 });

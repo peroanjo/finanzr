@@ -4,10 +4,13 @@ export const versionMessages = defineMessageCatalog(
   {
     version: {
       title: "Version",
+      unknownBranch: "unknown branch",
+      branchUnavailable:
+        "The installed branch could not be identified. Update checks are unavailable for this build.",
       subtitle: "Releases and changes",
       installed: "Installed version",
-      latest: "Latest release on main",
-      help: "Check published releases and development changes on main. Updates are installed manually.",
+      latest: "Latest release on {branch}",
+      help: "Check published releases and development changes on {branch}. Updates are installed manually.",
       check: "Check for updates",
       loading: "Checking…",
       error:
@@ -16,18 +19,19 @@ export const versionMessages = defineMessageCatalog(
         "Build commit unavailable. Comparisons use the installed version tag and may not reflect local changes.",
       checked: "Checked: {date}. Results are cached for one hour.",
       repository: "View repository",
-      main: "Commits on main",
-      newCommits: "{count} new commits on main relative to this installation.",
+      commits: "Commits on {branch}",
+      newCommits:
+        "{count} new commits on {branch} relative to this installation.",
       compare: "View full comparison",
       moreCommits:
         "Only part of the commit history is shown. Open the full comparison to see all changes.",
       comparisonUnavailable:
-        "Cannot compare this installation with main. Its commit or version tag may be unavailable on GitHub.",
+        "Cannot compare this installation with {branch}. Its commit or version tag may be unavailable on GitHub.",
       changelog: "Changelog",
       releaseLimit:
-        "Up to 10 recent releases, verified as belonging to main. Includes prereleases.",
+        "Up to 10 recent releases, verified as belonging to {branch}. Includes prereleases.",
       noReleases:
-        "No published releases on main were found among the latest releases.",
+        "No published releases on {branch} were found among the latest releases.",
       prerelease: "Prerelease",
       noNotes: "No release notes were provided.",
       openRelease: "View release notes on GitHub",
@@ -39,20 +43,23 @@ export const versionMessages = defineMessageCatalog(
         unknown: "Cannot determine whether a newer release is available.",
       },
       branch: {
-        identical: "This installation matches main.",
-        behind: "This installation includes commits that are not on main.",
+        identical: "This installation matches {branch}.",
+        behind: "This installation includes commits that are not on {branch}.",
         diverged:
-          "This installation and main have diverged. Review the comparison before updating.",
+          "This installation and {branch} have diverged. Review the comparison before updating.",
       },
     },
   },
   {
     version: {
       title: "Versión",
+      unknownBranch: "rama desconocida",
+      branchUnavailable:
+        "No se ha podido identificar la rama instalada. No se pueden consultar novedades de esta compilación.",
       subtitle: "Versiones y cambios",
       installed: "Versión instalada",
-      latest: "Última versión publicada en main",
-      help: "Consulta las versiones publicadas y los cambios de desarrollo en main. Las actualizaciones se instalan manualmente.",
+      latest: "Última versión publicada en {branch}",
+      help: "Consulta las versiones publicadas y los cambios de desarrollo en {branch}. Las actualizaciones se instalan manualmente.",
       check: "Buscar actualizaciones",
       loading: "Consultando…",
       error:
@@ -62,19 +69,19 @@ export const versionMessages = defineMessageCatalog(
       checked:
         "Consultado: {date}. Los resultados se guardan en caché durante una hora.",
       repository: "Ver repositorio",
-      main: "Commits en main",
+      commits: "Commits en {branch}",
       newCommits:
-        "Hay {count} commits nuevos en main respecto a esta instalación.",
+        "Hay {count} commits nuevos en {branch} respecto a esta instalación.",
       compare: "Ver comparación completa",
       moreCommits:
         "Se muestra parte del historial de commits. Abre la comparación completa para ver todos los cambios.",
       comparisonUnavailable:
-        "No se puede comparar esta instalación con main. Su commit o etiqueta de versión puede no estar disponible en GitHub.",
+        "No se puede comparar esta instalación con {branch}. Su commit o etiqueta de versión puede no estar disponible en GitHub.",
       changelog: "Registro de cambios",
       releaseLimit:
-        "Hasta 10 versiones recientes verificadas como parte de main. Incluye versiones preliminares.",
+        "Hasta 10 versiones recientes verificadas como parte de {branch}. Incluye versiones preliminares.",
       noReleases:
-        "No se han encontrado versiones publicadas de main entre las más recientes.",
+        "No se han encontrado versiones publicadas de {branch} entre las más recientes.",
       prerelease: "Preliminar",
       noNotes: "Esta versión no incluye notas de cambios.",
       openRelease: "Ver notas de la versión en GitHub",
@@ -88,10 +95,10 @@ export const versionMessages = defineMessageCatalog(
         unknown: "No se puede determinar si hay una nueva versión publicada.",
       },
       branch: {
-        identical: "Esta instalación coincide con main.",
-        behind: "Esta instalación incluye commits que no están en main.",
+        identical: "Esta instalación coincide con {branch}.",
+        behind: "Esta instalación incluye commits que no están en {branch}.",
         diverged:
-          "Esta instalación y main han divergido. Revisa la comparación antes de actualizar.",
+          "Esta instalación y {branch} han divergido. Revisa la comparación antes de actualizar.",
       },
     },
   },

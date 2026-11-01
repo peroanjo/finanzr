@@ -39,22 +39,39 @@ def github(path: str) -> Any:
         return json.loads(response.read(2_000_000))
 
 
-def installed_commit() -> str | None:
-    """Prefer an embedded build revision, with a source-checkout fallback."""
-    revision = os.environ.get("FINANZR_GIT_COMMIT", "")
-    if not revision:
-        try:
-            revision = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
+def git_value(*arguments: str) -> str | None:
+    """Read source-checkout metadata without requiring Git in packaged builds."""
+    try:
+        return (
+            subprocess.run(
+                ["git", *arguments],
                 cwd=settings.PROJECT_DIR,
                 capture_output=True,
                 text=True,
                 timeout=1,
                 check=True,
             ).stdout.strip()
-        except (OSError, subprocess.SubprocessError):
-            return None
-    return revision if re.fullmatch(r"[0-9a-fA-F]{40}", revision) else None
+            or None
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def installed_commit() -> str | None:
+    revision = os.environ.get("FINANZR_GIT_COMMIT") or git_value("rev-parse", "HEAD")
+    return revision if revision and re.fullmatch(r"[0-9a-fA-F]{40}", revision) else None
+
+
+def installed_branch() -> str | None:
+    """Detached/tagged builds need explicit branch metadata; never assume main."""
+    branch = os.environ.get("FINANZR_GIT_BRANCH") or git_value(
+        "symbolic-ref", "--quiet", "--short", "HEAD"
+    )
+    if not branch or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}", branch):
+        return None
+    if any(part in branch for part in ("..", "//", "/.")) or branch.endswith(("/", ".", ".lock")):
+        return None
+    return branch
 
 
 def compare(base: str, head: str) -> dict[str, Any]:
@@ -75,16 +92,16 @@ def compare(base: str, head: str) -> dict[str, Any]:
     }
 
 
-def release_on_main(row: dict[str, Any]) -> dict[str, Any] | None:
+def release_on_branch(row: dict[str, Any], branch: str) -> dict[str, Any] | None:
     if row.get("draft"):
         return None
     tag = row["tag_name"]
-    ancestry = compare(tag, "main")
+    ancestry = compare(tag, branch)
     if ancestry["status"] not in {"ahead", "identical"}:
         return None
     return {
         "tag": tag,
-        "distance_from_main": ancestry["ahead_by"],
+        "distance_from_branch": ancestry["ahead_by"],
         "name": row.get("name") or tag,
         "published_at": row["published_at"],
         "prerelease": row["prerelease"],
@@ -93,24 +110,27 @@ def release_on_main(row: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def build_status(revision: str | None) -> dict[str, Any]:
+def build_status(revision: str | None, branch: str | None) -> dict[str, Any]:
     result: dict[str, Any] = {
         "installed_version": __version__,
         "installed_commit": revision,
+        "installed_branch": branch,
         "comparison_basis": "commit" if revision else "version_tag",
         "repository_url": WEB_URL,
         "checked_at": timezone.now().isoformat(),
         "releases": [],
         "release_status": "unavailable",
-        "main": None,
+        "branch_comparison": None,
         "release_update": "unknown",
         "latest_release": None,
     }
+    if branch is None:
+        return result
     base = revision or f"v{__version__}"
     try:
         rows = github("releases?per_page=10")
         with ThreadPoolExecutor(max_workers=4) as executor:
-            releases = list(executor.map(release_on_main, rows))
+            releases = list(executor.map(lambda row: release_on_branch(row, branch), rows))
         result["releases"] = sorted(
             (row for row in releases if row is not None),
             key=lambda row: row["published_at"],
@@ -120,11 +140,11 @@ def build_status(revision: str | None) -> dict[str, Any]:
     except (OSError, ValueError, KeyError, TypeError):
         pass
     try:
-        result["main"] = compare(base, "main")
+        result["branch_comparison"] = compare(base, branch)
     except (OSError, ValueError, KeyError, TypeError):
         pass
     if result["releases"]:
-        latest = min(result["releases"], key=lambda row: row["distance_from_main"])
+        latest = min(result["releases"], key=lambda row: row["distance_from_branch"])
         result["latest_release"] = latest["tag"]
         try:
             comparison = compare(base, latest["tag"])
@@ -144,9 +164,10 @@ def version_status(request: Request) -> Response:
     if getattr(request.user, "role", None) != User.Role.ADMIN:
         return Response({"error": _("Insufficient permissions")}, status=403)
     revision = installed_commit()
-    key = f"installation-version:{__version__}:{revision}"
+    branch = installed_branch()
+    key = f"installation-version:v2:{__version__}:{revision}:{branch}"
     result = cache.get(key)
     if result is None:
-        result = build_status(revision)
+        result = build_status(revision, branch)
         cache.set(key, result, CACHE_SECONDS)
     return Response(result)

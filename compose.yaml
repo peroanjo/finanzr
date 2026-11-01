@@ -23,6 +23,8 @@ services:
       target: development
     command: python manage.py runserver 0.0.0.0:8000
     environment:
+      FINANZR_GIT_BRANCH: ${FINANZR_GIT_BRANCH:-}
+      FINANZR_GIT_COMMIT: ${FINANZR_GIT_COMMIT:-}
       DJANGO_SETTINGS_MODULE: config.settings.development
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-unsafe-development-only}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}

@@ -137,22 +137,35 @@ conversion or backup/restore should add or update an ADR and focused tests.
 ## Installation release information
 
 Administrators can open **Settings → Version → Git** to inspect the installed
-`VERSION`, published GitHub release notes, and commits available on `main`.
-`GET /api/installation/version` checks the application administrator role before
-making any external requests. It reads only the canonical public
+`VERSION`, published GitHub release notes, and commits available on the installed
+branch. `GET /api/installation/version` checks the application administrator role
+before making any external requests. It reads only the canonical public
 `peroanjo/finanzr` repository; no credentials or financial data are sent.
 
 The service checks up to ten recent releases, including prereleases, and verifies
-that each release tag is an ancestor of `main`. GitHub release bodies provide
-the changelog and are rendered as plain text. Release availability and development
-commits are reported separately, using GitHub's commit ancestry comparison rather
-than ordering version strings. The latest release is selected by its ancestry
-distance from `main`, independently of when an older tag was published. Results are cached for one hour per installed
-revision; network failures and missing refs produce an unknown status rather than
-claiming the installation is current. The repository's cache backend determines
-whether results are shared across application workers.
+that each release tag is an ancestor of the installed branch. GitHub release
+bodies provide the changelog and are rendered as plain text. Release availability
+and development commits are reported separately using GitHub commit ancestry.
+The latest release is selected by its distance from the installed branch,
+independently of publication date. Results are cached for one hour per installed
+revision and branch. Missing refs or network failures produce an unknown status.
+The configured cache backend determines whether results are shared across workers.
 
-`FINANZR_GIT_COMMIT` may provide the full 40-character build commit. Source
-checkouts otherwise use `git rev-parse HEAD`; packaged installations without a
-revision fall back to `v<VERSION>`, with a visible warning that local changes
-cannot be inferred. This panel is informational and does not install updates.
+Source checkouts detect their branch and commit through Git. Detached/tagged or
+packaged builds must provide `FINANZR_GIT_BRANCH` to identify their update branch;
+otherwise update checks stay unavailable rather than assuming `main`.
+`FINANZR_GIT_COMMIT` optionally supplies the full 40-character build commit.
+Without a commit, comparisons fall back to `v<VERSION>` with a visible warning.
+The install and deployment scripts automatically capture the checkout metadata
+and preserve explicit environment overrides for detached builds. Both Compose
+configurations forward these variables. For local Docker
+development, capture the source metadata when starting or recreating the backend:
+
+```bash
+FINANZR_GIT_BRANCH="$(git symbolic-ref --quiet --short HEAD)" \
+FINANZR_GIT_COMMIT="$(git rev-parse HEAD)" docker compose up -d
+```
+
+Recreate the backend with updated metadata after switching branches or updating
+the checkout. Packaged deployments should provide metadata matching the installed
+build. This panel is informational and does not install updates.

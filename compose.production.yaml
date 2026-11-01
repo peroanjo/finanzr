@@ -47,6 +47,8 @@ services:
     init: true
     env_file: .env.production
     environment:
+      FINANZR_GIT_BRANCH: ${FINANZR_GIT_BRANCH:-}
+      FINANZR_GIT_COMMIT: ${FINANZR_GIT_COMMIT:-}
       DJANGO_SETTINGS_MODULE: config.settings.production
       FINANZR_LAN_MODE: "0"
       POSTGRES_HOST: db

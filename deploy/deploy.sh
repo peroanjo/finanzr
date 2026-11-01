@@ -23,6 +23,7 @@ FINANZR_COMMIT=${FINANZR_COMMIT:-unknown}
 FINANZR_DEPLOYED_AT=${FINANZR_DEPLOYED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 . ./deploy/version.sh
 finanzr_load_version
+finanzr_load_git_metadata
 export FINANZR_COMMIT FINANZR_DEPLOYED_AT FINANZR_VERSION
 
 echo "Deploying Finanzr $FINANZR_VERSION from $FINANZR_COMMIT ($FINANZR_DEPLOYED_AT)"

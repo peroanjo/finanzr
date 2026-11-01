@@ -17,3 +17,14 @@ finanzr_load_version() {
     FINANZR_VERSION=$source_version
     export FINANZR_VERSION
 }
+
+finanzr_load_git_metadata() {
+    FINANZR_GIT_COMMIT=${FINANZR_GIT_COMMIT:-$(git rev-parse --verify HEAD 2>/dev/null || true)}
+    FINANZR_GIT_BRANCH=${FINANZR_GIT_BRANCH:-$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)}
+    if [ -n "$FINANZR_GIT_COMMIT" ]; then
+        export FINANZR_GIT_COMMIT
+    fi
+    if [ -n "$FINANZR_GIT_BRANCH" ]; then
+        export FINANZR_GIT_BRANCH
+    fi
+}

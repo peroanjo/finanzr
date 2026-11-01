@@ -502,12 +502,13 @@ describe("SettingsView", () => {
           ? {
               installed_version: "1.0.0",
               installed_commit: null,
+              installed_branch: "dev",
               checked_at: "2026-01-01T00:00:00Z",
               repository_url: "https://github.com/example/synthetic",
               release_status: "available",
               release_update: "unknown",
               releases: [],
-              main: null,
+              branch_comparison: null,
             }
           : catalog,
     }));

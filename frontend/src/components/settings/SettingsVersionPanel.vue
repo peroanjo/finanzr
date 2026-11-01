@@ -10,6 +10,7 @@ const { t, locale } = useI18n();
 interface VersionStatus {
   installed_version: string;
   installed_commit: string | null;
+  installed_branch: string | null;
   comparison_basis: string;
   repository_url: string;
   checked_at: string;
@@ -24,7 +25,7 @@ interface VersionStatus {
     notes: string;
     url: string;
   }[];
-  main: {
+  branch_comparison: {
     status: string;
     ahead_by: number;
     behind_by: number;
@@ -33,6 +34,9 @@ interface VersionStatus {
   } | null;
 }
 const status = ref<VersionStatus>();
+const branchParams = () => ({
+  branch: status.value?.installed_branch ?? t("version.unknownBranch"),
+});
 const busy = ref(false);
 const failed = ref(false);
 function date(value: string) {
@@ -56,15 +60,22 @@ onMounted(load);
   <article class="version-panel" :aria-busy="busy">
     <header>
       <div>
-        <p>Git · main</p>
+        <p>
+          Git<span v-if="status?.installed_branch">
+            · {{ status.installed_branch }}</span
+          >
+        </p>
         <h3>{{ t("version.title") }}</h3>
       </div>
       <button type="button" :disabled="busy" @click="load">
         {{ t(busy ? "version.loading" : "version.check") }}
       </button>
     </header>
-    <p class="muted">{{ t("version.help") }}</p>
+    <p class="muted">{{ t("version.help", branchParams()) }}</p>
     <p v-if="failed" role="alert">{{ t("version.error") }}</p>
+    <p v-if="status && !status.installed_branch" role="status">
+      {{ t("version.branchUnavailable") }}
+    </p>
     <template v-if="status">
       <section>
         <h4>{{ t("version.installed") }}</h4>
@@ -74,7 +85,7 @@ onMounted(load);
         }}</code>
         <p v-else class="muted">{{ t("version.tagBasis") }}</p>
         <p v-if="status.latest_release">
-          {{ t("version.latest") }}:
+          {{ t("version.latest", branchParams()) }}:
           <strong>{{ status.latest_release }}</strong>
         </p>
         <p role="status">{{ t(`version.update.${status.release_update}`) }}</p>
@@ -89,17 +100,35 @@ onMounted(load);
         >
       </section>
       <section>
-        <h4>{{ t("version.main") }}</h4>
-        <template v-if="status.main">
-          <p v-if="status.main.status === 'ahead'">
-            {{ t("version.newCommits", { count: status.main.ahead_by }) }}
+        <h4>{{ t("version.commits", branchParams()) }}</h4>
+        <template v-if="status.branch_comparison">
+          <p v-if="status.branch_comparison.status === 'ahead'">
+            {{
+              t("version.newCommits", {
+                ...branchParams(),
+                count: status.branch_comparison.ahead_by,
+              })
+            }}
           </p>
-          <p v-else>{{ t(`version.branch.${status.main.status}`) }}</p>
-          <a :href="status.main.url" target="_blank" rel="noopener noreferrer"
+          <p v-else>
+            {{
+              t(
+                `version.branch.${status.branch_comparison.status}`,
+                branchParams(),
+              )
+            }}
+          </p>
+          <a
+            :href="status.branch_comparison.url"
+            target="_blank"
+            rel="noopener noreferrer"
             >{{ t("version.compare") }} ↗</a
           >
           <ul>
-            <li v-for="commit in status.main.commits" :key="commit.sha">
+            <li
+              v-for="commit in status.branch_comparison.commits"
+              :key="commit.sha"
+            >
               <a :href="commit.url" target="_blank" rel="noopener noreferrer"
                 ><code>{{ commit.sha.slice(0, 7) }}</code>
                 {{ commit.message }}</a
@@ -107,21 +136,33 @@ onMounted(load);
             </li>
           </ul>
           <p
-            v-if="status.main.ahead_by > status.main.commits.length"
+            v-if="
+              status.branch_comparison.ahead_by >
+              status.branch_comparison.commits.length
+            "
             class="muted"
           >
             {{ t("version.moreCommits") }}
           </p>
         </template>
-        <p v-else role="status">{{ t("version.comparisonUnavailable") }}</p>
+        <p v-else role="status">
+          {{ t("version.comparisonUnavailable", branchParams()) }}
+        </p>
       </section>
       <section>
         <h4>{{ t("version.changelog") }}</h4>
-        <p class="muted">{{ t("version.releaseLimit") }}</p>
-        <p v-if="status.release_status === 'unavailable'" role="status">
+        <p class="muted">{{ t("version.releaseLimit", branchParams()) }}</p>
+        <p
+          v-if="
+            status.installed_branch && status.release_status === 'unavailable'
+          "
+          role="status"
+        >
           {{ t("version.error") }}
         </p>
-        <p v-else-if="!status.releases.length">{{ t("version.noReleases") }}</p>
+        <p v-else-if="status.installed_branch && !status.releases.length">
+          {{ t("version.noReleases", branchParams()) }}
+        </p>
         <details
           v-for="(release, index) in status.releases"
           :key="release.tag"
