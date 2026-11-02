@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import WorkspaceVisibilityBadge from "../WorkspaceVisibilityBadge.vue";
 import { useI18n } from "vue-i18n";
 import { registerMessages } from "../../i18n";
@@ -52,11 +52,65 @@ const shares = ref<Shares>();
 const busy = ref(false);
 const error = ref("");
 const name = ref("");
-const newName = ref("");
+const dialog = ref<HTMLDialogElement>();
+const dialogInput = ref<HTMLInputElement>();
+const dialogMode = ref<"create" | "join">("create");
+const dialogValue = ref("");
+const dialogError = ref("");
+const workspaceOptions = computed(
+  () =>
+    session.user?.workspaces ??
+    (settings.value
+      ? [
+          {
+            id: settings.value.id,
+            name: settings.value.name,
+            is_shared: settings.value.members.length > 1,
+          },
+        ]
+      : []),
+);
+async function openDialog(mode: "create" | "join") {
+  dialogMode.value = mode;
+  dialogValue.value = "";
+  dialogError.value = "";
+  dialog.value?.showModal();
+  await nextTick();
+  dialogInput.value?.focus();
+}
+function closeDialog() {
+  if (!busy.value) dialog.value?.close();
+}
+async function submitDialog() {
+  if (busy.value || !dialogValue.value.trim()) return;
+  busy.value = true;
+  dialogError.value = "";
+  try {
+    await apply(
+      api<UserSession>(
+        dialogMode.value === "create"
+          ? "/workspaces"
+          : "/workspaces/invitations/accept",
+        json(
+          "POST",
+          dialogMode.value === "create"
+            ? { name: dialogValue.value.trim() }
+            : { token: dialogValue.value.trim() },
+        ),
+      ),
+    );
+    dialog.value?.close();
+    await load();
+  } catch (reason) {
+    dialogError.value =
+      reason instanceof Error ? reason.message : t("workspace.failure");
+  } finally {
+    busy.value = false;
+  }
+}
 const email = ref("");
 const inviteRole = ref("editor");
 const invitationCode = ref("");
-const acceptCode = ref("");
 const selectedResource = ref("");
 const targetId = ref("");
 const access = ref("read");
@@ -97,27 +151,10 @@ async function apply(response: Promise<UserSession>) {
   session.applySession(await response);
   localStorage.setItem("finanzr-workspace-revision", String(Date.now()));
 }
-function create() {
-  return run(() =>
-    apply(
-      api<UserSession>("/workspaces", json("POST", { name: newName.value })),
-    ),
-  );
-}
 function rename() {
   return run(() =>
     api("/workspaces/settings", json("PATCH", { name: name.value })).then(() =>
       session.restore(),
-    ),
-  );
-}
-function accept() {
-  return run(() =>
-    apply(
-      api<UserSession>(
-        "/workspaces/invitations/accept",
-        json("POST", { token: acceptCode.value.trim() }),
-      ),
     ),
   );
 }
@@ -175,6 +212,39 @@ onMounted(() => run(async () => {}));
       <p>{{ t("workspace.subtitle") }}</p>
       <h3>{{ t("workspace.title") }}</h3>
     </header>
+    <div class="workspace-toolbar">
+      <label class="workspace-selection"
+        >{{ t("workspace.configuring") }}
+        <select
+          :value="settings?.id ?? session.user?.active_workspace_id ?? ''"
+          :disabled="busy || session.switchingWorkspace || !settings"
+          @change="
+            run(() =>
+              session.selectWorkspace(
+                ($event.target as HTMLSelectElement).value,
+              ),
+            )
+          "
+        >
+          <option
+            v-for="item in workspaceOptions"
+            :key="item.id"
+            :value="item.id"
+          >
+            {{ item.name }} ·
+            {{ t(item.is_shared ? "workspace.shared" : "workspace.private") }}
+          </option>
+        </select>
+      </label>
+      <div class="workspace-actions">
+        <button type="button" :disabled="busy" @click="openDialog('create')">
+          ＋ {{ t("workspace.create") }}
+        </button>
+        <button type="button" :disabled="busy" @click="openDialog('join')">
+          {{ t("workspace.join") }}
+        </button>
+      </div>
+    </div>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="busy" role="status">{{ t("workspace.loading") }}</p>
     <section v-if="settings">
@@ -271,22 +341,6 @@ onMounted(() => run(async () => {}));
         </ul>
       </template>
     </section>
-    <section>
-      <h4>{{ t("workspace.create") }}</h4>
-      <p>{{ t("workspace.createHelp") }}</p>
-      <form @submit.prevent="create">
-        <label
-          >{{ t("workspace.name")
-          }}<input v-model="newName" required maxlength="120" /></label
-        ><button :disabled="busy">{{ t("workspace.create") }}</button>
-      </form>
-      <form @submit.prevent="accept">
-        <label
-          >{{ t("workspace.invitationCode")
-          }}<input v-model="acceptCode" required autocomplete="off" /></label
-        ><button :disabled="busy">{{ t("workspace.accept") }}</button>
-      </form>
-    </section>
     <section v-if="shares">
       <h4>{{ t("workspace.shareAssets") }}</h4>
       <p>{{ t("workspace.shareHelp") }}</p>
@@ -375,6 +429,80 @@ onMounted(() => run(async () => {}));
         {{ t("workspace.archive") }}
       </button>
     </section>
+    <dialog
+      ref="dialog"
+      class="workspace-action-dialog"
+      aria-modal="true"
+      aria-labelledby="workspace-action-title"
+      :aria-busy="busy"
+      @cancel.prevent="closeDialog"
+      @keydown.stop
+      @click.self="closeDialog"
+    >
+      <div class="workspace-dialog-body">
+        <header class="workspace-dialog-header">
+          <h3 id="workspace-action-title">
+            {{
+              t(dialogMode === "create" ? "workspace.create" : "workspace.join")
+            }}
+          </h3>
+          <button
+            type="button"
+            :disabled="busy"
+            :aria-label="t('common.close')"
+            @click="closeDialog"
+          >
+            ×
+          </button>
+        </header>
+        <p id="workspace-action-help">
+          {{
+            t(
+              dialogMode === "create"
+                ? "workspace.createHelp"
+                : "workspace.joinHelp",
+            )
+          }}
+        </p>
+        <form @submit.prevent="submitDialog">
+          <label
+            >{{
+              t(
+                dialogMode === "create"
+                  ? "workspace.name"
+                  : "workspace.invitationCode",
+              )
+            }}
+            <input
+              ref="dialogInput"
+              v-model="dialogValue"
+              :disabled="busy"
+              required
+              :maxlength="dialogMode === 'create' ? 120 : undefined"
+              autocomplete="off"
+              aria-describedby="workspace-action-help"
+            />
+          </label>
+          <p v-if="dialogError" role="alert">{{ dialogError }}</p>
+          <footer>
+            <button type="button" :disabled="busy" @click="closeDialog">
+              {{ t("common.cancel") }}
+            </button>
+            <button type="submit" :disabled="busy || !dialogValue.trim()">
+              {{
+                t(
+                  busy
+                    ? "workspace.loading"
+                    : dialogMode === "create"
+                      ? "workspace.create"
+                      : "workspace.join",
+                )
+              }}
+            </button>
+          </footer>
+        </form>
+      </div>
+    </dialog>
   </article>
 </template>
 
@@ -470,5 +598,83 @@ small {
 [role="alert"] {
   border-left: 3px solid var(--fz-accent);
   padding: 10px;
+}
+</style>
+
+<style scoped>
+.workspace-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 20px 0 8px;
+}
+.workspace-selection {
+  flex: 1 1 220px;
+}
+.workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workspace-actions button:first-child,
+.workspace-action-dialog button[type="submit"] {
+  background: var(--fz-accent-soft);
+  color: var(--fz-ink);
+  border-color: var(--fz-accent);
+}
+.workspace-action-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--fz-line);
+  border-radius: 20px;
+  color: var(--fz-ink);
+  background: var(--fz-surface);
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.3);
+}
+.workspace-action-dialog::backdrop {
+  background: rgba(5, 10, 7, 0.5);
+  backdrop-filter: blur(10px) saturate(0.85);
+}
+.workspace-dialog-body {
+  padding: 24px;
+}
+.workspace-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.workspace-dialog-header h3 {
+  font-size: 20px;
+}
+.workspace-dialog-header button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.workspace-action-dialog form {
+  display: grid;
+  gap: 16px;
+  margin: 18px 0 0;
+}
+.workspace-action-dialog input {
+  width: 100%;
+}
+.workspace-action-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workspace-action-dialog p {
+  color: var(--fz-muted);
+}
+.workspace-action-dialog [role="alert"] {
+  color: var(--fz-ink);
+  margin: 0;
 }
 </style>

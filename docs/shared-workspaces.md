@@ -6,13 +6,15 @@ activos sin copiarlos.
 
 ## Crear y seleccionar un espacio
 
-1. Abre **Configuración → Espacios** y crea un espacio compartido con un nombre.
+1. Abre **Configuración → Espacios**. Usa el selector para elegir qué espacio
+   estás configurando. Pulsa **Crear espacio** e introduce su nombre en la ventana.
 2. Se creará vacío, usando la moneda de referencia del espacio actual.
 3. Crea una invitación indicando el correo de otro usuario y sus permisos.
 4. Envía el código que aparece por un canal privado. Finanzr no envía un correo
    automáticamente. El código caduca a los siete días.
-5. El destinatario inicia sesión con ese correo y acepta el código en la misma
-   pantalla. Cada invitación se utiliza una sola vez.
+5. El destinatario inicia sesión con ese correo y pulsa **Unirse a espacio** en
+   esa pantalla. Introduce el código en la ventana para aceptar la invitación.
+   Cada invitación se utiliza una sola vez.
 
 Los distintivos indican quién puede acceder al espacio: **Privado**, en verde,
 cuando solo tiene un miembro; **Compartido**, en azul, cuando tiene más de uno.

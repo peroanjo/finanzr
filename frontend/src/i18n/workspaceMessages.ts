@@ -22,6 +22,10 @@ export const workspaceMessages = defineMessageCatalog(
         "Send this invitation code privately to the recipient. It expires after 7 days and only that email can accept it.",
       cancelInvite: "Cancel invitation",
       create: "Create workspace",
+      configuring: "Workspace to configure",
+      join: "Join workspace",
+      joinHelp:
+        "Enter the invitation code provided by the workspace owner. Sign in with the email address that received the invitation.",
       createHelp:
         "Creates an empty workspace in your current reporting currency. Your personal assets remain private.",
       invitationCode: "Invitation code",
@@ -75,6 +79,10 @@ export const workspaceMessages = defineMessageCatalog(
         "Envía este código en privado al destinatario. Caduca en 7 días y solo puede aceptarlo ese correo.",
       cancelInvite: "Cancelar invitación",
       create: "Crear espacio",
+      configuring: "Espacio que estás configurando",
+      join: "Unirse a espacio",
+      joinHelp:
+        "Introduce el código de invitación que te ha facilitado el propietario del espacio. Debes iniciar sesión con el correo al que se dirigió la invitación.",
       createHelp:
         "Crea un espacio vacío con tu moneda de referencia actual. Tus activos personales siguen siendo privados.",
       invitationCode: "Código de invitación",

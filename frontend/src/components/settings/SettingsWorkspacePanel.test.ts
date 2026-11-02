@@ -2,6 +2,8 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n";
+import { useSessionStore } from "../../stores/session";
+import type { UserSession } from "../../types/api";
 import { api } from "../../api/client";
 import SettingsWorkspacePanel from "./SettingsWorkspacePanel.vue";
 
@@ -54,7 +56,48 @@ function render() {
   return mount(SettingsWorkspacePanel, { global: { plugins: [i18n] } });
 }
 
+const userSession = (id: string): UserSession => ({
+  id: "synthetic-user",
+  email: "a@example.com",
+  display_name: "Synthetic A",
+  role: "user",
+  active_workspace_id: id,
+  language: "es-ES",
+  preferred_language: "es-ES",
+  default_language: "es-ES",
+  workspaces: [
+    {
+      id: "private-1",
+      name: "Synthetic private",
+      slug: "private",
+      base_currency: "EUR",
+      role: "owner",
+      is_shared: false,
+    },
+    {
+      id: "shared-1",
+      name: "Synthetic common",
+      slug: "shared",
+      base_currency: "EUR",
+      role: "editor",
+      is_shared: true,
+    },
+  ],
+});
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = vi.fn(function (
+    this: HTMLDialogElement,
+  ) {
+    this.setAttribute("open", "");
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+    this.removeAttribute("open");
+  });
+  const storage = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  });
   setActivePinia(createPinia());
   i18n.global.locale.value = "es-ES";
   vi.clearAllMocks();
@@ -173,4 +216,125 @@ describe("SettingsWorkspacePanel", () => {
       wrapper.unmount();
     },
   );
+  it("selects the workspace being configured and reloads its settings", async () => {
+    const session = useSessionStore();
+    session.user = userSession("private-1");
+    let active = "private-1";
+    mockApi.mockImplementation(async (path) => {
+      if (path === "/workspaces/current") {
+        active = "shared-1";
+        return userSession(active);
+      }
+      return path === "/workspaces/settings"
+        ? { ...settings, id: active }
+        : shareData;
+    });
+    const wrapper = render();
+    await flushPromises();
+    const selector = wrapper.get(".workspace-selection select");
+    expect(selector.text()).toContain("Synthetic private · Privado");
+    expect(selector.text()).toContain("Synthetic common · Compartido");
+    await selector.setValue("shared-1");
+    await flushPromises();
+    expect(mockApi).toHaveBeenCalledWith(
+      "/workspaces/current",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ workspace_id: "shared-1" }),
+      }),
+    );
+    expect(session.user?.active_workspace_id).toBe("shared-1");
+    expect((selector.element as HTMLSelectElement).value).toBe("shared-1");
+    wrapper.unmount();
+  });
+
+  it("opens a focused creation dialog and only creates after submission", async () => {
+    mockApi.mockImplementation(async (path) =>
+      path === "/workspaces"
+        ? userSession("shared-1")
+        : path === "/workspaces/settings"
+          ? settings
+          : shareData,
+    );
+    const wrapper = mount(SettingsWorkspacePanel, {
+      attachTo: document.body,
+      global: { plugins: [i18n] },
+    });
+    await flushPromises();
+    expect(wrapper.get("dialog").attributes("open")).toBeUndefined();
+    await wrapper.get(".workspace-actions button:first-child").trigger("click");
+    await flushPromises();
+    expect(wrapper.get("dialog").attributes("open")).toBeDefined();
+    expect(wrapper.get("dialog h3").text()).toBe("Crear espacio");
+    expect(document.activeElement).toBe(wrapper.get("dialog input").element);
+    expect(mockApi).not.toHaveBeenCalledWith("/workspaces", expect.anything());
+    await wrapper.get("dialog input").setValue("  Synthetic household  ");
+    await wrapper.get("dialog form").trigger("submit");
+    await flushPromises();
+    expect(mockApi).toHaveBeenCalledWith(
+      "/workspaces",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Synthetic household" }),
+      }),
+    );
+    expect(wrapper.get("dialog").attributes("open")).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it("keeps failed invitation codes in the joining dialog and supports retry", async () => {
+    let attempts = 0;
+    mockApi.mockImplementation(async (path) => {
+      if (path === "/workspaces/invitations/accept") {
+        if (++attempts === 1) throw new Error("Synthetic invalid code");
+        return userSession("shared-1");
+      }
+      return path === "/workspaces/settings" ? settings : shareData;
+    });
+    const wrapper = render();
+    await flushPromises();
+    await wrapper.get(".workspace-actions button:last-child").trigger("click");
+    expect(wrapper.get("dialog h3").text()).toBe("Unirse a espacio");
+    await wrapper.get("dialog input").setValue("  synthetic-code  ");
+    await wrapper.get("dialog form").trigger("submit");
+    await flushPromises();
+    expect(wrapper.get('dialog [role="alert"]').text()).toBe(
+      "Synthetic invalid code",
+    );
+    expect(wrapper.get("dialog").attributes("open")).toBeDefined();
+    expect(
+      (wrapper.get("dialog input").element as HTMLInputElement).value,
+    ).toContain("synthetic-code");
+    await wrapper.get("dialog form").trigger("submit");
+    await flushPromises();
+    expect(mockApi).toHaveBeenCalledWith(
+      "/workspaces/invitations/accept",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ token: "synthetic-code" }),
+      }),
+    );
+    expect(wrapper.get("dialog").attributes("open")).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it("cancels without a request and contains Escape within the nested dialog", async () => {
+    const wrapper = render();
+    await flushPromises();
+    await wrapper.get(".workspace-actions button:first-child").trigger("click");
+    await wrapper.get("dialog input").setValue("Synthetic discarded name");
+    const windowKeydown = vi.fn();
+    window.addEventListener("keydown", windowKeydown);
+    await wrapper.get("dialog").trigger("keydown", { key: "Escape" });
+    expect(windowKeydown).not.toHaveBeenCalled();
+    await wrapper.get("dialog").trigger("cancel");
+    expect(wrapper.get("dialog").attributes("open")).toBeUndefined();
+    expect(mockApi).not.toHaveBeenCalledWith("/workspaces", expect.anything());
+    await wrapper.get(".workspace-actions button:last-child").trigger("click");
+    expect(
+      (wrapper.get("dialog input").element as HTMLInputElement).value,
+    ).toBe("");
+    window.removeEventListener("keydown", windowKeydown);
+    wrapper.unmount();
+  });
 });
