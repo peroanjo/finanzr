@@ -46,6 +46,17 @@ const { t } = useI18n();
   background: var(--fz-workspace-shared-bg, #eaf1ff);
   color: var(--fz-workspace-shared-ink, #2458a6);
 }
+.sidebar {
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 9px;
+  line-height: 14px;
+}
+.sidebar i {
+  width: 4px;
+  height: 4px;
+}
 .sidebar.private {
   border-color: #38785c;
   background: #193b2b;

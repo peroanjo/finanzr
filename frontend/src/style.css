@@ -258,6 +258,7 @@ select:focus-visible {
   display: none;
 }
 .sidebar-collapsed .workspace-picker {
+  padding: 8px 0;
   display: flex;
   justify-content: center;
 }
@@ -349,6 +350,7 @@ select:focus-visible {
   width: 100%;
 }
 .workspace-picker {
+  position: relative;
   min-width: 0;
   margin: 0;
   padding: 10px;
@@ -357,22 +359,31 @@ select:focus-visible {
   align-items: center;
   gap: 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
 }
 .avatar {
-  width: 35px;
-  height: 35px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  border-radius: 11px;
-  background: #32453a;
+  border-radius: 9px;
+  background: #293c32;
   color: #bdf1dc;
   font-size: 10px;
   font-weight: 800;
 }
 .workspace-copy {
+  display: grid;
   min-width: 0;
+  gap: 3px;
+}
+.workspace-title-row,
+.workspace-identity-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
 }
 .workspace-copy strong,
 .workspace-copy small {
@@ -382,23 +393,50 @@ select:focus-visible {
   white-space: nowrap;
 }
 .workspace-copy strong {
+  flex: 1;
+  min-width: 0;
   color: var(--fz-sidebar-ink);
   font-size: 11px;
+  line-height: 17px;
   font-weight: 720;
 }
 .workspace-copy small {
+  flex: 1;
+  min-width: 0;
   color: var(--fz-sidebar-muted);
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 14px;
 }
-.workspace-copy select {
+.workspace-title-row .workspace-visibility {
+  flex-shrink: 0;
+}
+.workspace-picker-chevron {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  stroke: var(--fz-sidebar-muted);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.workspace-picker select {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  margin: 1px 0 0;
-  padding: 0 18px 0 0;
-  border: 0;
-  background: transparent;
-  color: var(--fz-sidebar-ink);
-  font-size: 11px;
-  font-weight: 720;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.workspace-picker select:disabled {
+  cursor: wait;
+}
+.workspace-picker-switchable:hover {
+  border-color: rgba(189, 241, 220, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+}
+.workspace-picker:has(select:focus-visible) {
+  outline: 2px solid #a6e4c7;
+  outline-offset: 3px;
 }
 .logout-button {
   width: 100%;
@@ -1404,6 +1442,7 @@ th {
     display: none;
   }
   .workspace-picker {
+    padding: 8px 0;
     display: flex;
     justify-content: center;
   }
