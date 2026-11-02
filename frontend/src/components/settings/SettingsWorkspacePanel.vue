@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import WorkspaceVisibilityBadge from "../WorkspaceVisibilityBadge.vue";
 import { useI18n } from "vue-i18n";
 import { registerMessages } from "../../i18n";
 import { workspaceMessages } from "../../i18n/workspaceMessages";
@@ -177,11 +178,9 @@ onMounted(() => run(async () => {}));
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="busy" role="status">{{ t("workspace.loading") }}</p>
     <section v-if="settings">
-      <h4>
-        {{ settings.name }}
-        <small>{{
-          t(settings.is_personal ? "workspace.personal" : "workspace.shared")
-        }}</small>
+      <h4 class="workspace-heading">
+        <span>{{ settings.name }}</span>
+        <WorkspaceVisibilityBadge :shared="settings.members.length > 1" />
       </h4>
       <p>{{ t("workspace.scopeHelp") }}</p>
       <form
@@ -380,6 +379,12 @@ onMounted(() => run(async () => {}));
 </template>
 
 <style scoped>
+.workspace-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .workspace-panel {
   padding: 28px;
   font-size: 12px;

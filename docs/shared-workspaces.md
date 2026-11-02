@@ -14,6 +14,11 @@ activos sin copiarlos.
 5. El destinatario inicia sesión con ese correo y acepta el código en la misma
    pantalla. Cada invitación se utiliza una sola vez.
 
+Los distintivos indican quién puede acceder al espacio: **Privado**, en verde,
+cuando solo tiene un miembro; **Compartido**, en azul, cuando tiene más de uno.
+Una invitación pendiente no cambia el distintivo. Si sale el último miembro
+adicional, el espacio vuelve a mostrarse como privado.
+
 Cuando perteneces a varios espacios, el selector de la barra lateral permite
 alternar entre ellos. Cada resumen y sección muestra solo los datos visibles en
 el espacio seleccionado.

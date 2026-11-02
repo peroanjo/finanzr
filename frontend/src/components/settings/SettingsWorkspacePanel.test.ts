@@ -129,7 +129,7 @@ describe("SettingsWorkspacePanel", () => {
     await flushPromises();
     expect(wrapper.find('input[type="email"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain("Archivar espacio");
-    expect(wrapper.text()).toContain("Crear espacio compartido");
+    expect(wrapper.text()).toContain("Crear espacio");
     wrapper.unmount();
   });
   it("reports failures without displaying data from a failed load", async () => {
@@ -142,4 +142,35 @@ describe("SettingsWorkspacePanel", () => {
     expect(wrapper.text()).not.toContain("Synthetic savings");
     wrapper.unmount();
   });
+  it.each([
+    { personal: true, members: 1, label: "Privado", className: "private" },
+    { personal: false, members: 1, label: "Privado", className: "private" },
+    { personal: false, members: 2, label: "Compartido", className: "shared" },
+  ])(
+    "labels visibility by actual members: $members / personal=$personal",
+    async ({ personal, members, label, className }) => {
+      mockApi.mockImplementation(async (path) =>
+        path === "/workspaces/settings"
+          ? {
+              ...settings,
+              is_personal: personal,
+              members: Array.from({ length: members }, (_, index) => ({
+                ...settings.members[0],
+                id: `member-${index}`,
+                is_self: index === 0,
+              })),
+              invitations: [
+                { id: "pending", email: "pending@example.com", role: "viewer" },
+              ],
+            }
+          : shareData,
+      );
+      const wrapper = render();
+      await flushPromises();
+      const badge = wrapper.get(".workspace-heading .workspace-visibility");
+      expect(badge.text()).toBe(label);
+      expect(badge.classes()).toContain(className);
+      wrapper.unmount();
+    },
+  );
 });

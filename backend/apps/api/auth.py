@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.db import transaction
+from django.db.models import Count
 from django.middleware.csrf import get_token
 from django.utils import timezone, translation
 from django.utils.encoding import force_bytes, force_str
@@ -43,8 +44,10 @@ from apps.workspaces.models import WorkspaceInvitation, WorkspaceMembership
 
 
 def user_payload(user: User, request: Request) -> dict[str, Any]:
-    memberships = WorkspaceMembership.objects.select_related("workspace").filter(
-        user=user, workspace__archived_at__isnull=True
+    memberships = (
+        WorkspaceMembership.objects.select_related("workspace")
+        .filter(user=user, workspace__archived_at__isnull=True)
+        .annotate(workspace_member_count=Count("workspace__memberships"))
     )
     active_id = request.session.get("active_workspace_id")
     installation = InstallationSettings.load()
@@ -87,6 +90,7 @@ def user_payload(user: User, request: Request) -> dict[str, Any]:
                 "name": item.workspace.name,
                 "slug": item.workspace.slug,
                 "is_personal": item.workspace.is_personal,
+                "is_shared": item.workspace_member_count > 1,
                 "base_currency": item.workspace.base_currency,
                 "role": item.role,
             }

@@ -554,3 +554,31 @@ def test_removed_member_cannot_access_shared_asset(
         .status_code
         == 404
     )
+
+
+def test_workspace_visibility_tracks_members_instead_of_workspace_type(
+    context: dict[str, Any],
+) -> None:
+    c = context
+    created = c["ca"].post("/api/workspaces", {"name": "Synthetic new workspace"}, format="json")
+    assert created.status_code == 201
+    workspace_id = created.json()["active_workspace_id"]
+
+    def visibility() -> bool:
+        rows = c["ca"].get("/api/auth/me").json()["workspaces"]
+        return bool(next(row for row in rows if row["id"] == workspace_id)["is_shared"])
+
+    assert visibility() is False
+    invited = c["ca"].post(
+        "/api/workspaces/invitations", {"email": c["b"].email, "role": "editor"}, format="json"
+    )
+    assert invited.status_code == 201
+    assert visibility() is False
+    accepted = c["cb"].post(
+        "/api/workspaces/invitations/accept", {"token": invited.json()["token"]}, format="json"
+    )
+    assert accepted.status_code == 200
+    assert visibility() is True
+    member = c["b"].memberships.get(workspace_id=workspace_id)
+    assert c["ca"].delete(f"/api/workspaces/members/{member.pk}").status_code == 200
+    assert visibility() is False

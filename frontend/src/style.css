@@ -89,6 +89,12 @@ select:focus-visible {
 }
 
 .app-shell[data-theme="dark"] {
+  --fz-workspace-private-border: #38785c;
+  --fz-workspace-private-bg: #193b2b;
+  --fz-workspace-private-ink: #a6e4c7;
+  --fz-workspace-shared-border: #405a80;
+  --fz-workspace-shared-bg: #203650;
+  --fz-workspace-shared-ink: #adcfff;
   --fz-canvas: #0d1210;
   --fz-surface: #151c18;
   --fz-surface-soft: #1d2822;

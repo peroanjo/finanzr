@@ -3,6 +3,7 @@ export interface Workspace {
   name: string;
   slug: string;
   is_personal?: boolean;
+  is_shared?: boolean;
   base_currency: string;
   role: "owner" | "editor" | "viewer";
 }

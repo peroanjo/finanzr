@@ -10,6 +10,7 @@ import {
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import NavIcon from "./NavIcon.vue";
+import WorkspaceVisibilityBadge from "./WorkspaceVisibilityBadge.vue";
 import { useSessionStore } from "../stores/session";
 import { buildLabel } from "../buildInfo";
 import { useLocalePreference } from "../i18n";
@@ -267,15 +268,28 @@ onMounted(() => {
                 :key="item.id"
                 :value="item.id"
               >
-                {{ item.name }}
+                {{ item.name }} ·
+                {{
+                  t(item.is_shared ? "workspace.shared" : "workspace.private")
+                }}
               </option>
             </select>
+            <WorkspaceVisibilityBadge
+              v-if="activeWorkspace"
+              :shared="Boolean(activeWorkspace.is_shared)"
+              sidebar
+            />
           </span>
         </label>
         <div v-else class="workspace-picker">
           <span class="avatar">{{ initials }}</span>
           <span class="workspace-copy">
             <strong>{{ activeWorkspace?.name ?? t("shell.mySpace") }}</strong>
+            <WorkspaceVisibilityBadge
+              v-if="activeWorkspace"
+              :shared="Boolean(activeWorkspace.is_shared)"
+              sidebar
+            />
             <small>{{
               session.user?.display_name || session.user?.email
             }}</small>

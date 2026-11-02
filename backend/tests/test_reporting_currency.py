@@ -39,6 +39,7 @@ def test_session_exposes_each_workspace_reporting_currency() -> None:
             "name": "Usd-Session",
             "slug": "usd-session",
             "is_personal": False,
+            "is_shared": False,
             "base_currency": "USD",
             "role": "owner",
         }

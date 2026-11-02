@@ -3,8 +3,8 @@ export const workspaceMessages = defineMessageCatalog(
   {
     workspace: {
       title: "Workspaces",
-      subtitle: "Personal and shared spaces",
-      personal: "Personal",
+      subtitle: "Private and shared spaces",
+      private: "Private",
       shared: "Shared",
       scopeHelp:
         "Only members can access this workspace. Shared resources keep their original owner and history.",
@@ -21,7 +21,7 @@ export const workspaceMessages = defineMessageCatalog(
       inviteCreated:
         "Send this invitation code privately to the recipient. It expires after 7 days and only that email can accept it.",
       cancelInvite: "Cancel invitation",
-      create: "Create shared workspace",
+      create: "Create workspace",
       createHelp:
         "Creates an empty workspace in your current reporting currency. Your personal assets remain private.",
       invitationCode: "Invitation code",
@@ -57,7 +57,7 @@ export const workspaceMessages = defineMessageCatalog(
     workspace: {
       title: "Espacios",
       subtitle: "Espacios privados y compartidos",
-      personal: "Personal",
+      private: "Privado",
       shared: "Compartido",
       scopeHelp:
         "Solo los miembros pueden acceder a este espacio. Los elementos compartidos conservan su propietario e historial originales.",
@@ -74,7 +74,7 @@ export const workspaceMessages = defineMessageCatalog(
       inviteCreated:
         "Envía este código en privado al destinatario. Caduca en 7 días y solo puede aceptarlo ese correo.",
       cancelInvite: "Cancelar invitación",
-      create: "Crear espacio compartido",
+      create: "Crear espacio",
       createHelp:
         "Crea un espacio vacío con tu moneda de referencia actual. Tus activos personales siguen siendo privados.",
       invitationCode: "Código de invitación",
