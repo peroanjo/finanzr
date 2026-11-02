@@ -27,10 +27,22 @@ el espacio seleccionado.
 
 ## Compartir sin duplicar gestiones
 
-En **Compartir cuentas y activos**, selecciona un elemento de un espacio del que
-seas propietario, el espacio compartido de destino y los permisos. Debes ser
-propietario o editor del destino. Puedes conceder solo lectura o edición, y
-actualizar esos permisos utilizando el mismo formulario.
+En **Compartir cuentas y activos**, el espacio seleccionado arriba es el destino.
+La columna izquierda muestra tus cuentas y activos disponibles de otros espacios
+que administras. Pulsa un elemento para compartirlo: aparecerá en la columna derecha.
+**Compartir todo** añade de una vez todos los elementos que faltan, sin duplicar los
+que ya están incluidos. El buscador filtra ambas listas; compartir todo incluye
+todos los disponibles, aunque el buscador oculte alguno.
+
+Elige **Solo lectura** o **Puede editar** antes de añadir elementos. Puedes cambiar
+el permiso de cada elemento propio desde la columna derecha. La flecha hacia la
+izquierda revoca el acceso y devuelve el elemento a la lista de disponibles.
+Los elementos del propio espacio y los compartidos por otros miembros se muestran
+identificados, sin permitir retirar recursos ajenos.
+
+Debes ser propietario del espacio original y propietario o editor del destino.
+Cada elemento se valida por separado: si alguno falla al compartir todo, se
+indican los que ya se han compartido y se actualizan las listas antes de reintentar.
 
 La cuenta o el activo mantiene su registro original. Una cuenta compartida incluye
 todas sus posiciones, su historial completo y los movimientos futuros. Las

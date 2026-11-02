@@ -582,3 +582,28 @@ def test_workspace_visibility_tracks_members_instead_of_workspace_type(
     member = c["b"].memberships.get(workspace_id=workspace_id)
     assert c["ca"].delete(f"/api/workspaces/members/{member.pk}").status_code == 200
     assert visibility() is False
+
+
+def test_sharing_board_lists_native_resources_without_exposing_other_private_resources(
+    context: dict[str, Any],
+) -> None:
+    c = context
+    native = Account.objects.create(
+        workspace=c["common"], name="Synthetic common savings", kind="savings"
+    )
+    grant(c)
+    data = c["cb"].get("/api/workspaces/shares").json()
+    assert data["native"] == [
+        {
+            "kind": "account",
+            "id": str(native.pk),
+            "name": "Synthetic common savings",
+            "workspace_id": str(c["common"].pk),
+        }
+    ]
+    assert data["resources"] == []
+    assert [row["resource_id"] for row in data["incoming"]] == [str(c["account"].pk)]
+    assert "Private savings" not in str(data)
+    personal = c["ca"].get("/api/workspaces/shares").json()
+    row = next(item for item in personal["resources"] if item["id"] == str(c["account"].pk))
+    assert row["workspace_name"] == c["pa"].name

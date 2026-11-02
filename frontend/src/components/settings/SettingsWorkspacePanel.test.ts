@@ -111,20 +111,34 @@ beforeEach(() => {
 });
 
 describe("SettingsWorkspacePanel", () => {
-  it("shows members, original-resource sharing and explicit permissions", async () => {
+  it("shares an original resource into the workspace being configured", async () => {
+    const data = structuredClone(shareData);
+    mockApi.mockImplementation(async (path, init) => {
+      if (path === "/workspaces/settings") return settings;
+      if (path === "/workspaces/shares" && init?.method === "POST") {
+        const shared = {
+          id: "new-grant",
+          kind: "account",
+          resource_id: "account-1",
+          name: "Synthetic savings",
+          target_id: "shared-1",
+          target_name: "Synthetic common",
+          access: "edit",
+        };
+        data.incoming = [shared] as unknown as typeof data.incoming;
+        data.outgoing = [shared];
+        return shared;
+      }
+      return structuredClone(data);
+    });
     const wrapper = render();
     await flushPromises();
     expect(wrapper.text()).toContain("Synthetic A");
     expect(wrapper.text()).toContain("Compartir cuentas y activos");
-    expect(wrapper.text()).toContain("registro original sin copiarlo");
-    const form = wrapper
-      .findAll("form")
-      .find((item) => item.text().includes("Cuenta o activo"))!;
-    const selects = form.findAll("select");
-    await selects[0].setValue("account:account-1");
-    await selects[1].setValue("shared-1");
-    await selects[2].setValue("edit");
-    await form.trigger("submit");
+    await wrapper.get(".sharing-controls select").setValue("edit");
+    await wrapper
+      .get('.sharing-add[aria-label="Compartir Synthetic savings"]')
+      .trigger("click");
     await flushPromises();
     expect(mockApi).toHaveBeenCalledWith(
       "/workspaces/shares",
@@ -137,6 +151,161 @@ describe("SettingsWorkspacePanel", () => {
           access: "edit",
         }),
       }),
+    );
+    expect(wrapper.findAll(".sharing-add")).toHaveLength(0);
+    expect(wrapper.get(".sharing-included-row").text()).toContain(
+      "Synthetic savings",
+    );
+    wrapper.unmount();
+  });
+
+  it("shares all available resources without duplicating existing grants", async () => {
+    const data = {
+      ...structuredClone(shareData),
+      resources: [
+        ...shareData.resources,
+        {
+          kind: "manual_asset",
+          id: "asset-2",
+          name: "Synthetic asset",
+          workspace_id: "private-1",
+        },
+      ],
+      incoming: [] as Array<{
+        id: string;
+        kind: string;
+        resource_id: string;
+        name: string;
+        target_id: string;
+        target_name: string;
+        access: string;
+      }>,
+      outgoing: [] as Array<{
+        id: string;
+        kind: string;
+        resource_id: string;
+        name: string;
+        target_id: string;
+        target_name: string;
+        access: string;
+      }>,
+    };
+    mockApi.mockImplementation(async (path, init) => {
+      if (path === "/workspaces/settings") return settings;
+      if (init?.method === "POST") {
+        const request = JSON.parse(init.body as string);
+        const grant = {
+          id: request.resource_id,
+          kind: request.kind,
+          resource_id: request.resource_id,
+          name: "Synthetic resource",
+          target_id: "shared-1",
+          target_name: "Synthetic common",
+          access: request.access,
+        };
+        data.incoming.push(grant);
+        data.outgoing.push(grant);
+        return grant;
+      }
+      return structuredClone(data);
+    });
+    const wrapper = render();
+    await flushPromises();
+    await wrapper.get(".share-all").trigger("click");
+    await flushPromises();
+    expect(
+      mockApi.mock.calls.filter(([, init]) => init?.method === "POST"),
+    ).toHaveLength(2);
+    expect(wrapper.findAll(".sharing-included-row")).toHaveLength(2);
+    expect(wrapper.get('[role="status"].sharing-status').text()).toContain(
+      "2 de 2",
+    );
+    expect(wrapper.get(".share-all").attributes("disabled")).toBeDefined();
+    wrapper.unmount();
+  });
+
+  it("refreshes partial batch successes when a later resource cannot be shared", async () => {
+    const data = {
+      ...structuredClone(shareData),
+      resources: [
+        ...shareData.resources,
+        {
+          kind: "manual_asset",
+          id: "asset-2",
+          name: "Synthetic incompatible currency",
+          workspace_id: "private-1",
+        },
+      ],
+      incoming: [] as Array<Record<string, string>>,
+    };
+    mockApi.mockImplementation(async (path, init) => {
+      if (path === "/workspaces/settings") return settings;
+      if (init?.method === "POST") {
+        const request = JSON.parse(init.body as string);
+        if (request.resource_id === "asset-2")
+          throw new Error("Synthetic currency mismatch");
+        const grant = {
+          id: "grant-1",
+          kind: "account",
+          resource_id: "account-1",
+          name: "Synthetic savings",
+          target_id: "shared-1",
+          target_name: "Synthetic common",
+          access: "read",
+        };
+        data.incoming.push(grant);
+        return grant;
+      }
+      return structuredClone(data);
+    });
+    const wrapper = render();
+    await flushPromises();
+    await wrapper.get(".share-all").trigger("click");
+    await flushPromises();
+    expect(wrapper.get('.sharing-error[role="alert"]').text()).toContain(
+      "Synthetic currency mismatch",
+    );
+    expect(wrapper.get(".sharing-status").text()).toContain("1 de 2");
+    expect(wrapper.findAll(".sharing-add")).toHaveLength(1);
+    expect(wrapper.findAll(".sharing-included-row")).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it("returns a revoked resource to the available column without deleting the original", async () => {
+    const share = {
+      id: "grant-1",
+      kind: "account",
+      resource_id: "account-1",
+      name: "Synthetic savings",
+      target_id: "shared-1",
+      target_name: "Synthetic common",
+      access: "read",
+    };
+    const data = {
+      ...structuredClone(shareData),
+      incoming: [share],
+      outgoing: [share],
+    };
+    mockApi.mockImplementation(async (path, init) => {
+      if (path === "/workspaces/settings") return settings;
+      if (init?.method === "DELETE") {
+        data.incoming = [];
+        data.outgoing = [];
+        return undefined;
+      }
+      return structuredClone(data);
+    });
+    const wrapper = render();
+    await flushPromises();
+    await wrapper.get(".sharing-remove").trigger("click");
+    await flushPromises();
+    expect(mockApi).toHaveBeenCalledWith("/workspaces/shares/grant-1", {
+      method: "DELETE",
+    });
+    expect(wrapper.findAll(".sharing-included-row")).toHaveLength(0);
+    expect(wrapper.get(".sharing-add").text()).toContain("Synthetic savings");
+    expect(wrapper.get(".sharing-status").text()).toContain(
+      "Se conserva el original",
     );
     wrapper.unmount();
   });

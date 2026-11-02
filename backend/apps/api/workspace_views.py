@@ -169,17 +169,31 @@ def shares(request: Request) -> Response:
     )
     if request.method == "GET":
         resources = []
+        native: list[dict[str, str]] = []
+        current = workspace(request)
         outgoing_ids: set[UUID] = set()
         for kind, model in RESOURCE_MODELS.items():
-            for item in model.objects.filter(workspace__in=owned, archived_at__isnull=True):
+            for item in model.objects.filter(
+                workspace__in=owned, archived_at__isnull=True
+            ).select_related("workspace"):
                 resources.append(
                     {
                         "kind": kind,
                         "id": str(item.pk),
                         "name": item.name,
                         "workspace_id": str(item.workspace_id),
+                        "workspace_name": item.workspace.name,
                     }
                 )
+            native.extend(
+                {
+                    "kind": kind,
+                    "id": str(item.pk),
+                    "name": item.name,
+                    "workspace_id": str(current.pk),
+                }
+                for item in model.objects.filter(workspace=current, archived_at__isnull=True)
+            )
             outgoing_ids.update(
                 AssetShare.objects.filter(**{f"{kind}__workspace__in": owned}).values_list(
                     "pk", flat=True
@@ -194,6 +208,7 @@ def shares(request: Request) -> Response:
         return Response(
             {
                 "resources": resources,
+                "native": native,
                 "targets": [{"id": str(item.pk), "name": item.name} for item in targets],
                 "outgoing": [share_row(item) for item in outgoing],
                 "incoming": [share_row(item) for item in incoming],

@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
+import WorkspaceSharingBoard from "./WorkspaceSharingBoard.vue";
+import type {
+  ShareResource,
+  ResourceShare,
+  WorkspaceShares,
+} from "./workspaceSharing";
 import WorkspaceVisibilityBadge from "../WorkspaceVisibilityBadge.vue";
 import { useI18n } from "vue-i18n";
 import { registerMessages } from "../../i18n";
@@ -23,32 +29,11 @@ interface Settings {
   members: Member[];
   invitations: { id: string; email: string; role: string }[];
 }
-interface Resource {
-  kind: string;
-  id: string;
-  name: string;
-  workspace_id: string;
-}
-interface Share {
-  id: string;
-  kind: string;
-  resource_id: string;
-  name: string;
-  target_id: string;
-  target_name: string;
-  access: string;
-}
-interface Shares {
-  resources: Resource[];
-  targets: { id: string; name: string }[];
-  outgoing: Share[];
-  incoming: Share[];
-}
 registerMessages(workspaceMessages);
 const { t } = useI18n();
 const session = useSessionStore();
 const settings = ref<Settings>();
-const shares = ref<Shares>();
+const shares = ref<WorkspaceShares>();
 const busy = ref(false);
 const error = ref("");
 const name = ref("");
@@ -126,25 +111,13 @@ async function submitDialog() {
 const email = ref("");
 const inviteRole = ref("editor");
 const invitationCode = ref("");
-const selectedResource = ref("");
-const targetId = ref("");
-const access = ref("read");
 const confirmArchive = ref(false);
-const resource = computed(() =>
-  shares.value?.resources.find(
-    (item) => `${item.kind}:${item.id}` === selectedResource.value,
-  ),
-);
-const targets = computed(
-  () =>
-    shares.value?.targets.filter(
-      (item) => item.id !== resource.value?.workspace_id,
-    ) ?? [],
-);
+const sharingError = ref("");
+const sharingStatus = ref("");
 async function load() {
   [settings.value, shares.value] = await Promise.all([
     api<Settings>("/workspaces/settings"),
-    api<Shares>("/workspaces/shares"),
+    api<WorkspaceShares>("/workspaces/shares"),
   ]);
   name.value = settings.value.name;
 }
@@ -202,21 +175,66 @@ function removeMember(member: Member) {
     ),
   );
 }
-function grant() {
-  return run(() =>
-    api(
-      "/workspaces/shares",
-      json("POST", {
-        kind: resource.value?.kind,
-        resource_id: resource.value?.id,
-        target_id: targetId.value,
-        access: access.value,
-      }),
-    ),
+async function updateSharing(action: () => Promise<void>) {
+  if (busy.value) return;
+  busy.value = true;
+  sharingError.value = "";
+  sharingStatus.value = "";
+  try {
+    await action();
+  } catch (reason) {
+    sharingError.value =
+      reason instanceof Error ? reason.message : t("workspace.failure");
+  } finally {
+    try {
+      await load();
+    } catch {
+      sharingError.value ||= t("workspace.refreshSharingError");
+    }
+    busy.value = false;
+  }
+}
+function shareResources(items: ShareResource[], access: string) {
+  const target = settings.value?.id;
+  if (!target || !items.length) return;
+  return updateSharing(async () => {
+    let completed = 0;
+    for (const item of items) {
+      await api(
+        "/workspaces/shares",
+        json("POST", {
+          kind: item.kind,
+          resource_id: item.id,
+          target_id: target,
+          access,
+        }),
+      );
+      completed++;
+      sharingStatus.value = t("workspace.sharedProgress", {
+        count: completed,
+        total: items.length,
+      });
+    }
+  });
+}
+function changeSharePermission(share: ResourceShare, access: string) {
+  return shareResources(
+    [
+      {
+        kind: share.kind,
+        id: share.resource_id,
+        name: share.name,
+        workspace_id: "",
+      },
+    ],
+    access,
   );
 }
-function revoke(share: Share) {
-  return run(() => api(`/workspaces/shares/${share.id}`, { method: "DELETE" }));
+function revokeShare(share: ResourceShare) {
+  return updateSharing(async () => {
+    await api(`/workspaces/shares/${share.id}`, { method: "DELETE" });
+    sharingStatus.value = t("workspace.stoppedSharing", { name: share.name });
+  });
 }
 onMounted(() => run(async () => {}));
 </script>
@@ -398,70 +416,18 @@ onMounted(() => run(async () => {}));
         </ul>
       </template>
     </section>
-    <section v-if="shares">
-      <h4>{{ t("workspace.shareAssets") }}</h4>
-      <p>{{ t("workspace.shareHelp") }}</p>
-      <form @submit.prevent="grant">
-        <label
-          >{{ t("workspace.resource")
-          }}<select v-model="selectedResource" required>
-            <option disabled value="">{{ t("workspace.choose") }}</option>
-            <option
-              v-for="item in shares.resources"
-              :key="`${item.kind}:${item.id}`"
-              :value="`${item.kind}:${item.id}`"
-            >
-              {{ item.name }} · {{ t(`workspace.kinds.${item.kind}`) }}
-            </option>
-          </select></label
-        >
-        <label
-          >{{ t("workspace.target")
-          }}<select v-model="targetId" required>
-            <option disabled value="">{{ t("workspace.choose") }}</option>
-            <option
-              v-for="target in targets"
-              :key="target.id"
-              :value="target.id"
-            >
-              {{ target.name }}
-            </option>
-          </select></label
-        >
-        <label
-          >{{ t("workspace.permission")
-          }}<select v-model="access">
-            <option value="read">{{ t("workspace.read") }}</option>
-            <option value="edit">{{ t("workspace.edit") }}</option>
-          </select></label
-        >
-        <button
-          :disabled="
-            busy || !resource || !targets.some((item) => item.id === targetId)
-          "
-        >
-          {{ t("workspace.share") }}
-        </button>
-      </form>
-      <h4>{{ t("workspace.outgoing") }}</h4>
-      <ul>
-        <li v-for="share in shares.outgoing" :key="share.id">
-          <span
-            >{{ share.name }} → {{ share.target_name
-            }}<small>{{ t(`workspace.${share.access}`) }}</small></span
-          ><button :disabled="busy" type="button" @click="revoke(share)">
-            {{ t("workspace.revoke") }}
-          </button>
-        </li>
-      </ul>
-      <h4>{{ t("workspace.incoming") }}</h4>
-      <ul>
-        <li v-for="share in shares.incoming" :key="share.id">
-          <span>{{ share.name }}</span
-          ><small>{{ t(`workspace.${share.access}`) }}</small>
-        </li>
-      </ul>
-    </section>
+    <WorkspaceSharingBoard
+      v-if="shares && settings"
+      :data="shares"
+      :workspace-id="settings.id"
+      :workspace-name="settings.name"
+      :busy="busy"
+      :error="sharingError"
+      :status="sharingStatus"
+      @share="shareResources"
+      @revoke="revokeShare"
+      @permission="changeSharePermission"
+    />
     <section
       v-if="settings && !settings.is_personal && settings.role === 'owner'"
     >
