@@ -70,6 +70,21 @@ const workspaceOptions = computed(
         ]
       : []),
 );
+const selectedWorkspace = computed(() =>
+  settings.value
+    ? {
+        id: settings.value.id,
+        name: settings.value.name,
+        is_shared: settings.value.members.length > 1,
+      }
+    : workspaceOptions.value.find(
+        (item) => item.id === session.user?.active_workspace_id,
+      ),
+);
+const workspaceInitial = computed(
+  () =>
+    selectedWorkspace.value?.name.trim().slice(0, 1).toLocaleUpperCase() ?? "",
+);
 async function openDialog(mode: "create" | "join") {
   dialogMode.value = mode;
   dialogValue.value = "";
@@ -213,9 +228,33 @@ onMounted(() => run(async () => {}));
       <h3>{{ t("workspace.title") }}</h3>
     </header>
     <div class="workspace-toolbar">
-      <label class="workspace-selection"
-        >{{ t("workspace.configuring") }}
+      <label
+        class="workspace-selection"
+        :class="{
+          'is-shared': selectedWorkspace?.is_shared,
+          'is-disabled': busy || session.switchingWorkspace || !settings,
+        }"
+      >
+        <span class="workspace-selection-face" aria-hidden="true">
+          <span class="workspace-monogram">{{ workspaceInitial || "·" }}</span>
+          <span class="workspace-selection-copy">
+            <span class="workspace-selection-caption">{{
+              t("workspace.activeSpace")
+            }}</span>
+            <span class="workspace-selection-name">{{
+              selectedWorkspace?.name ?? t("workspace.loading")
+            }}</span>
+          </span>
+          <WorkspaceVisibilityBadge
+            v-if="selectedWorkspace"
+            :shared="Boolean(selectedWorkspace.is_shared)"
+          />
+          <svg class="workspace-switch-icon" viewBox="0 0 20 20" fill="none">
+            <path d="m7 7 3-3 3 3M7 13l3 3 3-3" />
+          </svg>
+        </span>
         <select
+          :aria-label="t('workspace.configuring')"
           :value="settings?.id ?? session.user?.active_workspace_id ?? ''"
           :disabled="busy || session.switchingWorkspace || !settings"
           @change="
@@ -237,10 +276,28 @@ onMounted(() => run(async () => {}));
         </select>
       </label>
       <div class="workspace-actions">
-        <button type="button" :disabled="busy" @click="openDialog('create')">
-          ＋ {{ t("workspace.create") }}
+        <button
+          class="workspace-create"
+          type="button"
+          :disabled="busy"
+          @click="openDialog('create')"
+        >
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" />
+          </svg>
+          {{ t("workspace.create") }}
         </button>
-        <button type="button" :disabled="busy" @click="openDialog('join')">
+        <button
+          class="workspace-join"
+          type="button"
+          :disabled="busy"
+          @click="openDialog('join')"
+        >
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path
+              d="M11 3h4a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-4M3 10h9m-3-3 3 3-3 3"
+            />
+          </svg>
           {{ t("workspace.join") }}
         </button>
       </div>
@@ -514,6 +571,7 @@ onMounted(() => run(async () => {}));
   gap: 10px;
 }
 .workspace-panel {
+  container-type: inline-size;
   padding: 28px;
   font-size: 12px;
   line-height: 1.6;
@@ -603,25 +661,210 @@ small {
 
 <style scoped>
 .workspace-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 12px;
-  margin: 20px 0 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin: 22px 0 8px;
+  padding: 12px;
+  border: 1px solid var(--fz-line);
+  border-radius: 18px;
+  background: var(--fz-surface-soft);
 }
 .workspace-selection {
-  flex: 1 1 220px;
+  --selection-accent: var(--fz-accent);
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--fz-line);
+  border-radius: 11px;
+  background: var(--fz-surface);
+  overflow: hidden;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.workspace-selection::before {
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--fz-accent);
+  content: "";
+}
+.workspace-selection.is-shared {
+  --selection-accent: var(--fz-workspace-shared-ink, #2458a6);
+}
+.workspace-selection.is-shared::before {
+  background: var(--fz-workspace-shared-ink, #2458a6);
+}
+.workspace-selection-face {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 12px 14px;
+}
+.workspace-monogram {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--fz-accent) 18%, var(--fz-line));
+  border-radius: 10px;
+  background: var(--fz-accent-soft);
+  color: var(--fz-accent);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+.is-shared .workspace-monogram {
+  background: var(--fz-workspace-shared-bg, #eaf1ff);
+  color: var(--fz-workspace-shared-ink, #2458a6);
+  border-color: var(--fz-workspace-shared-border, #b8cdf0);
+}
+.workspace-selection-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.workspace-selection-caption {
+  color: var(--fz-muted);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.workspace-selection-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fz-ink);
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.4;
+  letter-spacing: -0.035em;
+}
+.workspace-switch-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  stroke: var(--fz-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.workspace-selection select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.workspace-selection:hover:not(.is-disabled) {
+  border-color: var(--selection-accent);
+}
+.workspace-selection:has(select:focus-visible) {
+  outline: 3px solid var(--selection-accent);
+  outline-offset: 3px;
+}
+.workspace-selection.is-disabled {
+  opacity: 0.6;
+}
+.workspace-selection select:disabled {
+  cursor: default;
 }
 .workspace-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 7px;
+  padding-left: 16px;
+  border-left: 1px solid var(--fz-line);
 }
-.workspace-actions button:first-child,
+.workspace-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.workspace-actions svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.workspace-actions .workspace-create {
+  background: var(--fz-ink);
+  color: var(--fz-surface);
+  border-color: var(--fz-ink);
+}
+.workspace-actions .workspace-join {
+  background: transparent;
+  color: var(--fz-muted);
+  border-color: transparent;
+}
+.workspace-actions button:hover:not(:disabled) {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+}
+.workspace-actions .workspace-join:hover:not(:disabled) {
+  background: var(--fz-surface);
+  color: var(--fz-ink);
+  border-color: var(--fz-line);
+}
 .workspace-action-dialog button[type="submit"] {
   background: var(--fz-accent-soft);
   color: var(--fz-ink);
   border-color: var(--fz-accent);
+}
+@container (max-width: 590px) {
+  .workspace-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .workspace-actions {
+    justify-content: flex-end;
+    padding: 0;
+    border: 0;
+  }
+}
+@container (max-width: 340px) {
+  .workspace-selection-face {
+    gap: 8px;
+    padding: 11px;
+  }
+  .workspace-monogram {
+    width: 32px;
+    height: 32px;
+    font-size: 17px;
+  }
+  .workspace-selection-name {
+    font-size: 14px;
+  }
+  .workspace-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .workspace-actions button {
+    white-space: normal;
+    text-align: left;
+    padding: 9px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-selection {
+    transition: none;
+  }
 }
 .workspace-action-dialog {
   width: min(440px, calc(100vw - 32px));

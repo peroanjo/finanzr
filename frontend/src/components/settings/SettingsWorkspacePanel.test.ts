@@ -192,6 +192,7 @@ describe("SettingsWorkspacePanel", () => {
   ])(
     "labels visibility by actual members: $members / personal=$personal",
     async ({ personal, members, label, className }) => {
+      useSessionStore().user = userSession("shared-1");
       mockApi.mockImplementation(async (path) =>
         path === "/workspaces/settings"
           ? {
@@ -213,6 +214,14 @@ describe("SettingsWorkspacePanel", () => {
       const badge = wrapper.get(".workspace-heading .workspace-visibility");
       expect(badge.text()).toBe(label);
       expect(badge.classes()).toContain(className);
+      expect(
+        wrapper.get(".workspace-selection-face .workspace-visibility").text(),
+      ).toBe(label);
+      expect(
+        wrapper
+          .get(".workspace-selection-face .workspace-visibility")
+          .classes(),
+      ).toContain(className);
       wrapper.unmount();
     },
   );

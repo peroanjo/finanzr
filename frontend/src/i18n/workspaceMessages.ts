@@ -23,6 +23,7 @@ export const workspaceMessages = defineMessageCatalog(
       cancelInvite: "Cancel invitation",
       create: "Create workspace",
       configuring: "Workspace to configure",
+      activeSpace: "Active workspace",
       join: "Join workspace",
       joinHelp:
         "Enter the invitation code provided by the workspace owner. Sign in with the email address that received the invitation.",
@@ -80,6 +81,7 @@ export const workspaceMessages = defineMessageCatalog(
       cancelInvite: "Cancelar invitación",
       create: "Crear espacio",
       configuring: "Espacio que estás configurando",
+      activeSpace: "Espacio activo",
       join: "Unirse a espacio",
       joinHelp:
         "Introduce el código de invitación que te ha facilitado el propietario del espacio. Debes iniciar sesión con el correo al que se dirigió la invitación.",
