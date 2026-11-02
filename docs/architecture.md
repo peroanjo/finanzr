@@ -134,6 +134,7 @@ projection are recorded in:
 - [`adr/0003-portfolio-as-calculated-projection.md`](adr/0003-portfolio-as-calculated-projection.md)
 - [`adr/0004-personal-workspace-provisioning.md`](adr/0004-personal-workspace-provisioning.md)
 - [`adr/0005-shared-workspaces-and-resource-grants.md`](adr/0005-shared-workspaces-and-resource-grants.md)
+- [`adr/0006-canonical-resource-counting.md`](adr/0006-canonical-resource-counting.md)
 
 Changes that alter data ownership, authentication, import semantics, currency
 conversion or backup/restore should add or update an ADR and focused tests.

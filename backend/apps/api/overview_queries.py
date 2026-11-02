@@ -322,7 +322,7 @@ def _overview_calculation(request: Request) -> tuple[dict[str, Any], list[dict[s
     user = cast(User, request.user)
     included_sources, source_scope = effective_summary_sources(user, current_workspace)
     properties = real_estate_records(request)
-    manual_assets = _summary_manual_assets(request, properties)
+    manual_assets = _summary_manual_assets(request)
     all_savings = [
         _summary_snapshot_row(x)
         for x in AccountSnapshot.objects.select_related("account").filter(

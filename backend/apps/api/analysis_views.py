@@ -131,7 +131,7 @@ def crypto_analysis(request: Request) -> Response:
 def portfolio_analysis(request: Request) -> Response:
     result: list[dict[str, Any]] = []
     properties = real_estate_records(request)
-    manual_assets = _summary_manual_assets(request, properties)
+    manual_assets = _summary_manual_assets(request)
     for item in manual_assets:
         value = number(item.value)
         if value <= 0:

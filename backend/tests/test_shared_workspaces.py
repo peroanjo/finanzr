@@ -607,3 +607,125 @@ def test_sharing_board_lists_native_resources_without_exposing_other_private_res
     personal = c["ca"].get("/api/workspaces/shares").json()
     row = next(item for item in personal["resources"] if item["id"] == str(c["account"].pk))
     assert row["workspace_name"] == c["pa"].name
+
+
+@pytest.mark.parametrize("shared", [False, True])
+@pytest.mark.parametrize(
+    ("sources", "expected"),
+    [
+        (["manual_assets", "crowdfunding"], 2000),
+        (["manual_assets"], 1000),
+        (["crowdfunding"], 1000),
+    ],
+)
+def test_independent_assets_with_identical_names_and_values_are_not_merged(
+    context: dict[str, Any], shared: bool, sources: list[str], expected: int
+) -> None:
+    c = context
+    asset = ManualAsset.objects.create(
+        workspace=c["pa"],
+        name="Synthetic independent asset",
+        provider_label="Synthetic provider",
+        asset_class="Real estate",
+        value=1000,
+        currency="EUR",
+        valued_at=date(2026, 1, 31),
+    )
+    project = RealEstateInvestment.objects.create(
+        workspace=c["pb"] if shared else c["pa"],
+        name=asset.name,
+        provider_label=asset.provider_label,
+        start_date=date(2026, 1, 1),
+        currency="EUR",
+    )
+    RealEstateCashFlow.objects.create(
+        investment=project,
+        effective_date=date(2026, 1, 1),
+        flow_type="contribution",
+        amount=1000,
+    )
+    if shared:
+        grant(c, asset, "manual_asset")
+        AssetShare.objects.create(target=c["common"], real_estate=project)
+    client = c["cb"] if shared else c["ca"]
+    client.defaults["REMOTE_ADDR"] = "192.0.2.200"
+    assert (
+        client.patch(
+            "/api/auth/preferences", {"summary_sources": sources}, format="json"
+        ).status_code
+        == 200
+    )
+    summary = client.get("/api/summary").json()
+    assert summary["net_worth"] == expected
+    breakdown = {row["key"]: row["value"] for row in summary["source_breakdown"]}
+    assert breakdown["manual_assets"] == (1000 if "manual_assets" in sources else 0)
+    assert breakdown["crowdfunding"] == (1000 if "crowdfunding" in sources else 0)
+    assert client.get("/api/net-worth-history").json()[-1]["total"] == expected
+    analysis = client.get("/api/portfolio-analysis").json()
+    assert analysis["total"] == 2000
+    assert {item["id"] for item in analysis["items"]} == {
+        f"manual:{asset.pk}",
+        f"real-estate:{project.pk}",
+    }
+    assert sorted(item["peso"] for item in analysis["items"]) == [0.5, 0.5]
+    assert client.get("/api/portfolio").json()[0]["id"] == str(asset.pk)
+    assert ManualAsset.objects.filter(pk=asset.pk).count() == 1
+    assert RealEstateInvestment.objects.filter(pk=project.pk).count() == 1
+
+
+@pytest.mark.parametrize("shared", [False, True])
+def test_distinct_manual_assets_with_identical_attributes_both_count(
+    context: dict[str, Any], shared: bool
+) -> None:
+    c = context
+    assets = [
+        ManualAsset.objects.create(
+            workspace=owner,
+            name="Synthetic matching asset",
+            asset_class="Other",
+            provider_label="Synthetic provider",
+            value=1000,
+            currency="EUR",
+            valued_at=date(2026, 1, 31),
+        )
+        for owner in [c["pa"], c["pb"] if shared else c["pa"]]
+    ]
+    if shared:
+        for asset in assets:
+            AssetShare.objects.create(target=c["common"], manual_asset=asset)
+    client = c["cb"] if shared else c["ca"]
+    client.defaults["REMOTE_ADDR"] = "192.0.2.200"
+    client.patch("/api/auth/preferences", {"summary_sources": ["manual_assets"]}, format="json")
+    assert client.get("/api/summary").json()["net_worth"] == 2000
+    assert client.get("/api/net-worth-history").json()[-1]["total"] == 2000
+    analysis = client.get("/api/portfolio-analysis").json()
+    assert analysis["total"] == 2000
+    assert {item["id"] for item in analysis["items"]} == {f"manual:{asset.pk}" for asset in assets}
+
+
+def test_multiple_sharing_links_never_duplicate_the_original_manual_asset(
+    context: dict[str, Any],
+) -> None:
+    c = context
+    asset = ManualAsset.objects.create(
+        workspace=c["pa"],
+        name="Synthetic single original",
+        asset_class="Other",
+        value=1000,
+        currency="EUR",
+        valued_at=date(2026, 1, 31),
+    )
+    other = Workspace.objects.create(
+        name="Another synthetic shared space", slug="another-synthetic-shared"
+    )
+    for target in [c["common"], other]:
+        AssetShare.objects.create(target=target, manual_asset=asset)
+    for client in [c["ca"], c["cb"]]:
+        client.defaults["REMOTE_ADDR"] = "192.0.2.200"
+        client.patch("/api/auth/preferences", {"summary_sources": ["manual_assets"]}, format="json")
+        assert client.get("/api/summary").json()["net_worth"] == 1000
+        assert client.get("/api/net-worth-history").json()[-1]["total"] == 1000
+        analysis = client.get("/api/portfolio-analysis").json()
+        assert analysis["total"] == 1000
+        assert len(analysis["items"]) == 1
+    assert ManualAsset.objects.filter(pk=asset.pk).count() == 1

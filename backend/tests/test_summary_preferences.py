@@ -232,7 +232,7 @@ def test_crowdfunding_only_history_uses_project_and_cashflow_months() -> None:
 
 
 @pytest.mark.django_db
-def test_manual_asset_deduplication_requires_project_correlation() -> None:
+def test_matching_manual_and_real_estate_records_are_both_counted() -> None:
     workspace, user, _other_user = setup_workspace()
     project = RealEstateInvestment.objects.create(
         workspace=workspace,
@@ -247,7 +247,7 @@ def test_manual_asset_deduplication_requires_project_correlation() -> None:
         amount=300,
         is_external=True,
     )
-    # This exact-name/value row is the known historical duplication.
+    # Two canonical records may legitimately have identical names and values.
     ManualAsset.objects.create(
         workspace=workspace,
         name="Proyecto Norte",
@@ -275,7 +275,7 @@ def test_manual_asset_deduplication_requires_project_correlation() -> None:
         ).status_code
         == 200
     )
-    assert client.get("/api/summary").json()["net_worth"] == 390
+    assert client.get("/api/summary").json()["net_worth"] == 690
 
 
 @pytest.mark.django_db

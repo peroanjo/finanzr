@@ -23,8 +23,8 @@ The portfolio will be a projection of:
 - An asset is not updated in two places.
 - The portfolio total is reproducible from canonical sources.
 - Queries are somewhat more complex and require efficient services/selectors.
-- At read time, the projection excludes a `ManualAsset` whose normalized name
-  and current value match a canonical real-estate project; when both have a
-  provider label, those labels must also match.
-- This exclusion is non-destructive: the persisted `ManualAsset` row is not
-  deleted.
+- Matching name, value, or provider does not establish identity between canonical
+  records. The former name/value-based exclusion is superseded by
+  [ADR 0006](0006-canonical-resource-counting.md).
+- Existing historical duplicate records require explicit reconciliation; reads
+  do not infer which record to suppress.
