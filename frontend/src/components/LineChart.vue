@@ -40,11 +40,18 @@ const props = defineProps<{
 }>();
 const { locale, t } = useI18n();
 const canvas = ref<HTMLCanvasElement>();
+const hoverDetail = ref<{
+  x: number;
+  y: number;
+  title: string;
+  rows: Array<{ label: string; value: string; color: string }>;
+} | null>(null);
 let chart: Chart | null = null;
 let themeObserver: MutationObserver | null = null;
 
 function render() {
   chart?.destroy();
+  hoverDetail.value = null;
   if (!canvas.value) return;
   const styles = getComputedStyle(canvas.value);
   const muted = styles.getPropertyValue("--fz-muted").trim() || "#8fa49a";
@@ -157,6 +164,23 @@ function render() {
       plugins: {
         legend: { display: false },
         tooltip: {
+          enabled: !props.ambient,
+          external: props.ambient
+            ? ({ tooltip: model }) => {
+                hoverDetail.value = model.opacity
+                  ? {
+                      x: model.x,
+                      y: model.y,
+                      title: model.title?.join(" · ") ?? "",
+                      rows: model.dataPoints.map((point) => ({
+                        label: point.dataset.label ?? "",
+                        value: money.format(Number(point.parsed.y)),
+                        color: String(point.dataset.borderColor),
+                      })),
+                    }
+                  : null;
+              }
+            : undefined,
           backgroundColor: tooltip,
           titleColor: tooltipText,
           bodyColor: tooltipText,
@@ -235,5 +259,65 @@ onBeforeUnmount(() => {
       role="img"
       :aria-label="ariaLabel || t('shared.lineChart.aria')"
     />
+    <div
+      v-if="ambient && hoverDetail"
+      class="line-chart-hover"
+      :style="{
+        left: `clamp(0px, ${hoverDetail.x}px, max(0px, calc(100% - 340px)))`,
+        top: `clamp(0px, ${hoverDetail.y}px, max(0px, calc(100% - ${44 + hoverDetail.rows.length * 20}px)))`,
+      }"
+    >
+      <strong>{{ hoverDetail.title }}</strong>
+      <div
+        v-for="row in hoverDetail.rows"
+        :key="row.label"
+        class="line-chart-hover-row"
+      >
+        <i :style="{ background: row.color }" aria-hidden="true" />
+        <span
+          >{{ row.label }}: <b>{{ row.value }}</b></span
+        >
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.line-chart {
+  position: relative;
+}
+.line-chart-hover {
+  position: absolute;
+  z-index: 4;
+  width: min(340px, 100%);
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--fz-tooltip);
+  color: var(--fz-tooltip-text);
+  box-shadow: 0 6px 24px var(--fz-chart-tooltip-shadow);
+  font-size: 12px;
+  line-height: 20px;
+  pointer-events: none;
+}
+.line-chart-hover > strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.line-chart-hover-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.line-chart-hover-row i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 2px;
+}
+.line-chart-hover-row span {
+  overflow-wrap: anywhere;
+}
+.line-chart-hover-row b {
+  font-weight: 600;
+}
+</style>

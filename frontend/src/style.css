@@ -2188,7 +2188,7 @@ th {
 }
 .hero-chart {
   position: absolute;
-  z-index: 0;
+  z-index: auto;
   inset: 85px 0 100px;
 }
 .overview-page .hero-chart .line-chart {
