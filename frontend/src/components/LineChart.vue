@@ -155,6 +155,12 @@ function render() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: {
+          left: props.ambient ? 24 : 0,
+          right: props.ambient ? 24 : 0,
+        },
+      },
       animation: {
         duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
           ? 0
@@ -201,6 +207,7 @@ function render() {
           grid: { display: false },
           ticks: {
             color: muted,
+            align: props.ambient ? "inner" : "center",
             maxTicksLimit: 6,
             maxRotation: 0,
             font: { size: 10, weight: 600 },
