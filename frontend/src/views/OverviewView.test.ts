@@ -8,10 +8,6 @@ registerMessages(viewMessagesA);
 const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }));
 vi.stubGlobal("fetch", fetchMock);
 const chartStubs = {
-  AllocationChart: {
-    props: ["items"],
-    template: '<div data-testid="allocation-chart">{{ items.length }}</div>',
-  },
   LineChart: {
     name: "LineChart",
     props: ["labels", "values", "series", "totalLabel", "ariaLabel"],
@@ -94,7 +90,8 @@ describe("OverviewView", () => {
         .findAll(".trend-panel .period-control button")
         .map((button) => button.text()),
     ).toEqual(["6 meses", "1 año", "2 años", "Todo"]);
-    expect(wrapper.get('[data-testid="allocation-chart"]').text()).toBe("3");
+    expect(wrapper.findAll(".allocation-legend > div")).toHaveLength(3);
+    expect(wrapper.findAll(".allocation-meter")).toHaveLength(3);
     expect(wrapper.get('[data-testid="line-chart"]').text()).toBe("13");
     expect(
       wrapper.get('[data-testid="line-chart"]').attributes("data-series"),

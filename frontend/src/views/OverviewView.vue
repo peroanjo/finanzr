@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api } from "../api/client";
-import AllocationChart from "../components/AllocationChart.vue";
 import LineChart from "../components/LineChart.vue";
 import type { LineChartSeries } from "../components/LineChart.vue";
 import MonthlyVariationChart from "../components/MonthlyVariationChart.vue";
@@ -92,14 +91,14 @@ const allocation = computed(() => {
           included: true,
           label: t("overview.allocation.investments"),
           value: summary.value.total_investments,
-          color: "var(--fz-trade-buy)",
+          color: sourceColor("manual_investments"),
         },
         {
           key: "crowdfunding" as const,
           included: true,
           label: t("overview.allocation.realEstate"),
           value: summary.value.total_real_estate,
-          color: "var(--fz-chart-average)",
+          color: sourceColor("crowdfunding"),
         },
       ];
   const visibleItems = items.filter((item) => item.included);
@@ -481,22 +480,23 @@ onBeforeUnmount(() => {
           class="overview-panel allocation-section"
           aria-labelledby="allocation-title"
         >
-          <AllocationChart
-            v-if="allocation.some((item) => item.share > 0)"
-            :items="allocation"
-          />
-          <div v-else class="allocation-chart-empty" aria-hidden="true">—</div>
-
           <div class="allocation-copy">
             <h2 id="allocation-title">
               {{ t("overview.currentDistribution") }}
             </h2>
             <div class="allocation-legend">
-              <div v-for="item in allocation" :key="item.label">
+              <div
+                v-for="item in allocation"
+                :key="item.key"
+                :style="{ '--allocation-color': item.color }"
+              >
                 <span class="legend-dot" :style="{ background: item.color }" />
                 <span>{{ item.label }}</span>
                 <strong>{{ money(item.value) }}</strong>
                 <small>{{ percentage(item.share) }}</small>
+                <div class="allocation-meter" aria-hidden="true">
+                  <span :style="{ width: `${item.share * 100}%` }" />
+                </div>
               </div>
             </div>
           </div>

@@ -2301,3 +2301,99 @@ th {
 .overview-page .overview-hero.trend-panel {
   background: var(--fz-surface);
 }
+
+/* Keep the balance and its allocation together in the first row. */
+@media (min-width: 1101px) {
+  .overview-page {
+    grid-template-columns: minmax(0, 1.9fr) minmax(290px, 1fr);
+  }
+  .overview-page .overview-hero.trend-panel {
+    grid-column: 1;
+  }
+  .overview-page .allocation-section {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .overview-hero.trend-panel .hero-metric-column {
+    width: 100%;
+  }
+  .overview-hero.trend-panel .net-worth {
+    font-size: clamp(36px, 4.3vw, 62px);
+  }
+  .overview-hero.trend-panel .net-worth-source {
+    max-width: 38ch;
+  }
+}
+.overview-page .allocation-section {
+  align-items: start;
+}
+.overview-page .allocation-legend {
+  margin-top: 24px;
+}
+.overview-page .allocation-legend > div {
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  padding: 14px 0;
+  gap: 6px 9px;
+  border-bottom: 0;
+}
+.overview-page .allocation-legend span:not(.legend-dot) {
+  color: var(--fz-ink);
+}
+.overview-page .allocation-legend small {
+  grid-column: 3;
+  grid-row: 2;
+  margin: 0;
+  text-align: right;
+  font-size: 12px;
+}
+.overview-page .allocation-legend .allocation-meter {
+  grid-column: 2;
+  grid-row: 2;
+  height: 6px;
+  align-self: center;
+  background: var(--fz-surface-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.allocation-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--allocation-color) 45%, var(--fz-surface)),
+    var(--allocation-color)
+  );
+}
+.overview-page .insight-panel {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.overview-page .insight-list {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+@media (min-width: 721px) and (max-width: 1100px) {
+  .overview-page .overview-hero.trend-panel {
+    grid-column: 1 / -1;
+  }
+  .overview-page .allocation-section {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .overview-page .allocation-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 28px;
+  }
+  .overview-page .insight-panel {
+    grid-row: 3;
+  }
+}
+@media (max-width: 720px) {
+  .overview-page .allocation-legend {
+    margin-top: 14px;
+  }
+  .overview-page .insight-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
