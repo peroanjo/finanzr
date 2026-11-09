@@ -2143,6 +2143,22 @@ th {
   flex-direction: column;
   padding: 28px 30px 20px;
 }
+/* One continuous scrim anchored to the panel, beneath all text. */
+.overview-hero.trend-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    var(--fz-surface) 0%,
+    color-mix(in srgb, var(--fz-surface) 98%, transparent) 15%,
+    color-mix(in srgb, var(--fz-surface) 88%, transparent) 29%,
+    color-mix(in srgb, var(--fz-surface) 50%, transparent) 43%,
+    transparent 66%
+  );
+}
 .overview-hero.trend-panel .panel-header {
   position: relative;
   z-index: 2;
@@ -2161,25 +2177,6 @@ th {
   margin-top: 22px;
   pointer-events: none;
 }
-.overview-page .overview-hero.trend-panel .hero-metric-column {
-  isolation: isolate;
-  width: fit-content;
-  max-width: 100%;
-}
-.overview-hero.trend-panel .hero-metric-column::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -48px -100px;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse,
-    color-mix(in srgb, var(--fz-surface) 98%, transparent) 0%,
-    color-mix(in srgb, var(--fz-surface) 94%, transparent) 40%,
-    color-mix(in srgb, var(--fz-surface) 60%, transparent) 55%,
-    transparent 70%
-  );
-}
 .overview-hero.trend-panel .net-worth {
   font-size: clamp(36px, 5.5vw, 72px);
   letter-spacing: -0.055em;
@@ -2196,17 +2193,6 @@ th {
 }
 .overview-page .hero-chart .line-chart {
   height: 100%;
-}
-.hero-chart::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--fz-surface) 55%, transparent),
-    transparent 65%
-  );
 }
 .hero-history-summary {
   position: relative;
@@ -2295,9 +2281,6 @@ th {
   .hero-chart {
     inset: 225px 12px 110px;
   }
-  .hero-chart::after {
-    background: linear-gradient(180deg, var(--fz-surface), transparent 40%);
-  }
   .hero-history-summary {
     padding-top: 185px;
   }
@@ -2315,9 +2298,6 @@ th {
   }
 }
 
-.hero-chart::after {
-  bottom: 28px;
-}
 .hero-legend .trend-total-key i {
   background: var(--fz-accent);
 }
