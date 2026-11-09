@@ -34,7 +34,21 @@ describe("AppShell", () => {
     setActivePinia(createPinia());
     localStorage.clear();
     localStorage.setItem("finanzr-theme", "light");
+    localStorage.setItem("finanzr-sidebar-collapsed", "false");
     i18n.global.locale.value = "es-ES";
+  });
+
+  it("starts with the icon rail and allows expanding it", async () => {
+    storage.delete("finanzr-sidebar-collapsed");
+    const wrapper = mount(AppShell, { global: { stubs } });
+    await flushPromises();
+    expect(wrapper.get(".app-shell").classes()).toContain("sidebar-collapsed");
+    expect(wrapper.find(".app-topbar .workspace-picker").exists()).toBe(true);
+    await wrapper.get(".sidebar-collapse-button").trigger("click");
+    expect(wrapper.get(".app-shell").classes()).not.toContain(
+      "sidebar-collapsed",
+    );
+    expect(localStorage.getItem("finanzr-sidebar-collapsed")).toBe("false");
   });
 
   it("collapses navigation and preserves the preference", async () => {
