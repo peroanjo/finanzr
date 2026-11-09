@@ -384,31 +384,96 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else-if="summary">
-      <article class="overview-hero">
-        <div class="hero-overview-grid">
-          <div class="hero-metric-column">
-            <p class="metric-label">{{ t("overview.netWorth") }}</p>
-            <p class="net-worth">{{ money(summary.net_worth) }}</p>
-            <p class="net-worth-source">
-              <span aria-hidden="true">i</span>
-              {{ netWorthSourceCopy }}
-            </p>
-            <div class="period-delta" :class="{ negative: periodChange < 0 }">
-              <span aria-hidden="true">{{
-                periodChange >= 0 ? "↗" : "↘"
-              }}</span>
-              <div>
-                <strong>{{ signedMoney(periodChange) }}</strong>
-                <small>{{
-                  t("overview.changeInPeriod", {
-                    change: percentage(periodChangePercent),
-                    period: periodLabel.toLocaleLowerCase(locale),
-                  })
-                }}</small>
-              </div>
+      <article
+        class="overview-hero trend-panel"
+        aria-labelledby="net-worth-title"
+      >
+        <header class="panel-header">
+          <h2 id="net-worth-title" class="metric-label">
+            {{ t("overview.netWorth") }}
+          </h2>
+          <div
+            class="period-control"
+            role="group"
+            :aria-label="t('overview.periodAria')"
+          >
+            <button
+              v-for="item in periods"
+              :key="item.key"
+              type="button"
+              :class="{ active: period === item.key }"
+              :aria-pressed="period === item.key"
+              @click="period = item.key"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </header>
+        <div class="hero-chart" :aria-label="t('overview.netWorthEvolution')">
+          <LineChart
+            v-if="visibleHistory.length"
+            :labels="chartLabels"
+            ambient
+            :values="visibleHistory.map((item) => item.total)"
+            :series="trendSeries"
+            :total-label="t('overview.totalNetWorth')"
+            :aria-label="t('overview.compositionHistoryAria')"
+          />
+          <div v-else class="chart-empty">
+            <strong>{{ t("overview.noHistory.title") }}</strong>
+            <p>{{ t("overview.noHistory.description") }}</p>
+          </div>
+        </div>
+        <div class="hero-metric-column">
+          <p class="net-worth">{{ money(summary.net_worth) }}</p>
+          <div class="period-delta" :class="{ negative: periodChange < 0 }">
+            <span aria-hidden="true">{{ periodChange >= 0 ? "↗" : "↘" }}</span>
+            <div>
+              <strong>{{ signedMoney(periodChange) }}</strong>
+              <small>{{
+                t("overview.changeInPeriod", {
+                  change: percentage(periodChangePercent),
+                  period: periodLabel.toLocaleLowerCase(locale),
+                })
+              }}</small>
+            </div>
+          </div>
+          <p class="net-worth-source">
+            <span aria-hidden="true">i</span>{{ netWorthSourceCopy }}
+          </p>
+        </div>
+        <div class="hero-history-summary">
+          <div v-if="visibleHistory.length" class="chart-summary">
+            <div>
+              <small>{{ t("overview.start") }}</small
+              ><strong>{{ money(startValue) }}</strong>
+            </div>
+            <span aria-hidden="true">→</span>
+            <div>
+              <small>{{ t("overview.current") }}</small
+              ><strong>{{ money(currentValue) }}</strong>
             </div>
           </div>
         </div>
+        <footer class="hero-legend">
+          <div
+            v-if="trendSeries.length"
+            class="trend-composition"
+            role="group"
+            :aria-label="t('overview.compositionHistoryAria')"
+          >
+            <span class="trend-total-key"
+              ><i aria-hidden="true" />{{ t("overview.totalNetWorth") }}</span
+            >
+            <ul>
+              <li v-for="item in trendSeries" :key="item.key">
+                <i :style="{ background: item.color }" aria-hidden="true" />
+                <span>{{ item.label }}</span>
+                <strong>{{ money(item.currentValue) }}</strong>
+              </li>
+            </ul>
+          </div>
+        </footer>
       </article>
 
       <div class="overview-grid">
@@ -494,78 +559,6 @@ onBeforeUnmount(() => {
             </div>
           </dl>
         </aside>
-        <article class="overview-panel trend-panel">
-          <header class="panel-header trend-panel-header">
-            <div>
-              <h2>{{ t("overview.netWorthEvolution") }}</h2>
-            </div>
-            <div class="trend-panel-actions">
-              <div
-                class="period-control"
-                role="group"
-                :aria-label="t('overview.periodAria')"
-              >
-                <button
-                  v-for="item in periods"
-                  :key="item.key"
-                  type="button"
-                  :class="{ active: period === item.key }"
-                  :aria-pressed="period === item.key"
-                  @click="period = item.key"
-                >
-                  {{ item.label }}
-                </button>
-              </div>
-            </div>
-          </header>
-
-          <div v-if="visibleHistory.length" class="chart-summary">
-            <div>
-              <small>{{ t("overview.start") }}</small
-              ><strong>{{ money(startValue) }}</strong>
-            </div>
-            <span aria-hidden="true">→</span>
-            <div>
-              <small>{{ t("overview.current") }}</small
-              ><strong>{{ money(currentValue) }}</strong>
-            </div>
-            <div class="chart-change">
-              <small>{{ t("overview.variation") }}</small>
-              <strong :class="{ negative: periodChange < 0 }">{{
-                percentage(periodChangePercent)
-              }}</strong>
-            </div>
-          </div>
-          <div
-            v-if="trendSeries.length"
-            class="trend-composition"
-            role="group"
-            :aria-label="t('overview.compositionHistoryAria')"
-          >
-            <span class="trend-total-key"
-              ><i aria-hidden="true" />{{ t("overview.totalNetWorth") }}</span
-            >
-            <ul>
-              <li v-for="item in trendSeries" :key="item.key">
-                <i :style="{ background: item.color }" aria-hidden="true" />
-                <span>{{ item.label }}</span>
-                <strong>{{ money(item.currentValue) }}</strong>
-              </li>
-            </ul>
-          </div>
-          <LineChart
-            v-if="visibleHistory.length"
-            :labels="chartLabels"
-            :values="visibleHistory.map((item) => item.total)"
-            :series="trendSeries"
-            :total-label="t('overview.totalNetWorth')"
-            :aria-label="t('overview.compositionHistoryAria')"
-          />
-          <div v-else class="chart-empty">
-            <strong>{{ t("overview.noHistory.title") }}</strong>
-            <p>{{ t("overview.noHistory.description") }}</p>
-          </div>
-        </article>
       </div>
 
       <article class="overview-panel monthly-variation-panel">

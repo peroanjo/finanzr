@@ -2130,3 +2130,174 @@ th {
     display: none;
   }
 }
+
+/* Consolidated balance: the history shares the metric's surface. */
+.overview-page .overview-hero.trend-panel {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 450px;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 30px 20px;
+}
+.overview-hero.trend-panel .panel-header {
+  position: relative;
+  z-index: 2;
+  flex-wrap: wrap;
+}
+.overview-hero.trend-panel .metric-label {
+  margin: 0;
+  color: var(--fz-muted);
+  font-size: 14px;
+}
+.overview-hero.trend-panel .hero-metric-column {
+  position: relative;
+  z-index: 1;
+  height: auto;
+  width: 45%;
+  margin-top: 22px;
+  pointer-events: none;
+}
+.overview-hero.trend-panel .net-worth {
+  font-size: clamp(36px, 5.5vw, 72px);
+  letter-spacing: -0.055em;
+}
+.overview-hero.trend-panel .net-worth-source {
+  max-width: 44ch;
+  padding-top: 16px;
+  margin-top: 0;
+}
+.hero-chart {
+  position: absolute;
+  z-index: 0;
+  inset: 85px 28px 70px 34%;
+}
+.overview-page .hero-chart .line-chart {
+  height: 100%;
+}
+.hero-chart::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--fz-surface), transparent 38%);
+}
+.hero-history-summary {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 22px;
+  pointer-events: none;
+}
+.hero-history-summary .chart-summary {
+  margin: 0;
+  min-height: 0;
+}
+.hero-history-summary .chart-summary strong {
+  font-size: 13px;
+}
+.hero-legend {
+  position: relative;
+  z-index: 1;
+  margin-top: 18px;
+}
+.hero-legend .trend-composition {
+  margin: 0;
+}
+.overview-page .allocation-section {
+  grid-column: 1;
+  grid-row: 2;
+  grid-template-columns: minmax(0, 1fr);
+}
+.overview-page .allocation-section .allocation-chart,
+.overview-page .allocation-chart-empty {
+  display: none;
+}
+.overview-page .insight-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+.overview-page .insight-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 26px;
+}
+.overview-page .insight-list > div {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.overview-page .insight-list dd {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  text-align: left;
+}
+.overview-page .insight-list small {
+  grid-column: 1;
+  grid-row: 3;
+}
+@media (max-width: 900px) {
+  .overview-page {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .overview-hero.trend-panel .hero-metric-column {
+    width: 60%;
+  }
+  .overview-hero.trend-panel .net-worth {
+    font-size: clamp(32px, 5vw, 54px);
+  }
+  .overview-page .insight-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .overview-page .overview-hero.trend-panel {
+    order: 0;
+    min-height: 580px;
+    padding: 22px 20px;
+  }
+  .overview-hero.trend-panel .panel-header {
+    gap: 16px;
+  }
+  .overview-hero.trend-panel .hero-metric-column {
+    width: 100%;
+    margin-top: 20px;
+  }
+  .overview-hero.trend-panel .net-worth {
+    font-size: clamp(32px, 8vw, 52px);
+  }
+  .hero-chart {
+    inset: 225px 12px 110px;
+  }
+  .hero-chart::after {
+    background: linear-gradient(180deg, var(--fz-surface), transparent 40%);
+  }
+  .hero-history-summary {
+    padding-top: 185px;
+  }
+  .hero-history-summary .chart-summary strong {
+    font-size: 12px;
+  }
+  .hero-legend {
+    margin-top: 16px;
+  }
+  .hero-legend .trend-total-key {
+    margin-bottom: 7px;
+  }
+  .overview-page .insight-panel {
+    order: 1;
+  }
+}
+
+.hero-chart::after {
+  bottom: 28px;
+}
+.hero-legend .trend-total-key i {
+  background: var(--fz-accent);
+}
+.overview-page .overview-hero.trend-panel {
+  background: var(--fz-surface);
+}

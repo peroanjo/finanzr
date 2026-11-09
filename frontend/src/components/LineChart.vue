@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   CategoryScale,
+  type ScriptableContext,
   Chart,
   Filler,
   LineController,
@@ -35,6 +36,7 @@ const props = defineProps<{
   series?: LineChartSeries[];
   totalLabel?: string;
   ariaLabel?: string;
+  ambient?: boolean;
 }>();
 const { locale, t } = useI18n();
 const canvas = ref<HTMLCanvasElement>();
@@ -54,7 +56,9 @@ function render() {
     styles.getPropertyValue("--fz-tooltip-text").trim() || "#edf3ef";
   const ink = styles.getPropertyValue("--fz-ink").trim() || "#152019";
   const totalLine =
-    styles.getPropertyValue("--fz-chart-total-line").trim() || ink;
+    (props.ambient
+      ? styles.getPropertyValue("--fz-accent").trim()
+      : styles.getPropertyValue("--fz-chart-total-line").trim()) || ink;
   const areaOpacity =
     Number.parseFloat(
       styles.getPropertyValue("--fz-chart-composition-opacity").trim(),
@@ -73,6 +77,22 @@ function render() {
     const rgb = color.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
     return rgb ? `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${alpha})` : color;
   };
+  const gradientFill =
+    (color: string, opacity: number) =>
+    (context: ScriptableContext<"line">) => {
+      const { ctx, chartArea } = context.chart;
+      if (!chartArea) return withAlpha(color, 0);
+      const gradient = ctx.createLinearGradient(
+        0,
+        chartArea.top,
+        0,
+        chartArea.bottom,
+      );
+      gradient.addColorStop(0, withAlpha(color, opacity));
+      gradient.addColorStop(0.65, withAlpha(color, opacity * 0.3));
+      gradient.addColorStop(1, withAlpha(color, 0));
+      return gradient;
+    };
   const money = new Intl.NumberFormat(locale.value, {
     style: "currency",
     currency: reportingCurrency.value,
@@ -88,9 +108,11 @@ function render() {
           label: props.totalLabel,
           data: props.values,
           borderColor: totalLine,
-          backgroundColor: totalLine,
-          borderWidth: 3.75,
-          fill: false,
+          backgroundColor: props.ambient
+            ? gradientFill(totalLine, 0.22)
+            : totalLine,
+          borderWidth: props.ambient ? 2.25 : 3.75,
+          fill: props.ambient ? "origin" : false,
           tension: 0.24,
           pointRadius: 0,
           pointHoverRadius: 4,
@@ -98,7 +120,7 @@ function render() {
           pointHoverBorderColor: surface,
           pointHoverBorderWidth: 2,
           stack: "total",
-          order: 20,
+          order: props.ambient ? 0 : 20,
         },
         ...(props.series ?? []).map((item) => {
           const color = resolveColor(item.color);
@@ -106,7 +128,9 @@ function render() {
             label: item.label,
             data: item.values,
             borderColor: color,
-            backgroundColor: withAlpha(color, areaOpacity),
+            backgroundColor: props.ambient
+              ? gradientFill(color, 0.12)
+              : withAlpha(color, areaOpacity),
             borderWidth: 1.5,
             fill: true,
             tension: 0.24,
@@ -124,6 +148,11 @@ function render() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: {
+        duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? 0
+          : 350,
+      },
       interaction: { intersect: false, mode: "index" },
       plugins: {
         legend: { display: false },
@@ -154,6 +183,7 @@ function render() {
           },
         },
         y: {
+          display: !props.ambient,
           stacked: true,
           border: { display: false },
           grid: { color: grid },
@@ -185,6 +215,7 @@ watch(
     props.values,
     props.series,
     props.totalLabel,
+    props.ambient,
     locale.value,
     reportingCurrency.value,
   ],

@@ -84,7 +84,8 @@ describe("OverviewView", () => {
     expect(wrapper.text()).not.toContain("Al excluir P&L se sustituyen");
     expect(wrapper.text()).not.toContain("Tu patrimonio, sin ruido.");
     expect(wrapper.text()).not.toContain("Posición consolidada");
-    expect(wrapper.find(".overview-hero .period-control").exists()).toBe(false);
+    expect(wrapper.find(".overview-hero .period-control").exists()).toBe(true);
+    expect(wrapper.findAll(".trend-panel")).toHaveLength(1);
     expect(wrapper.findAll(".trend-panel .period-control button")).toHaveLength(
       4,
     );
