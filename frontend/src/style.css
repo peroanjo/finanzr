@@ -2161,6 +2161,25 @@ th {
   margin-top: 22px;
   pointer-events: none;
 }
+.overview-page .overview-hero.trend-panel .hero-metric-column {
+  isolation: isolate;
+  width: fit-content;
+  max-width: 100%;
+}
+.overview-hero.trend-panel .hero-metric-column::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -48px -100px;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--fz-surface) 98%, transparent) 0%,
+    color-mix(in srgb, var(--fz-surface) 94%, transparent) 40%,
+    color-mix(in srgb, var(--fz-surface) 60%, transparent) 55%,
+    transparent 70%
+  );
+}
 .overview-hero.trend-panel .net-worth {
   font-size: clamp(36px, 5.5vw, 72px);
   letter-spacing: -0.055em;
