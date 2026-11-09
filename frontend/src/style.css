@@ -2173,7 +2173,7 @@ th {
 .hero-chart {
   position: absolute;
   z-index: 0;
-  inset: 85px 28px 70px 34%;
+  inset: 85px 0 100px;
 }
 .overview-page .hero-chart .line-chart {
   height: 100%;
@@ -2183,7 +2183,11 @@ th {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, var(--fz-surface), transparent 38%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fz-surface) 55%, transparent),
+    transparent 65%
+  );
 }
 .hero-history-summary {
   position: relative;
