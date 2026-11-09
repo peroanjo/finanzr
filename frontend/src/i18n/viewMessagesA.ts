@@ -17,6 +17,7 @@ export const viewMessagesA = defineMessageCatalog(
     overview: {
       loading: "Loading overview",
       netWorth: "Net worth",
+      netWorthInfo: "How net worth is calculated",
       netWorthSource:
         "Calculated from manual savings accounts, manual balances and crowdfunding",
       netWorthSourceDynamic: "Calculated from {sources}",
@@ -402,6 +403,7 @@ export const viewMessagesA = defineMessageCatalog(
     overview: {
       loading: "Cargando resumen",
       netWorth: "Patrimonio neto",
+      netWorthInfo: "Cómo se calcula el patrimonio neto",
       netWorthSource:
         "Calculado con cuentas de ahorro manuales, balances manuales y crowdfunding",
       netWorthSourceDynamic: "Calculado con {sources}",

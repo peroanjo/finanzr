@@ -23,6 +23,7 @@ const history = ref<NetWorthPoint[]>([]);
 const crowdfundingProjects = ref<RealEstateInvestment[]>([]);
 const loading = ref(true);
 const error = ref("");
+const sourceInfoOpen = ref(false);
 const period = ref<Period>("1y");
 const pnlMode = ref<PnlMode>("include");
 const selectedVariationMonth = ref<string | null>(null);
@@ -388,9 +389,36 @@ onBeforeUnmount(() => {
         aria-labelledby="net-worth-title"
       >
         <header class="panel-header">
-          <h2 id="net-worth-title" class="metric-label">
-            {{ t("overview.netWorth") }}
-          </h2>
+          <div class="net-worth-heading">
+            <h2 id="net-worth-title" class="metric-label">
+              {{ t("overview.netWorth") }}
+            </h2>
+            <span
+              class="net-worth-info"
+              @mouseenter="sourceInfoOpen = true"
+              @mouseleave="sourceInfoOpen = false"
+              @keydown.esc.stop="sourceInfoOpen = false"
+            >
+              <button
+                type="button"
+                class="net-worth-info-button"
+                :aria-label="t('overview.netWorthInfo')"
+                aria-describedby="net-worth-source-info"
+                @focus="sourceInfoOpen = true"
+                @blur="sourceInfoOpen = false"
+                @click="sourceInfoOpen = true"
+              >
+                <span aria-hidden="true">i</span>
+              </button>
+              <span
+                v-show="sourceInfoOpen"
+                id="net-worth-source-info"
+                class="net-worth-info-tooltip"
+                role="tooltip"
+                >{{ netWorthSourceCopy }}</span
+              >
+            </span>
+          </div>
           <div
             class="period-control"
             role="group"
@@ -437,9 +465,6 @@ onBeforeUnmount(() => {
               }}</small>
             </div>
           </div>
-          <p class="net-worth-source">
-            <span aria-hidden="true">i</span>{{ netWorthSourceCopy }}
-          </p>
         </div>
         <div class="hero-history-summary">
           <div v-if="visibleHistory.length" class="chart-summary">

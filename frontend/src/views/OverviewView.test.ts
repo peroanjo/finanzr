@@ -74,7 +74,7 @@ describe("OverviewView", () => {
     );
     expect(wrapper.text()).toContain("2700,00");
     expect(wrapper.text()).toContain("Ahorro");
-    expect(wrapper.get(".net-worth-source").text()).toContain(
+    expect(wrapper.get(".net-worth-info-tooltip").text()).toContain(
       "Calculado con cuentas de ahorro manuales, balances manuales y crowdfunding",
     );
     expect(wrapper.text()).not.toContain("Al excluir P&L se sustituyen");
@@ -303,7 +303,7 @@ describe("OverviewView", () => {
     const { default: OverviewView } = await import("./OverviewView.vue");
     const wrapper = mount(OverviewView, { global: { stubs: chartStubs } });
     await flushPromises();
-    expect(wrapper.get(".net-worth-source").text()).toContain(
+    expect(wrapper.get(".net-worth-info-tooltip").text()).toContain(
       "Calculado con Acciones y ETF",
     );
     expect(refreshCount).toBe(1);

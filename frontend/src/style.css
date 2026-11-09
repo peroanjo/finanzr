@@ -2430,3 +2430,58 @@ th {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.net-worth-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.net-worth-info {
+  display: inline-flex;
+}
+.net-worth-info-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fz-muted);
+  cursor: pointer;
+}
+.net-worth-info-button > span {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--fz-line);
+  border-radius: 50%;
+  font-size: 11px;
+}
+.net-worth-info-button:hover,
+.net-worth-info-button:focus-visible {
+  color: var(--fz-accent);
+}
+.net-worth-info-tooltip {
+  position: absolute;
+  z-index: 3;
+  top: 100%;
+  left: 0;
+  width: min(340px, 100%);
+  padding: 12px 14px;
+  border: 1px solid var(--fz-line);
+  border-radius: 10px;
+  background: var(--fz-surface-soft);
+  color: var(--fz-ink);
+  box-shadow: 0 8px 24px var(--fz-chart-tooltip-shadow);
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+@media (pointer: coarse) {
+  .net-worth-info-button {
+    width: 44px;
+    height: 44px;
+  }
+}
