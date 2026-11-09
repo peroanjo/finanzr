@@ -38,13 +38,13 @@ licenses and markers are in `dev.lock`. Source registry:
 ## Frontend production graph
 
 The complete production dependency graph reported by npm contains the direct
-Vue, Pinia, Vue Router, Vue I18n, Chart.js and Manrope packages plus their
-compiler/runtime/build transitives. The following groups cover every resolved
+Vue, Pinia, Vue Router, Vue I18n, Chart.js, Manrope and IBM Plex Mono
+packages plus their compiler/runtime/build transitives. The following groups cover every resolved
 license family; exact names and versions remain machine-readable in the lockfile.
 
 | License | Resolved packages |
 | --- | --- |
-| OFL-1.1 | @fontsource-variable/manrope@5.3.0 |
+| OFL-1.1 | @fontsource-variable/manrope@5.3.0, @fontsource/ibm-plex-mono@5.3.0 |
 | Apache-2.0 | detect-libc@2.1.2, typescript@5.8.3 |
 | BSD-2-Clause/BSD-3-Clause/ISC | entities@7.0.1, source-map-js@1.2.1, picocolors@1.1.1 |
 | MPL-2.0 | lightningcss@1.33.0 and its platform binding packages |

@@ -408,37 +408,6 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-
-          <section
-            class="allocation-section"
-            aria-labelledby="allocation-title"
-          >
-            <AllocationChart
-              v-if="allocation.some((item) => item.share > 0)"
-              :items="allocation"
-            />
-            <div v-else class="allocation-chart-empty" aria-hidden="true">
-              —
-            </div>
-
-            <div class="allocation-copy">
-              <p class="section-label">{{ t("overview.composition") }}</p>
-              <h3 id="allocation-title">
-                {{ t("overview.currentDistribution") }}
-              </h3>
-              <div class="allocation-legend">
-                <div v-for="item in allocation" :key="item.label">
-                  <span
-                    class="legend-dot"
-                    :style="{ background: item.color }"
-                  />
-                  <span>{{ item.label }}</span>
-                  <strong>{{ money(item.value) }}</strong>
-                  <small>{{ percentage(item.share) }}</small>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
       </article>
 
@@ -446,15 +415,12 @@ onBeforeUnmount(() => {
         <article class="overview-panel trend-panel">
           <header class="panel-header trend-panel-header">
             <div>
-              <p class="section-label">{{ t("overview.trajectory") }}</p>
               <h2>{{ t("overview.netWorthEvolution") }}</h2>
             </div>
             <div class="trend-panel-actions">
-              <span class="live-indicator"
-                ><i /> {{ t("overview.workspaceData") }}</span
-              >
               <div
                 class="period-control"
+                role="group"
                 :aria-label="t('overview.periodAria')"
               >
                 <button
@@ -519,10 +485,34 @@ onBeforeUnmount(() => {
           </div>
         </article>
 
+        <section
+          class="overview-panel allocation-section"
+          aria-labelledby="allocation-title"
+        >
+          <AllocationChart
+            v-if="allocation.some((item) => item.share > 0)"
+            :items="allocation"
+          />
+          <div v-else class="allocation-chart-empty" aria-hidden="true">—</div>
+
+          <div class="allocation-copy">
+            <h2 id="allocation-title">
+              {{ t("overview.currentDistribution") }}
+            </h2>
+            <div class="allocation-legend">
+              <div v-for="item in allocation" :key="item.label">
+                <span class="legend-dot" :style="{ background: item.color }" />
+                <span>{{ item.label }}</span>
+                <strong>{{ money(item.value) }}</strong>
+                <small>{{ percentage(item.share) }}</small>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <aside class="overview-panel insight-panel">
           <header class="panel-header">
             <div>
-              <p class="section-label">{{ t("overview.periodReading") }}</p>
               <h2>{{ t("overview.essentials") }}</h2>
             </div>
           </header>
@@ -582,7 +572,6 @@ onBeforeUnmount(() => {
       <article class="overview-panel monthly-variation-panel">
         <header class="panel-header monthly-variation-header">
           <div>
-            <p class="section-label">{{ t("overview.monthly.eyebrow") }}</p>
             <h2>{{ t("overview.monthly.title") }}</h2>
             <p class="monthly-variation-description">
               {{ monthlyDescriptionCopy }}
@@ -593,6 +582,7 @@ onBeforeUnmount(() => {
             <span>{{ t("overview.monthly.balancePnl") }}</span>
             <div
               class="period-control"
+              role="group"
               :aria-label="t('overview.monthly.pnlAria')"
             >
               <button

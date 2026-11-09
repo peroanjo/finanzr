@@ -30,7 +30,7 @@ be reviewed deliberately.
 | Python development | pytest, pytest-django, ruff, mypy, django-stubs | MIT/BSD-family | `backend/requirements/dev.txt` and `dev.lock` |
 | Frontend | Vue, Pinia, Vue Router, Vue I18n, Chart.js | MIT | `frontend/package.json` and `package-lock.json` |
 | Frontend toolchain | TypeScript, Vite, Vitest, Vue Test Utils, jsdom | MIT/Apache-family | `frontend/package.json` and `package-lock.json` |
-| Font | `@fontsource-variable/manrope` | OFL-1.1 | `frontend/public/THIRD_PARTY_NOTICES.txt` |
+| Fonts | `@fontsource-variable/manrope`, `@fontsource/ibm-plex-mono` | OFL-1.1 | `frontend/public/THIRD_PARTY_NOTICES.txt` |
 
 The npm lockfile records package versions, integrity values and many package
 license fields. A release build must still run a license inventory over the
@@ -47,8 +47,9 @@ installed wheels or sdist metadata during release preparation.
   2026-09-07. Every displayed identity, holding and value is synthetic. The
   README presents the separate vector mark in `docs/assets/finanzr-header.svg`
   as its header; no screenshot is used as a header image.
-- The current frontend bundles its npm dependencies and Manrope font files. It
-  does not load JavaScript, CSS or fonts from public CDNs. The Manrope copyright
+- The current frontend bundles its npm dependencies and Manrope / IBM Plex Mono
+  font files. It does not load JavaScript, CSS or fonts from public CDNs.
+  The font copyright notices
   and complete OFL-1.1 terms are copied into the built web artifact as
   `THIRD_PARTY_NOTICES.txt`.
 - No real account exports, screenshots, photographs or customer data are

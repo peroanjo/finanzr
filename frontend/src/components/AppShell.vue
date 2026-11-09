@@ -199,12 +199,67 @@ onMounted(() => {
         </button>
       </div>
 
+      <div
+        class="workspace-picker"
+        :class="{
+          'workspace-picker-switchable':
+            session.user && session.user.workspaces.length > 1,
+        }"
+      >
+        <span class="avatar" aria-hidden="true">{{ initials }}</span>
+        <span class="workspace-copy">
+          <span class="workspace-title-row">
+            <strong :title="activeWorkspace?.name">{{
+              activeWorkspace?.name ?? t("shell.mySpace")
+            }}</strong>
+            <WorkspaceVisibilityBadge
+              v-if="activeWorkspace"
+              :shared="Boolean(activeWorkspace.is_shared)"
+              sidebar
+            />
+          </span>
+          <span class="workspace-identity-row">
+            <small :title="session.user?.display_name || session.user?.email">{{
+              session.user?.display_name || session.user?.email
+            }}</small>
+            <svg
+              v-if="session.user && session.user.workspaces.length > 1"
+              class="workspace-picker-chevron"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path d="m5 6 3-3 3 3m-6 4 3 3 3-3" />
+            </svg>
+          </span>
+        </span>
+        <select
+          v-if="session.user && session.user.workspaces.length > 1"
+          :disabled="session.switchingWorkspace"
+          :value="session.user.active_workspace_id ?? ''"
+          :aria-label="t('shell.activeWorkspace')"
+          @change="
+            session.selectWorkspace(($event.target as HTMLSelectElement).value)
+          "
+        >
+          <option
+            v-for="item in session.user.workspaces"
+            :key="item.id"
+            :value="item.id"
+          >
+            {{ item.name }} ·
+            {{ t(item.is_shared ? "workspace.shared" : "workspace.private") }}
+          </option>
+        </select>
+      </div>
+
       <nav class="app-nav" :aria-label="t('shell.mainSections')">
         <RouterLink
           class="app-nav-primary"
           :to="overviewLink.to"
           exact-active-class="active"
           :title="overviewLink.label"
+          :aria-label="overviewLink.label"
         >
           <NavIcon :name="overviewLink.icon" />
           <span>{{ overviewLink.label }}</span>
@@ -225,6 +280,7 @@ onMounted(() => {
               :to="link.to"
               exact-active-class="active"
               :title="link.label"
+              :aria-label="link.label"
             >
               <NavIcon :name="link.icon" />
               <span>{{ link.label }}</span>
@@ -239,6 +295,7 @@ onMounted(() => {
           type="button"
           :class="{ active: settingsOpen }"
           :title="settingsLink.label"
+          :aria-label="settingsLink.label"
           :aria-pressed="settingsOpen"
           @click="settingsOpen = true"
         >
@@ -246,66 +303,11 @@ onMounted(() => {
           <span>{{ settingsLink.label }}</span>
         </button>
 
-        <div
-          class="workspace-picker"
-          :class="{
-            'workspace-picker-switchable':
-              session.user && session.user.workspaces.length > 1,
-          }"
-        >
-          <span class="avatar" aria-hidden="true">{{ initials }}</span>
-          <span class="workspace-copy">
-            <span class="workspace-title-row">
-              <strong :title="activeWorkspace?.name">{{
-                activeWorkspace?.name ?? t("shell.mySpace")
-              }}</strong>
-              <WorkspaceVisibilityBadge
-                v-if="activeWorkspace"
-                :shared="Boolean(activeWorkspace.is_shared)"
-                sidebar
-              />
-            </span>
-            <span class="workspace-identity-row">
-              <small
-                :title="session.user?.display_name || session.user?.email"
-                >{{ session.user?.display_name || session.user?.email }}</small
-              >
-              <svg
-                v-if="session.user && session.user.workspaces.length > 1"
-                class="workspace-picker-chevron"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path d="m5 6 3-3 3 3m-6 4 3 3 3-3" />
-              </svg>
-            </span>
-          </span>
-          <select
-            v-if="session.user && session.user.workspaces.length > 1"
-            :disabled="session.switchingWorkspace"
-            :value="session.user.active_workspace_id ?? ''"
-            :aria-label="t('shell.activeWorkspace')"
-            @change="
-              session.selectWorkspace(
-                ($event.target as HTMLSelectElement).value,
-              )
-            "
-          >
-            <option
-              v-for="item in session.user.workspaces"
-              :key="item.id"
-              :value="item.id"
-            >
-              {{ item.name }} ·
-              {{ t(item.is_shared ? "workspace.shared" : "workspace.private") }}
-            </option>
-          </select>
-        </div>
         <button
           class="logout-button"
           type="button"
           :title="t('shell.logOut')"
+          :aria-label="t('shell.logOut')"
           @click="logout"
         >
           <span aria-hidden="true">↗</span><span>{{ t("shell.logOut") }}</span>

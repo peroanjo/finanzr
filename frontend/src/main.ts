@@ -13,6 +13,8 @@ import { sharedMessages } from "./i18n/sharedMessages";
 import { apiMessages } from "./i18n/apiMessages";
 import { currenciesMessages } from "./i18n/currenciesMessages";
 import "@fontsource-variable/manrope";
+import "@fontsource/ibm-plex-mono/latin-400.css";
+import "@fontsource/ibm-plex-mono/latin-500.css";
 import "./style.css";
 
 registerMessages(coreMessages);
