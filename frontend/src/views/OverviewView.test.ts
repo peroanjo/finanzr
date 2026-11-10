@@ -103,12 +103,8 @@ describe("OverviewView", () => {
     expect(
       wrapper.get('[data-testid="line-chart"]').attributes("data-series"),
     ).toBe("2");
-    expect(
-      wrapper.findAll(".trend-composition li").map((item) => item.text()),
-    ).toEqual([
-      expect.stringContaining("Cuentas de ahorro"),
-      expect.stringContaining("Balances de inversión manual"),
-    ]);
+    expect(wrapper.find(".hero-history-summary").exists()).toBe(false);
+    expect(wrapper.find(".hero-legend").exists()).toBe(false);
     expect(
       wrapper.get('[data-testid="monthly-variation-chart"]').text().split(","),
     ).toHaveLength(12);
@@ -381,7 +377,6 @@ describe("OverviewView", () => {
         currentValue: 280,
       }),
     ]);
-    expect(wrapper.findAll(".trend-composition li")).toHaveLength(3);
     wrapper.unmount();
   });
 

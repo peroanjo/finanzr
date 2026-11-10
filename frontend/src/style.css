@@ -2138,7 +2138,7 @@ th {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  min-height: 450px;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
   padding: 28px 30px 20px;
@@ -2189,32 +2189,10 @@ th {
 .hero-chart {
   position: absolute;
   z-index: auto;
-  inset: 85px 0 100px;
+  inset: 85px 0 32px;
 }
 .overview-page .hero-chart .line-chart {
   height: 100%;
-}
-.hero-history-summary {
-  position: relative;
-  z-index: 1;
-  margin-top: auto;
-  padding-top: 22px;
-  pointer-events: none;
-}
-.hero-history-summary .chart-summary {
-  margin: 0;
-  min-height: 0;
-}
-.hero-history-summary .chart-summary strong {
-  font-size: 13px;
-}
-.hero-legend {
-  position: relative;
-  z-index: 1;
-  margin-top: 18px;
-}
-.hero-legend .trend-composition {
-  margin: 0;
 }
 .overview-page .allocation-section {
   grid-column: 1;
@@ -2265,7 +2243,7 @@ th {
 @media (max-width: 720px) {
   .overview-page .overview-hero.trend-panel {
     order: 0;
-    min-height: 580px;
+    min-height: 420px;
     padding: 22px 20px;
   }
   .overview-hero.trend-panel .panel-header {
@@ -2279,28 +2257,13 @@ th {
     font-size: clamp(32px, 8vw, 52px);
   }
   .hero-chart {
-    inset: 225px 12px 110px;
-  }
-  .hero-history-summary {
-    padding-top: 185px;
-  }
-  .hero-history-summary .chart-summary strong {
-    font-size: 12px;
-  }
-  .hero-legend {
-    margin-top: 16px;
-  }
-  .hero-legend .trend-total-key {
-    margin-bottom: 7px;
+    inset: 225px 12px 32px;
   }
   .overview-page .insight-panel {
     order: 1;
   }
 }
 
-.hero-legend .trend-total-key i {
-  background: var(--fz-accent);
-}
 .overview-page .overview-hero.trend-panel {
   background: var(--fz-surface);
 }
@@ -2311,13 +2274,11 @@ th {
     grid-template-columns: minmax(0, 1.9fr) minmax(290px, 1fr);
   }
   .overview-page .overview-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    min-width: 0;
+    display: contents;
+  }
+  .overview-page .overview-grid .allocation-section {
     grid-column: 2;
     grid-row: 1;
-    padding: 0;
   }
   .overview-page .overview-hero.trend-panel {
     grid-column: 1;
@@ -2332,11 +2293,12 @@ th {
     padding-block: 10px;
   }
   .overview-page .overview-grid .insight-panel {
-    flex: 1;
+    grid-column: 1 / -1;
+    grid-row: 2;
     padding: 22px 24px;
   }
   .overview-page .overview-grid .insight-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     margin-top: 18px;
     gap: 0 18px;
   }

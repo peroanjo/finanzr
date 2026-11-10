@@ -466,38 +466,6 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
-        <div class="hero-history-summary">
-          <div v-if="visibleHistory.length" class="chart-summary">
-            <div>
-              <small>{{ t("overview.start") }}</small
-              ><strong>{{ money(startValue) }}</strong>
-            </div>
-            <span aria-hidden="true">→</span>
-            <div>
-              <small>{{ t("overview.current") }}</small
-              ><strong>{{ money(currentValue) }}</strong>
-            </div>
-          </div>
-        </div>
-        <footer class="hero-legend">
-          <div
-            v-if="trendSeries.length"
-            class="trend-composition"
-            role="group"
-            :aria-label="t('overview.compositionHistoryAria')"
-          >
-            <span class="trend-total-key"
-              ><i aria-hidden="true" />{{ t("overview.totalNetWorth") }}</span
-            >
-            <ul>
-              <li v-for="item in trendSeries" :key="item.key">
-                <i :style="{ background: item.color }" aria-hidden="true" />
-                <span>{{ item.label }}</span>
-                <strong>{{ money(item.currentValue) }}</strong>
-              </li>
-            </ul>
-          </div>
-        </footer>
       </article>
 
       <div class="overview-grid">
