@@ -35,6 +35,7 @@ describe("AppShell", () => {
     localStorage.clear();
     localStorage.setItem("finanzr-theme", "light");
     localStorage.setItem("finanzr-sidebar-collapsed", "false");
+    vi.stubGlobal("innerWidth", 1440);
     i18n.global.locale.value = "es-ES";
   });
 
@@ -73,6 +74,56 @@ describe("AppShell", () => {
     expect(mark.attributes("src")).toMatch(/\/finanzr-logo\.svg$/);
     expect(mark.attributes("alt")).toBe("");
     expect(wrapper.get(".app-brand-name").text()).toBe("finanzr.");
+  });
+
+  it("shows collapsed navigation labels outside the rail and dismisses them", async () => {
+    localStorage.setItem("finanzr-sidebar-collapsed", "true");
+    const wrapper = mount(AppShell, { global: { stubs } });
+    await flushPromises();
+
+    const savings = wrapper.findAll(".app-nav-group a")[0];
+    await savings.get("svg").trigger("pointerover");
+    expect(wrapper.get(".app-nav-tooltip").text()).toBe("Cuentas de ahorro");
+    expect(wrapper.find(".app-sidebar .app-nav-tooltip").exists()).toBe(false);
+    expect(savings.attributes("aria-label")).toBe("Cuentas de ahorro");
+    expect(savings.attributes("title")).toBeUndefined();
+
+    await wrapper.get(".app-sidebar").trigger("pointerleave");
+    expect(wrapper.find(".app-nav-tooltip").exists()).toBe(false);
+
+    await wrapper.get(".sidebar-settings-button svg").trigger("pointerover");
+    expect(wrapper.get(".app-nav-tooltip").text()).toBe("Configuración");
+    window.dispatchEvent(new Event("scroll"));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(".app-nav-tooltip").exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("supports keyboard labels on the responsive icon rail, but not expanded or mobile navigation", async () => {
+    const wrapper = mount(AppShell, { global: { stubs } });
+    await flushPromises();
+    const overview = wrapper.get(".app-nav-primary");
+    await overview.trigger("focusin");
+    expect(wrapper.find(".app-nav-tooltip").exists()).toBe(false);
+
+    vi.stubGlobal("innerWidth", 1000);
+    await overview.trigger("focusin");
+    expect(wrapper.get(".app-nav-tooltip").text()).toBe("Resumen");
+    await overview.trigger("keydown", { key: "Escape" });
+    expect(wrapper.find(".app-nav-tooltip").exists()).toBe(false);
+
+    await overview.trigger("focusin");
+    await overview.trigger("focusout");
+    expect(wrapper.find(".app-nav-tooltip").exists()).toBe(false);
+    await overview.trigger("focusin");
+    window.dispatchEvent(new Event("resize"));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(".app-nav-tooltip").exists()).toBe(false);
+
+    vi.stubGlobal("innerWidth", 390);
+    await overview.trigger("focusin");
+    expect(wrapper.find(".app-nav-tooltip").exists()).toBe(false);
+    wrapper.unmount();
   });
 
   it("organizes navigation by accounts, investments, and tools", async () => {

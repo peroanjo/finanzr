@@ -29,6 +29,63 @@ const { locale } = useLocalePreference();
 const theme = ref<Theme>("light");
 const settingsOpen = ref(false);
 const sidebarCollapsed = ref(true);
+const navigationTooltip = ref<{
+  label: string;
+  left: number;
+  top: number;
+} | null>(null);
+
+function hideNavigationTooltip() {
+  navigationTooltip.value = null;
+}
+
+function showNavigationTooltip(event: Event) {
+  if (
+    window.innerWidth <= 720 ||
+    (!sidebarCollapsed.value && window.innerWidth > 1100)
+  ) {
+    hideNavigationTooltip();
+    return;
+  }
+  const control =
+    event.target instanceof Element
+      ? event.target.closest<HTMLElement>(
+          ".app-nav a, .sidebar-settings-button, .logout-button",
+        )
+      : null;
+  const label = control?.getAttribute("aria-label");
+  if (!control || !label) {
+    hideNavigationTooltip();
+    return;
+  }
+  const bounds = control.getBoundingClientRect();
+  const sidebarBounds = control
+    .closest(".app-sidebar")!
+    .getBoundingClientRect();
+  navigationTooltip.value = {
+    label,
+    left: sidebarBounds.right + 10,
+    top: Math.max(
+      24,
+      Math.min(window.innerHeight - 24, bounds.top + bounds.height / 2),
+    ),
+  };
+}
+
+watch(
+  [sidebarCollapsed, settingsOpen, locale, () => route.fullPath],
+  hideNavigationTooltip,
+);
+onMounted(() => {
+  window.addEventListener("resize", hideNavigationTooltip);
+  window.addEventListener("scroll", hideNavigationTooltip, true);
+  window.addEventListener("blur", hideNavigationTooltip);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", hideNavigationTooltip);
+  window.removeEventListener("scroll", hideNavigationTooltip, true);
+  window.removeEventListener("blur", hideNavigationTooltip);
+});
 const logoUrl = `${import.meta.env.BASE_URL}finanzr-logo.svg`;
 const overviewLink = computed(() => ({
   to: "/",
@@ -161,6 +218,11 @@ onMounted(() => {
       class="app-sidebar"
       :inert="settingsOpen"
       :aria-hidden="settingsOpen ? 'true' : undefined"
+      @pointerover="showNavigationTooltip"
+      @pointerleave="hideNavigationTooltip"
+      @focusin="showNavigationTooltip"
+      @focusout="hideNavigationTooltip"
+      @keydown.esc="hideNavigationTooltip"
     >
       <div class="app-sidebar-header">
         <RouterLink class="app-brand" to="/" :aria-label="t('shell.homeLabel')">
@@ -204,7 +266,6 @@ onMounted(() => {
           class="app-nav-primary"
           :to="overviewLink.to"
           exact-active-class="active"
-          :title="overviewLink.label"
           :aria-label="overviewLink.label"
         >
           <NavIcon :name="overviewLink.icon" />
@@ -225,7 +286,6 @@ onMounted(() => {
               :key="link.to"
               :to="link.to"
               exact-active-class="active"
-              :title="link.label"
               :aria-label="link.label"
             >
               <NavIcon :name="link.icon" />
@@ -240,7 +300,6 @@ onMounted(() => {
           class="app-nav-button sidebar-settings-button"
           type="button"
           :class="{ active: settingsOpen }"
-          :title="settingsLink.label"
           :aria-label="settingsLink.label"
           :aria-pressed="settingsOpen"
           @click="settingsOpen = true"
@@ -252,7 +311,6 @@ onMounted(() => {
         <button
           class="logout-button"
           type="button"
-          :title="t('shell.logOut')"
           :aria-label="t('shell.logOut')"
           @click="logout"
         >
@@ -364,6 +422,16 @@ onMounted(() => {
         :key="`${route.fullPath}:${session.user?.active_workspace_id ?? ''}`"
       />
     </main>
+    <span
+      v-if="navigationTooltip"
+      class="app-nav-tooltip"
+      aria-hidden="true"
+      :style="{
+        left: `${navigationTooltip.left}px`,
+        top: `${navigationTooltip.top}px`,
+      }"
+      >{{ navigationTooltip.label }}</span
+    >
     <SettingsView v-if="settingsOpen" @close="settingsOpen = false" />
   </div>
 </template>

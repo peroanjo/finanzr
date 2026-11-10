@@ -283,6 +283,23 @@ select:focus-visible {
 .app-nav::-webkit-scrollbar {
   display: none;
 }
+.app-nav-tooltip {
+  position: fixed;
+  z-index: 30;
+  transform: translateY(-50%);
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--fz-ink) 12%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--fz-surface) 86%, transparent);
+  color: var(--fz-ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+}
 .app-nav-group {
   min-width: 0;
   padding-top: 0;
