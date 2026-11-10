@@ -12,10 +12,8 @@ type AllocationItem = {
 const props = defineProps<{ items: AllocationItem[] }>();
 const { t, n } = useI18n();
 const selected = ref<string | null>(null);
-const active = computed(
-  () =>
-    props.items.find((item) => item.key === selected.value && item.share > 0) ??
-    [...props.items].sort((a, b) => b.share - a.share)[0],
+const active = computed(() =>
+  props.items.find((item) => item.key === selected.value && item.share > 0),
 );
 const slices = computed(() => {
   let angle = -Math.PI / 2;
@@ -25,14 +23,15 @@ const slices = computed(() => {
       const start = angle;
       const sweep = item.share * Math.PI * 2;
       angle += sweep;
-      const point = (a: number) =>
-        `${120 + 94 * Math.cos(a)} ${120 + 94 * Math.sin(a)}`;
+      const point = (radius: number, a: number) =>
+        `${120 + radius * Math.cos(a)} ${120 + radius * Math.sin(a)}`;
       const middle = start + sweep / 2;
-      // Two arcs also cover a single category occupying the entire circle.
-      const path = `M 120 120 L ${point(start)} A 94 94 0 0 1 ${point(middle)} A 94 94 0 0 1 ${point(angle)} Z`;
+      // Split both boundaries into two arcs to support a complete ring.
+      const path = `M ${point(94, start)} A 94 94 0 0 1 ${point(94, middle)} A 94 94 0 0 1 ${point(94, angle)} L ${point(62, angle)} A 62 62 0 0 0 ${point(62, middle)} A 62 62 0 0 0 ${point(62, start)} Z`;
       return {
         ...item,
         path,
+        offset: `translate(${Math.cos(middle) * 4}px, ${Math.sin(middle) * 4}px)`,
       };
     });
 });
@@ -41,23 +40,34 @@ const slices = computed(() => {
 <template>
   <div class="allocation-pie">
     <div v-if="slices.length" class="allocation-pie-stage">
-      <svg
-        viewBox="22 22 196 196"
-        aria-hidden="true"
-        class="allocation-pie-disc"
-      >
-        <g
-          v-for="slice in slices"
-          :key="slice.key"
-          class="allocation-pie-slice"
-          :class="{ active: active?.key === slice.key }"
-          :style="{ '--slice-color': slice.color }"
-          @mouseenter="selected = slice.key"
-          @click="selected = slice.key"
+      <div class="allocation-pie-ring">
+        <svg
+          viewBox="16 16 208 208"
+          aria-hidden="true"
+          class="allocation-pie-disc"
         >
-          <path :d="slice.path" />
-        </g>
-      </svg>
+          <g
+            v-for="slice in slices"
+            :key="slice.key"
+            class="allocation-pie-slice"
+            :class="{ active: active?.key === slice.key }"
+            :style="{
+              '--slice-color': slice.color,
+              '--slice-offset': slice.offset,
+            }"
+            @mouseenter="selected = slice.key"
+            @mouseleave="selected = null"
+          >
+            <path class="allocation-pie-hit" :d="slice.path" />
+            <path class="allocation-pie-shape" :d="slice.path" />
+          </g>
+        </svg>
+        <div v-if="active" class="allocation-pie-center" aria-hidden="true">
+          <strong>{{ n(active.value, "currency") }}</strong>
+          <span>{{ active.label }}</span>
+          <small>{{ n(active.share, "percent") }}</small>
+        </div>
+      </div>
     </div>
     <p v-else class="allocation-pie-empty">{{ t("common.noData") }}</p>
     <div class="allocation-pie-legend">
@@ -69,7 +79,10 @@ const slices = computed(() => {
         :disabled="item.share <= 0"
         :style="{ '--slice-color': item.color }"
         @mouseenter="selected = item.key"
+        @mouseleave="selected = null"
         @focus="selected = item.key"
+        @blur="selected = null"
+        @keydown.esc="selected = null"
         @click="selected = item.key"
       >
         <span class="allocation-pie-dot" aria-hidden="true" />
@@ -90,8 +103,15 @@ const slices = computed(() => {
   container-type: inline-size;
 }
 .allocation-pie-stage {
-  width: 148px;
+  width: 100%;
   margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+.allocation-pie-ring {
+  position: relative;
+  width: 208px;
+  max-width: 100%;
 }
 .allocation-pie-disc {
   display: block;
@@ -99,17 +119,51 @@ const slices = computed(() => {
 }
 .allocation-pie-slice {
   cursor: pointer;
-  opacity: 0.85;
-  transition: opacity 160ms ease;
 }
-.allocation-pie-slice.active {
-  opacity: 1;
+.allocation-pie-hit {
+  fill: transparent;
 }
-.allocation-pie-slice path {
-  fill: color-mix(in srgb, var(--slice-color) 72%, var(--fz-muted));
+.allocation-pie-shape {
+  fill: color-mix(in srgb, var(--slice-color) 85%, var(--fz-muted));
   stroke: var(--fz-surface);
-  stroke-width: 2;
+  stroke-width: 1.5;
   stroke-linejoin: round;
+  pointer-events: none;
+  transition: transform 180ms ease;
+}
+.allocation-pie-slice.active .allocation-pie-shape {
+  transform: var(--slice-offset);
+}
+.allocation-pie-center {
+  position: absolute;
+  inset: 23%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  text-align: center;
+  pointer-events: none;
+  color: var(--fz-ink);
+}
+.allocation-pie-center strong {
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.allocation-pie-center span {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--fz-muted);
+  overflow-wrap: anywhere;
+}
+.allocation-pie-center small {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .allocation-pie-legend {
   display: grid;
@@ -149,7 +203,7 @@ const slices = computed(() => {
   height: 5px;
   align-self: center;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--slice-color) 72%, var(--fz-muted));
+  background: color-mix(in srgb, var(--slice-color) 85%, var(--fz-muted));
 }
 .allocation-pie-name {
   overflow-wrap: anywhere;
@@ -214,7 +268,7 @@ const slices = computed(() => {
 }
 @media (min-width: 721px) and (max-width: 1100px) {
   .allocation-pie {
-    grid-template-columns: 148px minmax(0, 1fr);
+    grid-template-columns: 208px minmax(0, 1fr);
     align-items: center;
     gap: 32px;
   }
@@ -232,10 +286,10 @@ const slices = computed(() => {
     place-items: center;
     flex: 1;
     width: 100%;
-    min-height: 148px;
+    min-height: 208px;
   }
-  .allocation-pie-disc {
-    width: clamp(148px, 14vw, 188px);
+  .allocation-pie-ring {
+    width: clamp(208px, 17vw, 232px);
     max-width: 100%;
   }
   .allocation-pie-legend {
@@ -243,7 +297,7 @@ const slices = computed(() => {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .allocation-pie-slice {
+  .allocation-pie-shape {
     transition: none;
   }
 }

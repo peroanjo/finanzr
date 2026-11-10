@@ -14,29 +14,44 @@ const items = [
 ];
 
 describe("AllocationPie", () => {
-  it("links legend selection to the highlighted slice", async () => {
+  it("shows details only while a segment is hovered", async () => {
     const wrapper = mount(AllocationPie, { props: { items } });
-    expect(wrapper.findAll(".allocation-pie-slice")).toHaveLength(2);
-    expect(wrapper.findAll("button")[0].attributes("aria-pressed")).toBe(
-      "true",
-    );
-    await wrapper.findAll("button")[1].trigger("focus");
-    expect(wrapper.findAll("button")[1].attributes("aria-pressed")).toBe(
-      "true",
-    );
-    expect(wrapper.findAll(".allocation-pie-slice")[1].classes()).toContain(
-      "active",
-    );
-    await wrapper.setProps({ items: [items[0]] });
-    expect(wrapper.get("button").attributes("aria-pressed")).toBe("true");
+    expect(wrapper.find(".allocation-pie-center").exists()).toBe(false);
+    expect(wrapper.find(".allocation-pie-slice.active").exists()).toBe(false);
+    const slice = wrapper.findAll(".allocation-pie-slice")[1];
+    await slice.trigger("mouseenter");
+    expect(wrapper.get(".allocation-pie-center").text()).toContain("Funds");
+    expect(wrapper.get(".allocation-pie-center").text()).toContain("250,00");
+    expect(wrapper.get(".allocation-pie-center").text()).toContain("25");
+    expect(slice.classes()).toContain("active");
+    await slice.trigger("mouseleave");
+    expect(wrapper.find(".allocation-pie-center").exists()).toBe(false);
+    expect(wrapper.find(".allocation-pie-slice.active").exists()).toBe(false);
   });
 
-  it("draws a full circle for a single positive category", () => {
+  it("supports legend focus and clears details on blur or removed categories", async () => {
+    const wrapper = mount(AllocationPie, { props: { items } });
+    const button = wrapper.findAll("button")[1];
+    await button.trigger("focus");
+    expect(button.attributes("aria-pressed")).toBe("true");
+    await button.trigger("blur");
+    expect(wrapper.find(".allocation-pie-center").exists()).toBe(false);
+    await button.trigger("mouseenter");
+    await button.trigger("mouseleave");
+    expect(wrapper.find(".allocation-pie-slice.active").exists()).toBe(false);
+    await button.trigger("focus");
+    await wrapper.setProps({ items: [items[0]] });
+    expect(wrapper.find(".allocation-pie-center").exists()).toBe(false);
+    expect(wrapper.get("button").attributes("aria-pressed")).toBe("false");
+  });
+
+  it("draws both boundaries of a full ring for a single positive category", () => {
     const wrapper = mount(AllocationPie, {
       props: { items: [{ ...items[0], share: 1 }] },
     });
     const path = wrapper.get("path").attributes("d") ?? "";
     expect(path.match(/A 94 94/g)).toHaveLength(2);
+    expect(path.match(/A 62 62/g)).toHaveLength(2);
     expect(path).not.toContain("NaN");
   });
 
