@@ -1769,17 +1769,13 @@ th {
 .app-sidebar-footer {
   border-top: 0;
 }
-.overview-page {
+.app-main:has(> .overview-page) {
   --fz-overview-mint: #c6eadb;
   --fz-overview-blue: #d7e7ed;
   --fz-overview-glow: #e7f2d8;
   --fz-overview-grain-opacity: 0.045;
   position: relative;
   isolation: isolate;
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
-  gap: 18px;
-  padding: 28px 32px 40px;
   background:
     radial-gradient(
       ellipse at 6% 0%,
@@ -1793,13 +1789,13 @@ th {
     ),
     var(--fz-canvas);
 }
-.app-shell[data-theme="dark"] .overview-page {
+.app-shell[data-theme="dark"] .app-main:has(> .overview-page) {
   --fz-overview-mint: #1b4538;
   --fz-overview-blue: #1b303e;
   --fz-overview-glow: #35452a;
   --fz-overview-grain-opacity: 0.035;
 }
-.overview-page::before,
+.app-main:has(> .overview-page)::before,
 .overview-hero.trend-panel::before {
   content: "";
   position: absolute;
@@ -1809,6 +1805,15 @@ th {
   pointer-events: none;
   opacity: var(--fz-overview-grain-opacity);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23888' filter='url(%23grain)' d='M0 0h180v180H0z'/%3E%3C/svg%3E");
+}
+.app-main:has(> .overview-page) > .app-topbar {
+  border-bottom-color: color-mix(in srgb, var(--fz-ink) 10%, transparent);
+}
+.overview-page {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+  gap: 18px;
+  padding: 28px 32px 40px;
 }
 .overview-grid {
   display: contents;
