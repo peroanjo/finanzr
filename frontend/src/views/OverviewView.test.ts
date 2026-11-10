@@ -90,8 +90,8 @@ describe("OverviewView", () => {
         .findAll(".trend-panel .period-control button")
         .map((button) => button.text()),
     ).toEqual(["6 meses", "1 año", "2 años", "Todo"]);
-    expect(wrapper.findAll(".allocation-legend > div")).toHaveLength(3);
-    expect(wrapper.findAll(".allocation-meter")).toHaveLength(3);
+    expect(wrapper.findAll(".allocation-pie-legend button")).toHaveLength(3);
+    expect(wrapper.findAll(".allocation-pie-slice")).toHaveLength(3);
     expect(
       wrapper.get('.period-control button[aria-pressed="true"]').text(),
     ).toBe("2 años");

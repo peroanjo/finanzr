@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api } from "../api/client";
+import AllocationPie from "../components/AllocationPie.vue";
 import LineChart from "../components/LineChart.vue";
 import type { LineChartSeries } from "../components/LineChart.vue";
 import MonthlyVariationChart from "../components/MonthlyVariationChart.vue";
@@ -486,21 +487,7 @@ onBeforeUnmount(() => {
             <h2 id="allocation-title">
               {{ t("overview.currentDistribution") }}
             </h2>
-            <div class="allocation-legend">
-              <div
-                v-for="item in allocation"
-                :key="item.key"
-                :style="{ '--allocation-color': item.color }"
-              >
-                <span class="legend-dot" :style="{ background: item.color }" />
-                <span>{{ item.label }}</span>
-                <strong>{{ money(item.value) }}</strong>
-                <small>{{ percentage(item.share) }}</small>
-                <div class="allocation-meter" aria-hidden="true">
-                  <span :style="{ width: `${item.share * 100}%` }" />
-                </div>
-              </div>
-            </div>
+            <AllocationPie :items="allocation" />
           </div>
         </section>
 
