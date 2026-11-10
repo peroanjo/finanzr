@@ -288,11 +288,6 @@ onMounted(() => {
                 <strong :title="activeWorkspace?.name">{{
                   activeWorkspace?.name ?? t("shell.mySpace")
                 }}</strong>
-                <WorkspaceVisibilityBadge
-                  v-if="activeWorkspace"
-                  :shared="Boolean(activeWorkspace.is_shared)"
-                  sidebar
-                />
               </span>
               <span class="workspace-identity-row">
                 <small
@@ -301,17 +296,21 @@ onMounted(() => {
                     session.user?.display_name || session.user?.email
                   }}</small
                 >
-                <svg
-                  v-if="session.user && session.user.workspaces.length > 1"
-                  class="workspace-picker-chevron"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <path d="m5 6 3-3 3 3m-6 4 3 3 3-3" />
-                </svg>
+                <WorkspaceVisibilityBadge
+                  v-if="activeWorkspace"
+                  :shared="Boolean(activeWorkspace.is_shared)"
+                />
               </span>
             </span>
+            <svg
+              v-if="session.user && session.user.workspaces.length > 1"
+              class="workspace-picker-chevron"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path d="m4.5 6.25 3.5 3.5 3.5-3.5" />
+            </svg>
             <select
               v-if="session.user && session.user.workspaces.length > 1"
               :disabled="session.switchingWorkspace"
@@ -346,8 +345,18 @@ onMounted(() => {
             "
             @click="toggleTheme"
           >
-            <span aria-hidden="true">{{ theme === "light" ? "☼" : "☾" }}</span>
-            {{ theme === "light" ? t("shell.light") : t("shell.dark") }}
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <template v-if="theme === 'light'">
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"
+                />
+              </template>
+              <path
+                v-else
+                d="M20.5 13.1A8.5 8.5 0 0 1 10.9 3.5a8.5 8.5 0 1 0 9.6 9.6Z"
+              />
+            </svg>
           </button>
         </div>
       </header>
