@@ -1010,6 +1010,7 @@ select:focus-visible {
 .overview-panel.monthly-variation-panel {
   grid-column: 1 / -1;
   min-width: 0;
+  padding: 22px 24px;
   container-type: inline-size;
   background:
     radial-gradient(
@@ -1020,17 +1021,29 @@ select:focus-visible {
     var(--fz-surface);
 }
 .monthly-variation-header {
-  flex-wrap: wrap;
-  gap: 14px 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title mode"
+    "description mode";
+  align-items: center;
+  gap: 3px 16px;
+}
+.monthly-variation-header h2 {
+  grid-area: title;
 }
 .monthly-variation-description {
-  max-width: 65ch;
-  margin: 5px 0 0;
+  grid-area: description;
+  margin: 0;
   color: var(--fz-muted);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.monthly-variation-period {
+  display: none;
 }
 .monthly-pnl-control {
+  grid-area: mode;
   display: inline-grid;
   grid-template-columns: repeat(2, 1fr);
   padding: 3px;
@@ -1039,8 +1052,8 @@ select:focus-visible {
   background: var(--fz-surface-soft);
 }
 .monthly-pnl-control button {
-  min-height: 34px;
-  padding: 6px 12px;
+  min-height: 30px;
+  padding: 4px 10px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -1060,13 +1073,21 @@ select:focus-visible {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .monthly-breakdown-total {
-  margin: 22px 0 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 10px 0 6px;
 }
 .monthly-month-navigation,
 .monthly-month-buttons {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+.monthly-month-navigation {
+  flex: 1 1 145px;
 }
 .monthly-month-navigation h3 {
   margin: 0;
@@ -1075,6 +1096,7 @@ select:focus-visible {
   font-weight: 650;
 }
 .monthly-month-buttons {
+  flex-shrink: 0;
   gap: 4px;
 }
 .monthly-month-buttons button {
@@ -1109,9 +1131,8 @@ select:focus-visible {
   transform: rotate(225deg);
 }
 .monthly-breakdown-total strong {
-  display: block;
-  margin-top: 5px;
-  font-size: clamp(30px, 4vw, 48px);
+  min-width: 0;
+  font-size: clamp(23px, 2.6vw, 32px);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.05em;
@@ -1121,18 +1142,18 @@ select:focus-visible {
 .monthly-variation-chart {
   position: relative;
   min-width: 0;
-  height: clamp(220px, 28vw, 320px);
+  height: 220px;
   border-radius: 12px;
 }
 .monthly-breakdown-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 20px 0 0;
+  margin: 8px 0 0;
   border-block: 1px solid var(--fz-line);
 }
 .monthly-breakdown-list > div {
   min-width: 0;
-  padding: 15px 16px;
+  padding: 8px 14px;
 }
 .monthly-breakdown-list > div:first-child {
   padding-inline-start: 0;
@@ -1143,12 +1164,12 @@ select:focus-visible {
 .monthly-breakdown-list dt,
 .monthly-chart-meta {
   color: var(--fz-muted);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.45;
 }
 .monthly-breakdown-list dd {
-  margin: 4px 0 0;
-  font-size: clamp(16px, 2vw, 22px);
+  margin: 3px 0 0;
+  font-size: 17px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.025em;
@@ -1169,8 +1190,8 @@ select:focus-visible {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 4px 18px;
-  margin-top: 12px;
+  gap: 2px 16px;
+  margin-top: 8px;
 }
 .monthly-chart-meta strong {
   margin-inline-start: 3px;
@@ -1182,22 +1203,29 @@ select:focus-visible {
 }
 @container (width < 540px) {
   .monthly-variation-header {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-areas:
+      "title title"
+      "description mode";
+    row-gap: 6px;
   }
-  .monthly-breakdown-total {
-    margin-top: 16px;
+  .monthly-variation-sources {
+    display: none;
+  }
+  .monthly-variation-period {
+    display: inline;
+  }
+  .monthly-variation-chart {
+    height: 168px;
   }
   .monthly-breakdown-list {
     grid-template-columns: minmax(0, 1fr);
-    margin-top: 12px;
   }
   .monthly-breakdown-list > div {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
     align-items: baseline;
     gap: 10px;
-    padding: 11px 0;
+    padding: 6px 0;
   }
   .monthly-breakdown-list > div + div {
     border-inline-start: 0;
@@ -1206,6 +1234,11 @@ select:focus-visible {
   .monthly-breakdown-list dd {
     margin: 0;
     text-align: end;
+  }
+}
+@media (max-width: 720px) {
+  .overview-panel.monthly-variation-panel {
+    padding: 16px;
   }
 }
 @media (pointer: coarse) {

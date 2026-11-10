@@ -584,14 +584,15 @@ onBeforeUnmount(() => {
         aria-labelledby="monthly-variation-title"
       >
         <header class="panel-header monthly-variation-header">
-          <div>
-            <h2 id="monthly-variation-title">
-              {{ t("overview.monthly.title") }}
-            </h2>
-            <p class="monthly-variation-description">
-              {{ monthlyDescriptionCopy }}
-            </p>
-          </div>
+          <h2 id="monthly-variation-title">
+            {{ t("overview.monthly.title") }}
+          </h2>
+          <p class="monthly-variation-description">
+            <span class="monthly-variation-sources">{{
+              monthlyDescriptionCopy
+            }}</span>
+            <span class="monthly-variation-period">{{ periodLabel }}</span>
+          </p>
 
           <div
             v-if="selectedMonthlyBreakdown"
