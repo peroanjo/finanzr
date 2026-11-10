@@ -310,6 +310,17 @@ describe("OverviewView", () => {
     expect(wrapper.get(".net-worth-info-tooltip").text()).toContain(
       "Calculado con Acciones y ETF",
     );
+    const essentials = wrapper.get(
+      'section[aria-labelledby="essentials-title"]',
+    );
+    expect(essentials.get("h2").text()).toBe("Lo esencial");
+    expect(essentials.findAll(".insight-card")).toHaveLength(4);
+    expect(essentials.get(".upcoming-project-insight dd").text()).toBe(
+      "Sin datos",
+    );
+    expect(essentials.get(".upcoming-project-insight small").text()).toBe(
+      "Crowdfunding fuera del resumen",
+    );
     expect(refreshCount).toBe(1);
 
     window.dispatchEvent(new CustomEvent("finanzr:summary-sources-updated"));

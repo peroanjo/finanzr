@@ -6,6 +6,7 @@ import AllocationPie from "../components/AllocationPie.vue";
 import LineChart from "../components/LineChart.vue";
 import type { LineChartSeries } from "../components/LineChart.vue";
 import MonthlyVariationChart from "../components/MonthlyVariationChart.vue";
+import NavIcon from "../components/NavIcon.vue";
 import type {
   NetWorthPoint,
   RealEstateInvestment,
@@ -186,10 +187,11 @@ const trendSeries = computed<Array<LineChartSeries & { currentValue: number }>>(
 const biggestAllocation = computed(
   () => [...allocation.value].sort((a, b) => b.share - a.share)[0],
 );
-const showsCrowdfundingInsight = computed(() =>
+const includesCrowdfunding = computed(() =>
   activeSourceKeys.value.includes("crowdfunding"),
 );
 const upcomingCrowdfundingProject = computed(() => {
+  if (!includesCrowdfunding.value) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const deadline = new Date(today);
@@ -490,65 +492,91 @@ onBeforeUnmount(() => {
             <AllocationPie :items="allocation" />
           </div>
         </section>
+      </div>
 
-        <aside class="overview-panel insight-panel">
-          <header class="panel-header">
-            <div>
-              <h2>{{ t("overview.essentials") }}</h2>
-            </div>
-          </header>
-
-          <dl class="insight-list">
-            <div>
-              <dt>{{ t("overview.variation") }}</dt>
-              <dd
-                :class="{
-                  positive: periodChange >= 0,
-                  negative: periodChange < 0,
-                }"
-              >
-                {{ signedMoney(periodChange) }}
-              </dd>
+      <section class="overview-essentials" aria-labelledby="essentials-title">
+        <h2 id="essentials-title">{{ t("overview.essentials") }}</h2>
+        <dl class="insight-grid">
+          <div class="insight-card">
+            <dt>
+              <NavIcon name="trend" class="insight-icon" />
+              <span>{{ t("overview.variation") }}</span>
+            </dt>
+            <dd
+              class="insight-value"
+              :class="{
+                positive: periodChange >= 0,
+                negative: periodChange < 0,
+              }"
+            >
+              {{ signedMoney(periodChange) }}
+            </dd>
+            <dd class="insight-detail">
               <small>{{ periodLabel }}</small>
-            </div>
-            <div>
-              <dt>{{ t("overview.accumulatedInterest") }}</dt>
-              <dd>{{ money(summary.total_interest) }}</dd>
+            </dd>
+          </div>
+          <div class="insight-card interest-insight">
+            <dt>
+              <NavIcon name="wallet" class="insight-icon" />
+              <span>{{ t("overview.accumulatedInterest") }}</span>
+            </dt>
+            <dd class="insight-value">{{ money(summary.total_interest) }}</dd>
+            <dd class="insight-detail">
               <small>{{ t("overview.recordedHistory") }}</small>
-            </div>
-            <div class="largest-block-insight">
-              <dt>{{ t("overview.largestBlock") }}</dt>
-              <dd>{{ biggestAllocation?.label ?? t("common.noData") }}</dd>
-              <small v-if="biggestAllocation">{{
+            </dd>
+          </div>
+          <div class="insight-card largest-block-insight">
+            <dt>
+              <NavIcon name="funds" class="insight-icon" />
+              <span>{{ t("overview.largestBlock") }}</span>
+            </dt>
+            <dd class="insight-value">
+              {{ biggestAllocation?.label ?? t("common.noData") }}
+            </dd>
+            <dd v-if="biggestAllocation" class="insight-detail">
+              <small>{{
                 t("overview.ofNetWorth", {
                   share: percentage(biggestAllocation.share),
                 })
               }}</small>
-            </div>
-            <div
-              v-if="showsCrowdfundingInsight"
-              class="upcoming-project-insight"
+            </dd>
+          </div>
+          <div class="insight-card upcoming-project-insight">
+            <dt>
+              <NavIcon name="building" class="insight-icon" />
+              <span>{{ t("overview.upcomingMaturity") }}</span>
+            </dt>
+            <dd
+              class="insight-value"
+              :class="{ muted: !upcomingCrowdfundingProject }"
             >
-              <dt>{{ t("overview.upcomingMaturity") }}</dt>
-              <dd :class="{ muted: !upcomingCrowdfundingProject }">
-                {{
-                  upcomingCrowdfundingProject?.item.name ??
-                  t("overview.noUpcomingMaturity")
-                }}
-              </dd>
+              {{
+                upcomingCrowdfundingProject?.item.name ??
+                t(
+                  includesCrowdfunding
+                    ? "overview.noUpcomingMaturity"
+                    : "common.noData",
+                )
+              }}
+            </dd>
+            <dd class="insight-detail">
               <small>
                 {{
                   upcomingCrowdfundingProject
                     ? t("overview.maturesOn", {
                         date: upcomingCrowdfundingDate,
                       })
-                    : t("overview.nextThreeMonths")
+                    : t(
+                        includesCrowdfunding
+                          ? "overview.nextThreeMonths"
+                          : "overview.crowdfundingExcluded",
+                      )
                 }}
               </small>
-            </div>
-          </dl>
-        </aside>
-      </div>
+            </dd>
+          </div>
+        </dl>
+      </section>
 
       <article class="overview-panel monthly-variation-panel">
         <header class="panel-header monthly-variation-header">

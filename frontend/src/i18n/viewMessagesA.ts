@@ -43,6 +43,7 @@ export const viewMessagesA = defineMessageCatalog(
       upcomingMaturity: "Upcoming maturity",
       nextThreeMonths: "Next 3 months",
       noUpcomingMaturity: "None",
+      crowdfundingExcluded: "Crowdfunding excluded from the overview",
       maturesOn: "Matures on {date}",
       periods: {
         sixMonths: "6 months",
@@ -430,6 +431,7 @@ export const viewMessagesA = defineMessageCatalog(
       upcomingMaturity: "Próximo vencimiento",
       nextThreeMonths: "Próximos 3 meses",
       noUpcomingMaturity: "Ninguno",
+      crowdfundingExcluded: "Crowdfunding fuera del resumen",
       maturesOn: "Finaliza el {date}",
       periods: {
         sixMonths: "6 meses",
