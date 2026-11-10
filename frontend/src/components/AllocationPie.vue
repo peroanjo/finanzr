@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 
 type AllocationItem = {
@@ -11,6 +11,7 @@ type AllocationItem = {
 };
 const props = defineProps<{ items: AllocationItem[] }>();
 const { t, n } = useI18n();
+const gradientId = useId();
 const selected = ref<string | null>(null);
 const active = computed(() =>
   props.items.find((item) => item.key === selected.value && item.share > 0),
@@ -46,8 +47,38 @@ const slices = computed(() => {
           aria-hidden="true"
           class="allocation-pie-disc"
         >
+          <defs>
+            <radialGradient
+              v-for="(slice, index) in slices"
+              :id="`${gradientId}-satin-${index}`"
+              :key="slice.key"
+              gradientUnits="userSpaceOnUse"
+              cx="120"
+              cy="120"
+              r="94"
+              :style="{ '--slice-color': slice.color }"
+              class="allocation-pie-satin"
+            >
+              <stop offset="0" class="satin-inner" />
+              <stop offset="66%" class="satin-inner" />
+              <stop offset="84%" class="satin-body" />
+              <stop offset="100%" class="satin-outer" />
+            </radialGradient>
+            <linearGradient
+              :id="`${gradientId}-light`"
+              gradientUnits="userSpaceOnUse"
+              x1="26"
+              y1="26"
+              x2="214"
+              y2="214"
+            >
+              <stop offset="0" stop-color="white" stop-opacity=".12" />
+              <stop offset=".5" stop-color="white" stop-opacity="0" />
+              <stop offset="1" stop-color="black" stop-opacity=".06" />
+            </linearGradient>
+          </defs>
           <g
-            v-for="slice in slices"
+            v-for="(slice, index) in slices"
             :key="slice.key"
             class="allocation-pie-slice"
             :class="{ active: active?.key === slice.key }"
@@ -59,7 +90,14 @@ const slices = computed(() => {
             @mouseleave="selected = null"
           >
             <path class="allocation-pie-hit" :d="slice.path" />
-            <path class="allocation-pie-shape" :d="slice.path" />
+            <g class="allocation-pie-shape">
+              <path
+                class="allocation-pie-base"
+                :d="slice.path"
+                :fill="`url(#${gradientId}-satin-${index})`"
+              />
+              <path :d="slice.path" :fill="`url(#${gradientId}-light)`" />
+            </g>
           </g>
         </svg>
         <div v-if="active" class="allocation-pie-center" aria-hidden="true">
@@ -123,16 +161,33 @@ const slices = computed(() => {
 .allocation-pie-hit {
   fill: transparent;
 }
+.allocation-pie-satin {
+  --slice-base: color-mix(in srgb, var(--slice-color) 85%, var(--fz-muted));
+}
+.satin-inner {
+  stop-color: color-mix(in srgb, var(--slice-base) 88%, black);
+}
+.satin-body {
+  stop-color: var(--slice-base);
+}
+.satin-outer {
+  stop-color: color-mix(in srgb, var(--slice-base) 94%, white);
+}
 .allocation-pie-shape {
-  fill: color-mix(in srgb, var(--slice-color) 85%, var(--fz-muted));
+  pointer-events: none;
+  filter: brightness(1);
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
+}
+.allocation-pie-base {
   stroke: var(--fz-surface);
   stroke-width: 1.5;
   stroke-linejoin: round;
-  pointer-events: none;
-  transition: transform 180ms ease;
 }
 .allocation-pie-slice.active .allocation-pie-shape {
   transform: var(--slice-offset);
+  filter: brightness(1.06);
 }
 .allocation-pie-center {
   position: absolute;
