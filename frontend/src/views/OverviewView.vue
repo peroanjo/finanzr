@@ -24,7 +24,7 @@ const crowdfundingProjects = ref<RealEstateInvestment[]>([]);
 const loading = ref(true);
 const error = ref("");
 const sourceInfoOpen = ref(false);
-const period = ref<Period>("1y");
+const period = ref<Period>("2y");
 const pnlMode = ref<PnlMode>("include");
 const selectedVariationMonth = ref<string | null>(null);
 

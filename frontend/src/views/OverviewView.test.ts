@@ -92,6 +92,13 @@ describe("OverviewView", () => {
     ).toEqual(["6 meses", "1 año", "2 años", "Todo"]);
     expect(wrapper.findAll(".allocation-legend > div")).toHaveLength(3);
     expect(wrapper.findAll(".allocation-meter")).toHaveLength(3);
+    expect(
+      wrapper.get('.period-control button[aria-pressed="true"]').text(),
+    ).toBe("2 años");
+    expect(wrapper.get('[data-testid="line-chart"]').text()).toBe("25");
+    await wrapper
+      .findAll(".trend-panel .period-control button")[1]
+      .trigger("click");
     expect(wrapper.get('[data-testid="line-chart"]').text()).toBe("13");
     expect(
       wrapper.get('[data-testid="line-chart"]').attributes("data-series"),
