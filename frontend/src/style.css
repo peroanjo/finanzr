@@ -2353,6 +2353,8 @@ th {
 }
 .overview-page .allocation-section {
   align-items: start;
+  align-self: start;
+  width: 100%;
 }
 .overview-page .allocation-legend {
   margin-top: 24px;

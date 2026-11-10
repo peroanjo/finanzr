@@ -24,7 +24,9 @@ describe("AllocationPie", () => {
     expect(wrapper.findAll("button")[1].attributes("aria-pressed")).toBe(
       "true",
     );
-    expect(wrapper.get(".allocation-pie-caption").text()).toContain("Funds");
+    expect(wrapper.findAll(".allocation-pie-slice")[1].classes()).toContain(
+      "active",
+    );
     await wrapper.setProps({ items: [items[0]] });
     expect(wrapper.get("button").attributes("aria-pressed")).toBe("true");
   });
