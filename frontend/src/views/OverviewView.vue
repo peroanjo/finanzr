@@ -436,21 +436,6 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </header>
-        <div class="hero-chart" :aria-label="t('overview.netWorthEvolution')">
-          <LineChart
-            v-if="visibleHistory.length"
-            :labels="chartLabels"
-            ambient
-            :values="visibleHistory.map((item) => item.total)"
-            :series="trendSeries"
-            :total-label="t('overview.totalNetWorth')"
-            :aria-label="t('overview.compositionHistoryAria')"
-          />
-          <div v-else class="chart-empty">
-            <strong>{{ t("overview.noHistory.title") }}</strong>
-            <p>{{ t("overview.noHistory.description") }}</p>
-          </div>
-        </div>
         <div class="hero-metric-column">
           <p class="net-worth">{{ money(summary.net_worth) }}</p>
           <div class="period-delta" :class="{ negative: periodChange < 0 }">
@@ -466,6 +451,30 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
+        <div class="hero-chart" :aria-label="t('overview.netWorthEvolution')">
+          <LineChart
+            v-if="visibleHistory.length"
+            :labels="chartLabels"
+            featured
+            :values="visibleHistory.map((item) => item.total)"
+            :series="trendSeries"
+            :total-label="t('overview.totalNetWorth')"
+            :aria-label="t('overview.compositionHistoryAria')"
+          />
+          <div v-else class="chart-empty">
+            <strong>{{ t("overview.noHistory.title") }}</strong>
+            <p>{{ t("overview.noHistory.description") }}</p>
+          </div>
+        </div>
+        <ul v-if="visibleHistory.length" class="hero-legend">
+          <li class="hero-legend-total">
+            <span aria-hidden="true" />{{ t("overview.totalNetWorth") }}
+          </li>
+          <li v-for="series in trendSeries" :key="series.key">
+            <span :style="{ background: series.color }" aria-hidden="true" />
+            {{ series.label }}
+          </li>
+        </ul>
       </article>
 
       <div class="overview-grid">

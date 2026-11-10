@@ -2131,68 +2131,134 @@ th {
   }
 }
 
-/* Consolidated balance: the history shares the metric's surface. */
+/* Keep the balance summary and history in distinct, compact reading zones. */
 .overview-page .overview-hero.trend-panel {
   grid-column: 1 / -1;
   grid-row: 1;
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  min-height: 320px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 28px 30px 20px;
-}
-/* One continuous scrim anchored to the panel, beneath all text. */
-.overview-hero.trend-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(
-    135deg,
-    var(--fz-surface) 0%,
-    color-mix(in srgb, var(--fz-surface) 98%, transparent) 15%,
-    color-mix(in srgb, var(--fz-surface) 88%, transparent) 29%,
-    color-mix(in srgb, var(--fz-surface) 50%, transparent) 43%,
-    transparent 66%
-  );
+  gap: 20px;
+  padding: 24px 28px;
+  border-radius: 20px;
+  background: var(--fz-surface);
+  align-self: start;
 }
 .overview-hero.trend-panel .panel-header {
   position: relative;
   z-index: 2;
   flex-wrap: wrap;
+  gap: 12px;
 }
 .overview-hero.trend-panel .metric-label {
   margin: 0;
   color: var(--fz-muted);
-  font-size: 14px;
+  font-size: 15px;
+}
+.overview-hero.trend-panel .period-control {
+  width: auto;
+  flex: 0 1 auto;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--fz-line);
+  border-radius: 10px;
+  background: var(--fz-surface-soft);
+}
+.overview-hero.trend-panel .period-control button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 7px;
 }
 .overview-hero.trend-panel .hero-metric-column {
-  position: relative;
-  z-index: 1;
+  display: flex;
+  flex-direction: row;
   height: auto;
-  width: 45%;
-  margin-top: 22px;
-  pointer-events: none;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px 24px;
+  width: 100%;
+  margin: 0;
 }
 .overview-hero.trend-panel .net-worth {
-  font-size: clamp(36px, 5.5vw, 72px);
-  letter-spacing: -0.055em;
+  font-size: clamp(32px, 3.4vw, 52px);
+  font-weight: 600;
+  letter-spacing: -0.045em;
 }
-.overview-hero.trend-panel .net-worth-source {
-  max-width: 44ch;
-  padding-top: 16px;
-  margin-top: 0;
+.overview-hero.trend-panel .period-delta {
+  margin: 0;
+  gap: 6px;
+}
+.overview-hero.trend-panel .period-delta > span {
+  width: auto;
+  height: auto;
+  background: none;
+  font-size: 20px;
+}
+.overview-hero.trend-panel .period-delta strong {
+  font-size: 15px;
 }
 .hero-chart {
-  position: absolute;
-  z-index: auto;
-  inset: 85px 0 32px;
+  position: relative;
+  height: 220px;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--fz-line);
 }
 .overview-page .hero-chart .line-chart {
   height: 100%;
+}
+.hero-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  list-style: none;
+  margin: -4px 0 0;
+  padding: 0;
+  color: var(--fz-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.hero-legend li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.hero-legend li > span {
+  width: 12px;
+  height: 2px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+.hero-legend .hero-legend-total {
+  color: var(--fz-ink);
+  font-weight: 600;
+}
+.hero-legend .hero-legend-total > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fz-accent);
+}
+@media (max-width: 720px) {
+  .overview-page .overview-hero.trend-panel {
+    order: 0;
+    padding: 20px;
+    gap: 16px;
+  }
+  .overview-hero.trend-panel .net-worth {
+    font-size: clamp(30px, 8vw, 40px);
+  }
+  .hero-chart {
+    height: 200px;
+  }
+}
+@media (pointer: coarse) {
+  .overview-hero.trend-panel .period-control button {
+    min-height: 44px;
+  }
 }
 .overview-page .allocation-section {
   grid-column: 1;
@@ -2230,35 +2296,11 @@ th {
   .overview-page {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-  .overview-hero.trend-panel .hero-metric-column {
-    width: 60%;
-  }
-  .overview-hero.trend-panel .net-worth {
-    font-size: clamp(32px, 5vw, 54px);
-  }
   .overview-page .insight-list {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 720px) {
-  .overview-page .overview-hero.trend-panel {
-    order: 0;
-    min-height: 420px;
-    padding: 22px 20px;
-  }
-  .overview-hero.trend-panel .panel-header {
-    gap: 16px;
-  }
-  .overview-hero.trend-panel .hero-metric-column {
-    width: 100%;
-    margin-top: 20px;
-  }
-  .overview-hero.trend-panel .net-worth {
-    font-size: clamp(32px, 8vw, 52px);
-  }
-  .hero-chart {
-    inset: 225px 12px 32px;
-  }
   .overview-page .insight-panel {
     order: 1;
   }
@@ -2307,15 +2349,6 @@ th {
   }
   .overview-page .overview-grid .insight-list dd {
     font-size: 15px;
-  }
-  .overview-hero.trend-panel .hero-metric-column {
-    width: 100%;
-  }
-  .overview-hero.trend-panel .net-worth {
-    font-size: clamp(36px, 4.3vw, 62px);
-  }
-  .overview-hero.trend-panel .net-worth-source {
-    max-width: 38ch;
   }
 }
 .overview-page .allocation-section {

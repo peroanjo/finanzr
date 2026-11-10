@@ -104,7 +104,8 @@ describe("OverviewView", () => {
       wrapper.get('[data-testid="line-chart"]').attributes("data-series"),
     ).toBe("2");
     expect(wrapper.find(".hero-history-summary").exists()).toBe(false);
-    expect(wrapper.find(".hero-legend").exists()).toBe(false);
+    expect(wrapper.findAll(".hero-legend li")).toHaveLength(3);
+    expect(wrapper.get(".hero-legend").text()).toContain("Patrimonio total");
     expect(
       wrapper.get('[data-testid="monthly-variation-chart"]').text().split(","),
     ).toHaveLength(12);

@@ -36,7 +36,7 @@ const props = defineProps<{
   series?: LineChartSeries[];
   totalLabel?: string;
   ariaLabel?: string;
-  ambient?: boolean;
+  featured?: boolean;
 }>();
 const { locale, t } = useI18n();
 const canvas = ref<HTMLCanvasElement>();
@@ -63,7 +63,7 @@ function render() {
     styles.getPropertyValue("--fz-tooltip-text").trim() || "#edf3ef";
   const ink = styles.getPropertyValue("--fz-ink").trim() || "#152019";
   const totalLine =
-    (props.ambient
+    (props.featured
       ? styles.getPropertyValue("--fz-accent").trim()
       : styles.getPropertyValue("--fz-chart-total-line").trim()) || ink;
   const areaOpacity =
@@ -115,19 +115,25 @@ function render() {
           label: props.totalLabel,
           data: props.values,
           borderColor: totalLine,
-          backgroundColor: props.ambient
-            ? gradientFill(totalLine, 0.22)
+          backgroundColor: props.featured
+            ? gradientFill(totalLine, 0.12)
             : totalLine,
-          borderWidth: props.ambient ? 2.25 : 3.75,
-          fill: props.ambient ? "origin" : false,
+          borderWidth: props.featured ? 2.5 : 3.75,
+          fill: props.featured ? "origin" : false,
           tension: 0.24,
-          pointRadius: 0,
+          pointRadius: (context) =>
+            props.featured && context.dataIndex === props.values.length - 1
+              ? 3.5
+              : 0,
+          pointBackgroundColor: totalLine,
+          pointBorderColor: surface,
+          pointBorderWidth: 2,
           pointHoverRadius: 4,
           pointHoverBackgroundColor: totalLine,
           pointHoverBorderColor: surface,
           pointHoverBorderWidth: 2,
           stack: "total",
-          order: props.ambient ? 0 : 20,
+          order: props.featured ? 0 : 20,
         },
         ...(props.series ?? []).map((item) => {
           const color = resolveColor(item.color);
@@ -135,11 +141,11 @@ function render() {
             label: item.label,
             data: item.values,
             borderColor: color,
-            backgroundColor: props.ambient
-              ? gradientFill(color, 0.12)
+            backgroundColor: props.featured
+              ? color
               : withAlpha(color, areaOpacity),
             borderWidth: 1.5,
-            fill: true,
+            fill: !props.featured,
             tension: 0.24,
             pointRadius: 0,
             pointHoverRadius: 3,
@@ -157,8 +163,8 @@ function render() {
       maintainAspectRatio: false,
       layout: {
         padding: {
-          left: props.ambient ? 24 : 0,
-          right: props.ambient ? 24 : 0,
+          left: 0,
+          right: props.featured ? 6 : 0,
         },
       },
       animation: {
@@ -170,8 +176,8 @@ function render() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          enabled: !props.ambient,
-          external: props.ambient
+          enabled: !props.featured,
+          external: props.featured
             ? ({ tooltip: model }) => {
                 hoverDetail.value = model.opacity
                   ? {
@@ -207,20 +213,37 @@ function render() {
           grid: { display: false },
           ticks: {
             color: muted,
-            align: props.ambient ? "inner" : "center",
+            align: props.featured ? "inner" : "center",
+            autoSkip: !props.featured,
+            callback: props.featured
+              ? function (_value, index) {
+                  const last = props.labels.length - 1;
+                  const intervals = this.chart.width < 480 ? 2 : 4;
+                  const visible = new Set(
+                    Array.from({ length: intervals + 1 }, (_, step) =>
+                      Math.round((step * last) / intervals),
+                    ),
+                  );
+                  return visible.has(index) ? props.labels[index] : null;
+                }
+              : undefined,
             maxTicksLimit: 6,
             maxRotation: 0,
             font: { size: 10, weight: 600 },
           },
         },
         y: {
-          display: !props.ambient,
-          stacked: true,
+          display: true,
+          stacked: !props.featured,
+          bounds: props.featured ? "data" : "ticks",
+          grace: props.featured ? "8%" : 0,
+          beginAtZero: props.featured,
           border: { display: false },
           grid: { color: grid },
           ticks: {
             color: muted,
             maxTicksLimit: 4,
+            includeBounds: !props.featured,
             callback: (value) => money.format(Number(value)),
             font: { size: 10, weight: 600 },
           },
@@ -246,7 +269,7 @@ watch(
     props.values,
     props.series,
     props.totalLabel,
-    props.ambient,
+    props.featured,
     locale.value,
     reportingCurrency.value,
   ],
@@ -267,7 +290,7 @@ onBeforeUnmount(() => {
       :aria-label="ariaLabel || t('shared.lineChart.aria')"
     />
     <div
-      v-if="ambient && hoverDetail"
+      v-if="featured && hoverDetail"
       class="line-chart-hover"
       :style="{
         left: `clamp(0px, ${hoverDetail.x}px, max(0px, calc(100% - 340px)))`,
