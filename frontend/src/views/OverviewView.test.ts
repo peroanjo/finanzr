@@ -16,7 +16,14 @@ const chartStubs = {
   },
   MonthlyVariationChart: {
     name: "MonthlyVariationChart",
-    props: ["labels", "values", "label", "selectedIndex"],
+    props: [
+      "labels",
+      "values",
+      "label",
+      "range",
+      "selectedIndex",
+      "selectedMonth",
+    ],
     emits: ["select"],
     template:
       '<button data-testid="monthly-variation-chart" @click="$emit(\'select\', 0)">{{ values.join(",") }}</button>',
@@ -125,6 +132,12 @@ describe("OverviewView", () => {
     expect(wrapper.get("#monthly-breakdown-title").text()).toBe(
       "junio de 2027",
     );
+    const previousMonth = wrapper.get('button[aria-label="Mes anterior"]');
+    const nextMonth = wrapper.get('button[aria-label="Mes siguiente"]');
+    expect(nextMonth.attributes("disabled")).toBeDefined();
+    await previousMonth.trigger("click");
+    expect(wrapper.get("#monthly-breakdown-title").text()).toBe("mayo de 2027");
+    await nextMonth.trigger("click");
     expect(
       wrapper
         .getComponent({ name: "MonthlyVariationChart" })
@@ -153,16 +166,20 @@ describe("OverviewView", () => {
         .getComponent({ name: "MonthlyVariationChart" })
         .props("selectedIndex"),
     ).toBe(0);
+    expect(previousMonth.attributes("disabled")).toBeDefined();
 
     const excludePnl = wrapper
       .findAll("button")
-      .find((button) => button.text() === "Excluir");
+      .find((button) => button.text() === "Sin P&L");
     expect(excludePnl).toBeDefined();
     await excludePnl!.trigger("click");
     expect(
       wrapper.get('[data-testid="monthly-variation-chart"]').text(),
     ).toContain("90");
     expect(excludePnl!.attributes("aria-pressed")).toBe("true");
+    expect(wrapper.get("#monthly-breakdown-title").text()).toBe(
+      "julio de 2026",
+    );
     expect(
       wrapper
         .get(".monthly-breakdown-total strong")
@@ -171,7 +188,7 @@ describe("OverviewView", () => {
     ).toBe("+90,00 €");
     expect(
       wrapper.get(".monthly-breakdown-list > div.excluded small").text(),
-    ).toBe("Excluido");
+    ).toBe("Fuera del total");
 
     const sixMonths = wrapper
       .findAll("button")
@@ -258,10 +275,18 @@ describe("OverviewView", () => {
     expect(wrapper.text()).toContain("Ahorro y movimientos netos");
     expect(wrapper.text()).not.toContain("Aportación inmobiliaria");
 
+    const chartRange = wrapper
+      .getComponent({ name: "MonthlyVariationChart" })
+      .props("range");
+    expect(chartRange.min).toBe(0);
+    expect(chartRange.max).toBeCloseTo(355.04, 2);
     const excludePnl = wrapper
       .findAll("button")
-      .find((button) => button.text() === "Excluir");
+      .find((button) => button.text() === "Sin P&L");
     await excludePnl!.trigger("click");
+    expect(
+      wrapper.getComponent({ name: "MonthlyVariationChart" }).props("range"),
+    ).toEqual(chartRange);
 
     expect(
       wrapper

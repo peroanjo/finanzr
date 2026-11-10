@@ -148,8 +148,7 @@ export const sharedMessages = defineMessageCatalog(
         interestAria: "Monthly interest by account",
       },
       monthlyVariationChart: {
-        chartAria: "{label}. Select a bar to view its breakdown.",
-        selectMonthAria: "Select a month to view the breakdown",
+        chartAria: "{label}. Use the arrow keys to select a month.",
       },
       lineChart: {
         aria: "Values over time",
@@ -367,8 +366,7 @@ export const sharedMessages = defineMessageCatalog(
         interestAria: "Intereses mensuales por cuenta",
       },
       monthlyVariationChart: {
-        chartAria: "{label}. Selecciona una barra para ver su desglose.",
-        selectMonthAria: "Seleccionar mes para el desglose",
+        chartAria: "{label}. Usa las flechas para seleccionar un mes.",
       },
       lineChart: {
         aria: "Evolución de los valores en el tiempo",

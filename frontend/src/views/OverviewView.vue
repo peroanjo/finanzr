@@ -229,7 +229,6 @@ const monthlyVariationPoints = computed(() =>
       fecha: current.fecha,
       withPnl,
       withoutPnl,
-      value: pnlMode.value === "include" ? withPnl : withoutPnl,
     };
   }),
 );
@@ -245,7 +244,18 @@ const monthlyVariationLabels = computed(() =>
   }),
 );
 const monthlyVariationValues = computed(() =>
-  monthlyVariationPoints.value.map((item) => item.value),
+  monthlyVariationPoints.value.map((item) =>
+    pnlMode.value === "include" ? item.withPnl : item.withoutPnl,
+  ),
+);
+const monthlyVariationRange = computed(() =>
+  monthlyVariationPoints.value.reduce(
+    (range, point) => ({
+      min: Math.min(range.min, point.withPnl, point.withoutPnl),
+      max: Math.max(range.max, point.withPnl, point.withoutPnl),
+    }),
+    { min: 0, max: 0 },
+  ),
 );
 const selectedVariationIndex = computed(() => {
   const index = monthlyVariationPoints.value.findIndex(
@@ -289,21 +299,12 @@ const selectedMonthlyBreakdown = computed(() => {
   const pnl = current.total - previous.total - withoutPnl;
   const withPnl = withoutPnl + pnl;
   const total = pnlMode.value === "include" ? withPnl : withoutPnl;
-  const magnitude =
-    Math.abs(savings) +
-    Math.abs(interest) +
-    (pnlMode.value === "include" ? Math.abs(pnl) : 0);
-  const share = (value: number) =>
-    magnitude ? `${(Math.abs(value) / magnitude) * 100}%` : "0%";
   return {
     month: monthName,
     total,
     savings,
     interest,
     pnl,
-    savingsShare: share(savings),
-    interestShare: share(interest),
-    pnlShare: pnlMode.value === "include" ? share(pnl) : "0%",
   };
 });
 
@@ -322,8 +323,8 @@ const percentage = (value: number) => n(value, "percent");
 const signedMoney = (value: number) =>
   `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
 function selectVariationMonth(index: number) {
-  selectedVariationMonth.value =
-    monthlyVariationPoints.value[index]?.fecha ?? null;
+  const month = monthlyVariationPoints.value[index];
+  if (month) selectedVariationMonth.value = month.fecha;
 }
 
 async function load() {
@@ -578,156 +579,141 @@ onBeforeUnmount(() => {
         </dl>
       </section>
 
-      <article class="overview-panel monthly-variation-panel">
+      <article
+        class="overview-panel monthly-variation-panel"
+        aria-labelledby="monthly-variation-title"
+      >
         <header class="panel-header monthly-variation-header">
           <div>
-            <h2>{{ t("overview.monthly.title") }}</h2>
+            <h2 id="monthly-variation-title">
+              {{ t("overview.monthly.title") }}
+            </h2>
             <p class="monthly-variation-description">
               {{ monthlyDescriptionCopy }}
             </p>
           </div>
 
-          <div class="pnl-mode-control">
-            <span>{{ t("overview.monthly.balancePnl") }}</span>
-            <div
-              class="period-control"
-              role="group"
-              :aria-label="t('overview.monthly.pnlAria')"
+          <div
+            v-if="selectedMonthlyBreakdown"
+            class="monthly-pnl-control"
+            role="group"
+            :aria-label="t('overview.monthly.pnlAria')"
+          >
+            <button
+              type="button"
+              :aria-pressed="pnlMode === 'include'"
+              @click="pnlMode = 'include'"
             >
-              <button
-                type="button"
-                :class="{ active: pnlMode === 'include' }"
-                :aria-pressed="pnlMode === 'include'"
-                @click="pnlMode = 'include'"
-              >
-                {{ t("overview.monthly.include") }}
-              </button>
-              <button
-                type="button"
-                :class="{ active: pnlMode === 'exclude' }"
-                :aria-pressed="pnlMode === 'exclude'"
-                @click="pnlMode = 'exclude'"
-              >
-                {{ t("overview.monthly.exclude") }}
-              </button>
-            </div>
+              {{ t("overview.monthly.withPnl") }}
+            </button>
+            <button
+              type="button"
+              :aria-pressed="pnlMode === 'exclude'"
+              @click="pnlMode = 'exclude'"
+            >
+              {{ t("overview.monthly.withoutPnl") }}
+            </button>
           </div>
         </header>
 
-        <div
-          v-if="monthlyVariationPoints.length && selectedMonthlyBreakdown"
-          class="monthly-variation-body"
-        >
-          <section
-            class="monthly-breakdown-card"
-            aria-labelledby="monthly-breakdown-title"
-          >
-            <header>
-              <strong id="monthly-breakdown-title">{{
-                selectedMonthlyBreakdown.month
-              }}</strong>
-              <span>{{
-                pnlMode === "include"
-                  ? t("overview.monthly.withPnl")
-                  : t("overview.monthly.withoutPnl")
-              }}</span>
-            </header>
-
-            <div class="monthly-breakdown-total">
-              <small>{{ t("overview.monthly.totalVariation") }}</small>
-              <strong
-                :class="{
-                  positive: selectedMonthlyBreakdown.total >= 0,
-                  negative: selectedMonthlyBreakdown.total < 0,
-                }"
-              >
-                {{ signedMoney(selectedMonthlyBreakdown.total) }}
-              </strong>
-            </div>
-
-            <div class="monthly-breakdown-rail" aria-hidden="true">
-              <i
-                class="savings"
-                :style="{ width: selectedMonthlyBreakdown.savingsShare }"
-              />
-              <i
-                class="interest"
-                :style="{ width: selectedMonthlyBreakdown.interestShare }"
-              />
-              <i
-                class="pnl"
-                :class="{ negative: selectedMonthlyBreakdown.pnl < 0 }"
-                :style="{ width: selectedMonthlyBreakdown.pnlShare }"
-              />
-            </div>
-
-            <dl class="monthly-breakdown-list">
-              <div>
-                <dt>
-                  <i class="savings" />{{
-                    t("overview.monthly.savingsAndMovements")
-                  }}
-                </dt>
-                <dd :class="{ negative: selectedMonthlyBreakdown.savings < 0 }">
-                  {{ signedMoney(selectedMonthlyBreakdown.savings) }}
-                </dd>
-              </div>
-              <div>
-                <dt>
-                  <i class="interest" />{{ t("overview.monthly.interest") }}
-                </dt>
-                <dd
-                  :class="{ negative: selectedMonthlyBreakdown.interest < 0 }"
+        <template v-if="selectedMonthlyBreakdown">
+          <div class="monthly-breakdown-total">
+            <div class="monthly-month-navigation">
+              <h3 id="monthly-breakdown-title">
+                {{ selectedMonthlyBreakdown.month }}
+              </h3>
+              <div class="monthly-month-buttons">
+                <button
+                  type="button"
+                  :aria-label="t('overview.monthly.previousMonth')"
+                  :disabled="selectedVariationIndex === 0"
+                  @click="selectVariationMonth(selectedVariationIndex - 1)"
                 >
-                  {{ signedMoney(selectedMonthlyBreakdown.interest) }}
-                </dd>
+                  <i class="monthly-month-arrow previous" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  :aria-label="t('overview.monthly.nextMonth')"
+                  :disabled="
+                    selectedVariationIndex === monthlyVariationPoints.length - 1
+                  "
+                  @click="selectVariationMonth(selectedVariationIndex + 1)"
+                >
+                  <i class="monthly-month-arrow" aria-hidden="true" />
+                </button>
               </div>
-              <div :class="{ excluded: pnlMode === 'exclude' }">
-                <dt>
-                  <i
-                    class="pnl"
-                    :class="{ negative: selectedMonthlyBreakdown.pnl < 0 }"
-                  />{{ t("overview.monthly.balancePnl") }}
-                </dt>
-                <dd :class="{ negative: selectedMonthlyBreakdown.pnl < 0 }">
+            </div>
+            <strong
+              :class="{
+                positive: selectedMonthlyBreakdown.total >= 0,
+                negative: selectedMonthlyBreakdown.total < 0,
+              }"
+            >
+              {{ signedMoney(selectedMonthlyBreakdown.total) }}
+            </strong>
+          </div>
+
+          <MonthlyVariationChart
+            :labels="monthlyVariationLabels"
+            :values="monthlyVariationValues"
+            :label="monthlyVariationLabel"
+            :range="monthlyVariationRange"
+            :selected-index="selectedVariationIndex"
+            :selected-month="selectedMonthlyBreakdown.month"
+            @select="selectVariationMonth"
+          />
+
+          <dl class="monthly-breakdown-list">
+            <div>
+              <dt>{{ t("overview.monthly.savingsAndMovements") }}</dt>
+              <dd :class="{ negative: selectedMonthlyBreakdown.savings < 0 }">
+                {{ signedMoney(selectedMonthlyBreakdown.savings) }}
+              </dd>
+            </div>
+            <div>
+              <dt>{{ t("overview.monthly.interest") }}</dt>
+              <dd :class="{ negative: selectedMonthlyBreakdown.interest < 0 }">
+                {{ signedMoney(selectedMonthlyBreakdown.interest) }}
+              </dd>
+            </div>
+            <div :class="{ excluded: pnlMode === 'exclude' }">
+              <dt>{{ t("overview.monthly.balancePnl") }}</dt>
+              <dd>
+                <span
+                  :class="{
+                    negative:
+                      pnlMode === 'include' && selectedMonthlyBreakdown.pnl < 0,
+                  }"
+                >
                   {{ signedMoney(selectedMonthlyBreakdown.pnl) }}
-                </dd>
+                </span>
                 <small v-if="pnlMode === 'exclude'">{{
                   t("overview.monthly.excluded")
                 }}</small>
-              </div>
-            </dl>
-          </section>
-
-          <div class="monthly-chart-column">
-            <div class="monthly-chart-meta">
-              <span>{{
-                t("overview.monthly.positiveMonths", {
-                  positive: positiveMonths,
-                  count: monthlyVariationPoints.length,
-                })
-              }}</span>
-              <span>
-                {{ t("overview.monthly.pnlEffect") }}
-                <strong
-                  :class="{
-                    positive: periodPnlImpact >= 0,
-                    negative: periodPnlImpact < 0,
-                  }"
-                >
-                  {{ signedMoney(periodPnlImpact) }}
-                </strong>
-              </span>
+              </dd>
             </div>
-            <MonthlyVariationChart
-              :labels="monthlyVariationLabels"
-              :values="monthlyVariationValues"
-              :label="monthlyVariationLabel"
-              :selected-index="selectedVariationIndex"
-              @select="selectVariationMonth"
-            />
-          </div>
-        </div>
+          </dl>
+
+          <footer class="monthly-chart-meta">
+            <span>{{
+              t("overview.monthly.positiveMonths", {
+                positive: positiveMonths,
+                count: monthlyVariationPoints.length,
+              })
+            }}</span>
+            <span>
+              {{ t("overview.monthly.pnlEffect") }}
+              <strong
+                :class="{
+                  positive: periodPnlImpact >= 0,
+                  negative: periodPnlImpact < 0,
+                }"
+              >
+                {{ signedMoney(periodPnlImpact) }}
+              </strong>
+            </span>
+          </footer>
+        </template>
         <div v-else class="chart-empty monthly-variation-empty">
           <strong>{{ t("overview.monthly.emptyTitle") }}</strong>
           <p>{{ t("overview.monthly.emptyDescription") }}</p>
