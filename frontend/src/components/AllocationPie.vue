@@ -72,9 +72,9 @@ const slices = computed(() => {
               x2="214"
               y2="214"
             >
-              <stop offset="0" stop-color="white" stop-opacity=".12" />
+              <stop offset="0" stop-color="white" stop-opacity=".20" />
               <stop offset=".5" stop-color="white" stop-opacity="0" />
-              <stop offset="1" stop-color="black" stop-opacity=".06" />
+              <stop offset="1" stop-color="black" stop-opacity=".10" />
             </linearGradient>
           </defs>
           <g
@@ -165,13 +165,13 @@ const slices = computed(() => {
   --slice-base: color-mix(in srgb, var(--slice-color) 85%, var(--fz-muted));
 }
 .satin-inner {
-  stop-color: color-mix(in srgb, var(--slice-base) 88%, black);
+  stop-color: color-mix(in srgb, var(--slice-base) 74%, black);
 }
 .satin-body {
   stop-color: var(--slice-base);
 }
 .satin-outer {
-  stop-color: color-mix(in srgb, var(--slice-base) 94%, white);
+  stop-color: color-mix(in srgb, var(--slice-base) 84%, white);
 }
 .allocation-pie-shape {
   pointer-events: none;
