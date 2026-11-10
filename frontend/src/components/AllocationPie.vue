@@ -219,6 +219,29 @@ const slices = computed(() => {
     gap: 32px;
   }
 }
+@media (min-width: 1101px) {
+  .allocation-pie {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 18px;
+    margin-top: 16px;
+  }
+  .allocation-pie-stage {
+    display: grid;
+    place-items: center;
+    flex: 1;
+    width: 100%;
+    min-height: 148px;
+  }
+  .allocation-pie-disc {
+    width: clamp(148px, 14vw, 188px);
+    max-width: 100%;
+  }
+  .allocation-pie-legend {
+    margin-top: auto;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .allocation-pie-slice {
     transition: none;

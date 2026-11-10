@@ -2321,9 +2321,18 @@ th {
   .overview-page .overview-grid .allocation-section {
     grid-column: 2;
     grid-row: 1;
+    align-self: stretch;
+    align-items: stretch;
+    display: flex;
+  }
+  .overview-page .overview-grid .allocation-copy {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
   }
   .overview-page .overview-hero.trend-panel {
     grid-column: 1;
+    align-self: stretch;
   }
   .overview-page .overview-grid .allocation-section {
     padding: 22px 24px;
