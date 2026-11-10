@@ -1675,7 +1675,8 @@ th {
 .app-topbar .workspace-picker {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  width: 240px;
+  width: fit-content;
+  max-width: 240px;
   min-height: 56px;
   padding: 8px 12px 8px 8px;
   gap: 10px;
