@@ -246,6 +246,7 @@ describe("OverviewView", () => {
     const savings = wrapper.get('[data-series="savings"] input');
     const interest = wrapper.get('[data-series="interest"] input');
     const pnl = wrapper.get('[data-series="pnl"] input');
+    const plot = wrapper.get(".monthly-variation-plot").element;
 
     await savings.setValue(false);
     expect(keys()).toEqual(["interest", "pnl"]);
@@ -258,9 +259,13 @@ describe("OverviewView", () => {
     expect(wrapper.get(".monthly-series-empty").text()).toBe(
       "Activa un elemento de la leyenda para ver el gráfico.",
     );
-    expect(wrapper.get(".monthly-breakdown-total strong").text()).toBe("—");
-    expect(wrapper.get(".monthly-amount-spacer").text()).toBe(lastAmount);
+    expect(wrapper.get(".monthly-variation-plot").element).toBe(plot);
+    expect(wrapper.get(".monthly-amount-empty").text()).toBe("—");
+    expect(wrapper.get(".monthly-breakdown-amount .is-hidden").text()).toBe(
+      lastAmount,
+    );
     await savings.setValue(true);
+    expect(wrapper.get(".monthly-variation-plot").element).toBe(plot);
     expect(keys()).toEqual(["savings"]);
     expect(chart().props("values")[0]).toBe(80);
     expect(chart().props("selectedIndex")).toBe(23);

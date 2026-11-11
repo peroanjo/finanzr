@@ -639,17 +639,18 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="monthly-breakdown-amount">
-                <span v-if="!hasMonthlySeries" class="monthly-amount-spacer">
-                  {{ monthlyTotal }}
-                </span>
                 <strong
                   :class="{
+                    'is-hidden': !hasMonthlySeries,
                     positive:
                       hasMonthlySeries && visibleMonthlyBreakdown.total >= 0,
                     negative:
                       hasMonthlySeries && visibleMonthlyBreakdown.total < 0,
                   }"
-                  >{{ hasMonthlySeries ? monthlyTotal : "—" }}</strong
+                  >{{ monthlyTotal }}</strong
+                >
+                <span v-show="!hasMonthlySeries" class="monthly-amount-empty"
+                  >—</span
                 >
               </div>
             </div>
@@ -706,19 +707,21 @@ onBeforeUnmount(() => {
             </footer>
           </div>
 
-          <MonthlyVariationChart
-            v-if="hasMonthlySeries"
-            :labels="monthlyVariationLabels"
-            :values="monthlyVariationValues"
-            :series="monthlyVariationSeries"
-            :label="t('overview.monthly.chartLabel')"
-            :selected-index="selectedVariationIndex"
-            :selected-month="selectedMonthlyBreakdown.month"
-            @select="selectVariationMonth"
-            @preview="previewVariationIndex = $event"
-          />
-          <div v-else class="monthly-variation-chart monthly-series-empty">
-            {{ t("overview.monthly.selectSeries") }}
+          <div class="monthly-variation-plot">
+            <MonthlyVariationChart
+              v-if="hasMonthlySeries"
+              :labels="monthlyVariationLabels"
+              :values="monthlyVariationValues"
+              :series="monthlyVariationSeries"
+              :label="t('overview.monthly.chartLabel')"
+              :selected-index="selectedVariationIndex"
+              :selected-month="selectedMonthlyBreakdown.month"
+              @select="selectVariationMonth"
+              @preview="previewVariationIndex = $event"
+            />
+            <div v-else class="monthly-series-empty">
+              {{ t("overview.monthly.selectSeries") }}
+            </div>
           </div>
         </div>
         <div v-else class="chart-empty monthly-variation-empty">
