@@ -14,11 +14,17 @@ import { reportingCurrency } from "../i18n";
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
 
+export interface MonthlyVariationSeries {
+  key: "savings" | "interest" | "pnl";
+  label: string;
+  values: number[];
+}
+
 const props = defineProps<{
   labels: string[];
   values: number[];
+  series: MonthlyVariationSeries[];
   label: string;
-  range: { min: number; max: number };
   selectedIndex: number;
   selectedMonth: string;
 }>();
@@ -27,7 +33,8 @@ const { locale, t } = useI18n();
 const canvas = ref<HTMLCanvasElement>();
 let chart: Chart<"bar", number[], string> | null = null;
 let themeObserver: MutationObserver | null = null;
-let selectionTint = "";
+let selectionAccent = "";
+let zeroLineColor = "";
 let activePointer: {
   id: number;
   x: number;
@@ -42,6 +49,23 @@ const currency = computed(
       currency: reportingCurrency.value,
     }),
 );
+const axisRange = computed(() => {
+  let min = 0;
+  let max = 0;
+  // Chart.js stacks gains and losses on opposite sides of zero.
+  for (const index of props.labels.keys()) {
+    let losses = 0;
+    let gains = 0;
+    for (const { values } of props.series) {
+      const value = values[index];
+      if (value < 0) losses += value;
+      else gains += value;
+    }
+    min = Math.min(min, losses);
+    max = Math.max(max, gains);
+  }
+  return { min, max: min === max ? 1 : max };
+});
 function signedAmount(value: number) {
   return `${value >= 0 ? "+" : "−"}${currency.value.format(Math.abs(value))}`;
 }
@@ -101,64 +125,72 @@ function render() {
   if (!canvas.value) return;
 
   const styles = getComputedStyle(canvas.value);
-  const accent = styles.getPropertyValue("--fz-accent").trim() || "#3ddc97";
-  const negative = styles.getPropertyValue("--fz-negative").trim() || "#c95151";
+  const colors = {
+    savings: styles.getPropertyValue("--monthly-savings").trim() || "#148a62",
+    interest: styles.getPropertyValue("--monthly-interest").trim() || "#d08a32",
+    pnl: styles.getPropertyValue("--monthly-pnl").trim() || "#8870c5",
+  };
+  selectionAccent = colors.savings;
   const muted = styles.getPropertyValue("--fz-muted").trim() || "#8fa49a";
+  zeroLineColor = muted;
   const grid =
     styles.getPropertyValue("--fz-chart-grid").trim() ||
     "rgba(143,164,154,.15)";
-  selectionTint = grid;
   const tooltip = styles.getPropertyValue("--fz-tooltip").trim() || "#101e18";
   const tooltipText =
     styles.getPropertyValue("--fz-tooltip-text").trim() || "#edf3ef";
   const money = new Intl.NumberFormat(locale.value, {
     style: "currency",
     currency: reportingCurrency.value,
-    maximumFractionDigits: props.range.max - props.range.min < 10 ? 2 : 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   });
 
   const config: ChartConfiguration<"bar", number[], string> = {
     type: "bar",
     data: {
       labels: props.labels,
-      datasets: [
-        {
-          label: props.label,
-          data: props.values,
-          backgroundColor: props.values.map((value, index) => {
-            const color = value >= 0 ? accent : negative;
-            return `${color}${index === props.selectedIndex ? "f2" : "80"}`;
-          }),
-          hoverBackgroundColor: props.values.map((value) =>
-            value >= 0 ? accent : negative,
-          ),
-          borderColor: props.values.map((value) =>
-            value >= 0 ? accent : negative,
-          ),
-          borderWidth: props.values.map((_value, index) =>
-            index === props.selectedIndex ? 1.5 : 0,
-          ),
-          borderRadius: 6,
-          borderSkipped: false,
-          maxBarThickness: 44,
-        },
-      ],
+      datasets: props.series.map(({ key, label, values }) => ({
+        label,
+        data: values,
+        backgroundColor: values.map((_value, index) =>
+          index === props.selectedIndex ? colors[key] : `${colors[key]}a6`,
+        ),
+        hoverBackgroundColor: colors[key],
+        borderRadius: 4,
+        borderSkipped: "middle",
+        maxBarThickness: 44,
+      })),
     },
     plugins: [
       {
-        id: "monthlySelectionGuide",
-        beforeDatasetsDraw(instance) {
-          const { chartArea, ctx } = instance;
-          const x = instance.scales.x.getPixelForValue(props.selectedIndex);
-          const halfWidth = Math.min(
-            30,
-            chartArea.width / props.labels.length / 2,
-          );
-          const left = Math.max(chartArea.left, x - halfWidth);
-          const right = Math.min(chartArea.right, x + halfWidth);
+        id: "monthlyChartGuides",
+        beforeDatasetsDraw({ chartArea, ctx, scales }) {
+          if (scales.y.ticks.some(({ value }) => value === 0)) return;
+          const y = scales.y.getPixelForValue(0);
           ctx.save();
-          ctx.fillStyle = selectionTint;
-          ctx.fillRect(left, chartArea.top, right - left, chartArea.height);
+          ctx.strokeStyle = zeroLineColor;
+          ctx.beginPath();
+          ctx.moveTo(chartArea.left, y);
+          ctx.lineTo(chartArea.right, y);
+          ctx.stroke();
+          ctx.restore();
+        },
+        afterDatasetsDraw({ chartArea, ctx, scales }) {
+          if (
+            props.series.some(({ values }) => values[props.selectedIndex] !== 0)
+          )
+            return;
+          const x = scales.x.getPixelForValue(props.selectedIndex);
+          const y = Math.max(
+            chartArea.top + 3,
+            Math.min(chartArea.bottom - 3, scales.y.getPixelForValue(0)),
+          );
+          ctx.save();
+          ctx.fillStyle = selectionAccent;
+          ctx.beginPath();
+          ctx.arc(x, y, 2.5, 0, 2 * Math.PI);
+          ctx.fill();
           ctx.restore();
         },
       },
@@ -176,27 +208,32 @@ function render() {
           titleColor: tooltipText,
           bodyColor: tooltipText,
           padding: 12,
-          displayColors: false,
+          filter: (context) =>
+            context.dataIndex !== props.selectedIndex && context.parsed.y !== 0,
           callbacks: {
-            label: (context) => signedAmount(Number(context.parsed.y)),
+            label: (context) =>
+              `${context.dataset.label} · ${signedAmount(Number(context.parsed.y))}`,
           },
         },
       },
       scales: {
         x: {
+          stacked: true,
           border: { display: false },
           grid: { display: false },
           ticks: {
-            color: muted,
+            color: ({ tick }) =>
+              tick.value === props.selectedIndex ? selectionAccent : muted,
             maxTicksLimit: 10,
             maxRotation: 0,
             font: { size: 10, weight: 600 },
           },
         },
         y: {
-          beginAtZero: true,
-          suggestedMin: props.range.min,
-          suggestedMax: props.range.max,
+          stacked: true,
+          bounds: "ticks",
+          min: axisRange.value.min,
+          max: axisRange.value.max,
           border: { display: false },
           grid: {
             color: (context) =>
@@ -207,6 +244,7 @@ function render() {
           ticks: {
             color: muted,
             maxTicksLimit: 5,
+            autoSkip: false,
             callback: (value) => money.format(Number(value)),
             font: { size: 10, weight: 600 },
           },
@@ -239,7 +277,7 @@ watch(
     props.labels,
     props.values,
     props.label,
-    props.range,
+    props.series,
     props.selectedIndex,
     locale.value,
     reportingCurrency.value,

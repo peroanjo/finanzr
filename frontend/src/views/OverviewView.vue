@@ -6,6 +6,7 @@ import AllocationPie from "../components/AllocationPie.vue";
 import LineChart from "../components/LineChart.vue";
 import type { LineChartSeries } from "../components/LineChart.vue";
 import MonthlyVariationChart from "../components/MonthlyVariationChart.vue";
+import type { MonthlyVariationSeries } from "../components/MonthlyVariationChart.vue";
 import NavIcon from "../components/NavIcon.vue";
 import type {
   NetWorthPoint,
@@ -139,14 +140,6 @@ const netWorthSourceCopy = computed(() => {
   const labels = keys.map((key) => t(`overview.sources.${key}`)).join(", ");
   return t("overview.netWorthSourceDynamic", { sources: labels });
 });
-const monthlyDescriptionCopy = computed(() =>
-  t("overview.monthly.descriptionDynamic", {
-    sources: activeSourceKeys.value
-      .map((key) => t(`overview.sources.${key}`))
-      .join(", "),
-    period: periodLabel.value,
-  }),
-);
 function sourceColor(key: SummarySourceKey) {
   const colors: Record<SummarySourceKey, string> = {
     savings: "var(--fz-source-savings)",
@@ -229,6 +222,9 @@ const monthlyVariationPoints = computed(() =>
       fecha: current.fecha,
       withPnl,
       withoutPnl,
+      savings: withoutPnl - current.ahorro_intereses,
+      interest: current.ahorro_intereses,
+      pnl: withPnl - withoutPnl,
     };
   }),
 );
@@ -248,14 +244,19 @@ const monthlyVariationValues = computed(() =>
     pnlMode.value === "include" ? item.withPnl : item.withoutPnl,
   ),
 );
-const monthlyVariationRange = computed(() =>
-  monthlyVariationPoints.value.reduce(
-    (range, point) => ({
-      min: Math.min(range.min, point.withPnl, point.withoutPnl),
-      max: Math.max(range.max, point.withPnl, point.withoutPnl),
-    }),
-    { min: 0, max: 0 },
-  ),
+const monthlyComponents = [
+  { key: "savings", label: "overview.monthly.savingsAndMovements" },
+  { key: "interest", label: "overview.monthly.interest" },
+  { key: "pnl", label: "overview.monthly.balancePnl" },
+] as const;
+const monthlyVariationSeries = computed<MonthlyVariationSeries[]>(() =>
+  monthlyComponents
+    .filter(({ key }) => key !== "pnl" || pnlMode.value === "include")
+    .map(({ key, label }) => ({
+      key,
+      label: t(label),
+      values: monthlyVariationPoints.value.map((point) => point[key]),
+    })),
 );
 const selectedVariationIndex = computed(() => {
   const index = monthlyVariationPoints.value.findIndex(
@@ -269,10 +270,7 @@ const positiveMonths = computed(
   () => monthlyVariationValues.value.filter((value) => value > 0).length,
 );
 const periodPnlImpact = computed(() =>
-  monthlyVariationPoints.value.reduce(
-    (total, item) => total + item.withPnl - item.withoutPnl,
-    0,
-  ),
+  monthlyVariationPoints.value.reduce((total, item) => total + item.pnl, 0),
 );
 const monthlyVariationLabel = computed(() =>
   pnlMode.value === "include"
@@ -281,30 +279,16 @@ const monthlyVariationLabel = computed(() =>
 );
 const selectedMonthlyBreakdown = computed(() => {
   const selected = monthlyVariationPoints.value[selectedVariationIndex.value];
-  const currentIndex = history.value.findIndex(
-    (item) => item.fecha === selected?.fecha,
-  );
-  const current = history.value[currentIndex];
-  const previous = history.value[currentIndex - 1];
-  if (!current || !previous) return null;
-  const [year, month] = current.fecha.split("-").map(Number);
+  if (!selected) return null;
+  const [year, month] = selected.fecha.split("-").map(Number);
   const monthName = new Intl.DateTimeFormat(locale.value, {
     month: "long",
     year: "numeric",
   }).format(new Date(year, month - 1, 1));
-  const interest = current.ahorro_intereses;
-  const savingsChange = current.ahorro - previous.ahorro;
-  const withoutPnl = savingsChange + current.inv_aportes;
-  const savings = withoutPnl - interest;
-  const pnl = current.total - previous.total - withoutPnl;
-  const withPnl = withoutPnl + pnl;
-  const total = pnlMode.value === "include" ? withPnl : withoutPnl;
   return {
+    ...selected,
     month: monthName,
-    total,
-    savings,
-    interest,
-    pnl,
+    total: monthlyVariationValues.value[selectedVariationIndex.value],
   };
 });
 
@@ -587,12 +571,6 @@ onBeforeUnmount(() => {
           <h2 id="monthly-variation-title">
             {{ t("overview.monthly.title") }}
           </h2>
-          <p class="monthly-variation-description">
-            <span class="monthly-variation-sources">{{
-              monthlyDescriptionCopy
-            }}</span>
-            <span class="monthly-variation-period">{{ periodLabel }}</span>
-          </p>
 
           <div
             v-if="selectedMonthlyBreakdown"
@@ -617,104 +595,108 @@ onBeforeUnmount(() => {
           </div>
         </header>
 
-        <template v-if="selectedMonthlyBreakdown">
-          <div class="monthly-breakdown-total">
-            <div class="monthly-month-navigation">
-              <h3 id="monthly-breakdown-title">
-                {{ selectedMonthlyBreakdown.month }}
-              </h3>
-              <div class="monthly-month-buttons">
-                <button
-                  type="button"
-                  :aria-label="t('overview.monthly.previousMonth')"
-                  :disabled="selectedVariationIndex === 0"
-                  @click="selectVariationMonth(selectedVariationIndex - 1)"
-                >
-                  <i class="monthly-month-arrow previous" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  :aria-label="t('overview.monthly.nextMonth')"
-                  :disabled="
-                    selectedVariationIndex === monthlyVariationPoints.length - 1
-                  "
-                  @click="selectVariationMonth(selectedVariationIndex + 1)"
-                >
-                  <i class="monthly-month-arrow" aria-hidden="true" />
-                </button>
+        <div v-if="selectedMonthlyBreakdown" class="monthly-variation-body">
+          <div class="monthly-chart-details">
+            <div class="monthly-breakdown-total">
+              <div class="monthly-month-navigation">
+                <h3 id="monthly-breakdown-title">
+                  {{ selectedMonthlyBreakdown.month }}
+                </h3>
+                <div class="monthly-month-buttons">
+                  <button
+                    type="button"
+                    :aria-label="t('overview.monthly.previousMonth')"
+                    :disabled="selectedVariationIndex === 0"
+                    @click="selectVariationMonth(selectedVariationIndex - 1)"
+                  >
+                    <i
+                      class="monthly-month-arrow previous"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    :aria-label="t('overview.monthly.nextMonth')"
+                    :disabled="
+                      selectedVariationIndex ===
+                      monthlyVariationPoints.length - 1
+                    "
+                    @click="selectVariationMonth(selectedVariationIndex + 1)"
+                  >
+                    <i class="monthly-month-arrow" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
+              <strong
+                :class="{
+                  positive: selectedMonthlyBreakdown.total >= 0,
+                  negative: selectedMonthlyBreakdown.total < 0,
+                }"
+              >
+                {{ signedMoney(selectedMonthlyBreakdown.total) }}
+              </strong>
             </div>
-            <strong
-              :class="{
-                positive: selectedMonthlyBreakdown.total >= 0,
-                negative: selectedMonthlyBreakdown.total < 0,
-              }"
-            >
-              {{ signedMoney(selectedMonthlyBreakdown.total) }}
-            </strong>
+
+            <dl class="monthly-breakdown-list">
+              <div
+                v-for="component in monthlyComponents"
+                :key="component.key"
+                :data-series="component.key"
+                :class="{
+                  excluded: component.key === 'pnl' && pnlMode === 'exclude',
+                }"
+              >
+                <dt>{{ t(component.label) }}</dt>
+                <dd>
+                  <span
+                    :class="{
+                      negative:
+                        selectedMonthlyBreakdown[component.key] < 0 &&
+                        (component.key !== 'pnl' || pnlMode === 'include'),
+                    }"
+                  >
+                    {{ signedMoney(selectedMonthlyBreakdown[component.key]) }}
+                  </span>
+                  <small
+                    v-if="component.key === 'pnl' && pnlMode === 'exclude'"
+                  >
+                    {{ t("overview.monthly.excluded") }}
+                  </small>
+                </dd>
+              </div>
+            </dl>
+
+            <footer class="monthly-chart-meta">
+              <span>{{
+                t("overview.monthly.positiveMonths", {
+                  positive: positiveMonths,
+                  count: monthlyVariationPoints.length,
+                })
+              }}</span>
+              <span>
+                {{ t("overview.monthly.pnlEffect") }}
+                <strong
+                  :class="{
+                    positive: periodPnlImpact >= 0,
+                    negative: periodPnlImpact < 0,
+                  }"
+                >
+                  {{ signedMoney(periodPnlImpact) }}
+                </strong>
+              </span>
+            </footer>
           </div>
 
           <MonthlyVariationChart
             :labels="monthlyVariationLabels"
             :values="monthlyVariationValues"
+            :series="monthlyVariationSeries"
             :label="monthlyVariationLabel"
-            :range="monthlyVariationRange"
             :selected-index="selectedVariationIndex"
             :selected-month="selectedMonthlyBreakdown.month"
             @select="selectVariationMonth"
           />
-
-          <dl class="monthly-breakdown-list">
-            <div>
-              <dt>{{ t("overview.monthly.savingsAndMovements") }}</dt>
-              <dd :class="{ negative: selectedMonthlyBreakdown.savings < 0 }">
-                {{ signedMoney(selectedMonthlyBreakdown.savings) }}
-              </dd>
-            </div>
-            <div>
-              <dt>{{ t("overview.monthly.interest") }}</dt>
-              <dd :class="{ negative: selectedMonthlyBreakdown.interest < 0 }">
-                {{ signedMoney(selectedMonthlyBreakdown.interest) }}
-              </dd>
-            </div>
-            <div :class="{ excluded: pnlMode === 'exclude' }">
-              <dt>{{ t("overview.monthly.balancePnl") }}</dt>
-              <dd>
-                <span
-                  :class="{
-                    negative:
-                      pnlMode === 'include' && selectedMonthlyBreakdown.pnl < 0,
-                  }"
-                >
-                  {{ signedMoney(selectedMonthlyBreakdown.pnl) }}
-                </span>
-                <small v-if="pnlMode === 'exclude'">{{
-                  t("overview.monthly.excluded")
-                }}</small>
-              </dd>
-            </div>
-          </dl>
-
-          <footer class="monthly-chart-meta">
-            <span>{{
-              t("overview.monthly.positiveMonths", {
-                positive: positiveMonths,
-                count: monthlyVariationPoints.length,
-              })
-            }}</span>
-            <span>
-              {{ t("overview.monthly.pnlEffect") }}
-              <strong
-                :class="{
-                  positive: periodPnlImpact >= 0,
-                  negative: periodPnlImpact < 0,
-                }"
-              >
-                {{ signedMoney(periodPnlImpact) }}
-              </strong>
-            </span>
-          </footer>
-        </template>
+        </div>
         <div v-else class="chart-empty monthly-variation-empty">
           <strong>{{ t("overview.monthly.emptyTitle") }}</strong>
           <p>{{ t("overview.monthly.emptyDescription") }}</p>

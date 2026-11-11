@@ -1,5 +1,6 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MonthlyVariationSeries } from "../components/MonthlyVariationChart.vue";
 import { applyLocale, registerMessages } from "../i18n";
 import { viewMessagesA } from "../i18n/viewMessagesA";
 
@@ -20,7 +21,7 @@ const chartStubs = {
       "labels",
       "values",
       "label",
-      "range",
+      "series",
       "selectedIndex",
       "selectedMonth",
     ],
@@ -275,18 +276,23 @@ describe("OverviewView", () => {
     expect(wrapper.text()).toContain("Ahorro y movimientos netos");
     expect(wrapper.text()).not.toContain("Aportación inmobiliaria");
 
-    const chartRange = wrapper
-      .getComponent({ name: "MonthlyVariationChart" })
-      .props("range");
-    expect(chartRange.min).toBe(0);
-    expect(chartRange.max).toBeCloseTo(355.04, 2);
+    const monthlyChart = wrapper.getComponent({
+      name: "MonthlyVariationChart",
+    });
+    const components: MonthlyVariationSeries[] = monthlyChart.props("series");
+    expect(components.map((item) => item.key)).toEqual([
+      "savings",
+      "interest",
+      "pnl",
+    ]);
+    expect(
+      components.reduce((total, item) => total + item.values[0], 0),
+    ).toBeCloseTo(355.04, 2);
     const excludePnl = wrapper
       .findAll("button")
       .find((button) => button.text() === "Sin P&L");
     await excludePnl!.trigger("click");
-    expect(
-      wrapper.getComponent({ name: "MonthlyVariationChart" }).props("range"),
-    ).toEqual(chartRange);
+    expect(monthlyChart.props("series")).toEqual(components.slice(0, 2));
 
     expect(
       wrapper

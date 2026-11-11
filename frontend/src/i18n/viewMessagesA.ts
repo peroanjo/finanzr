@@ -76,7 +76,6 @@ export const viewMessagesA = defineMessageCatalog(
         title: "Monthly net worth change",
         description:
           "Changes recorded in Savings, Balances and Crowdfunding · {period}",
-        descriptionDynamic: "Changes recorded in {sources} · {period}",
         balancePnl: "Balance P&L",
         pnlAria: "Balance P&L treatment",
         withPnl: "With P&L",
@@ -465,7 +464,6 @@ export const viewMessagesA = defineMessageCatalog(
         title: "Variación de patrimonio mensual",
         description:
           "Cambios registrados en Ahorro, Balances y Crowdfunding · {period}",
-        descriptionDynamic: "Cambios registrados en {sources} · {period}",
         balancePnl: "P&L de balances",
         pnlAria: "Tratamiento del P&L de balances",
         withPnl: "Con P&L",

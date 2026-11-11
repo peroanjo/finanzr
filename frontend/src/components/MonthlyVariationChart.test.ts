@@ -1,14 +1,26 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
-import MonthlyVariationChart from "./MonthlyVariationChart.vue";
+import MonthlyVariationChart, {
+  type MonthlyVariationSeries,
+} from "./MonthlyVariationChart.vue";
+import type { ChartConfiguration } from "chart.js";
+
+const { recordOptions } = vi.hoisted(() => ({ recordOptions: vi.fn() }));
 
 vi.mock("chart.js", () => ({
   Chart: class {
     static register() {}
     width = 300;
     scales = { x: { getValueForPixel: (x: number) => Math.floor(x / 100) } };
-    update() {}
+    options: ChartConfiguration<"bar">["options"];
+    constructor(_canvas: HTMLCanvasElement, config: ChartConfiguration<"bar">) {
+      this.options = config.options;
+      recordOptions(this.options);
+    }
+    update() {
+      recordOptions(this.options);
+    }
     destroy() {}
   },
   BarController: {},
@@ -22,12 +34,38 @@ const props = {
   labels: ["oct 26", "nov 26", "dic 26"],
   values: [-250, 0, 1500],
   label: "Monthly change",
-  range: { min: -250, max: 1800 },
+  series: [
+    { key: "savings", label: "Savings", values: [200, 100, 1200] },
+    { key: "interest", label: "Interest", values: [15, 20, 40] },
+    { key: "pnl", label: "P&L", values: [-465, -120, 260] },
+  ] satisfies MonthlyVariationSeries[],
   selectedIndex: 0,
   selectedMonth: "octubre de 2026",
 };
 
 describe("MonthlyVariationChart", () => {
+  it("fits the axis to the visible positive and negative stacks", async () => {
+    const wrapper = mount(MonthlyVariationChart, { props });
+    expect(recordOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scales: expect.objectContaining({
+          y: expect.objectContaining({ stacked: true, min: -465, max: 1500 }),
+        }),
+      }),
+    );
+    await wrapper.setProps({
+      series: props.series.slice(0, 2),
+      values: [215, 120, 1240],
+    });
+    expect(recordOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scales: expect.objectContaining({
+          y: expect.objectContaining({ stacked: true, min: 0, max: 1240 }),
+        }),
+      }),
+    );
+    wrapper.unmount();
+  });
   it("announces the selected month and signed amount and supports arrow and end keys", async () => {
     const wrapper = mount(MonthlyVariationChart, { props });
     const chart = wrapper.get('[role="slider"]');
