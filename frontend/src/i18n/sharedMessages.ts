@@ -149,6 +149,7 @@ export const sharedMessages = defineMessageCatalog(
       },
       monthlyVariationChart: {
         chartAria: "{label}. Use the arrow keys to select a month.",
+        average: "Monthly average · {amount}",
       },
       lineChart: {
         aria: "Values over time",
@@ -367,6 +368,7 @@ export const sharedMessages = defineMessageCatalog(
       },
       monthlyVariationChart: {
         chartAria: "{label}. Usa las flechas para seleccionar un mes.",
+        average: "Media mensual · {amount}",
       },
       lineChart: {
         aria: "Evolución de los valores en el tiempo",

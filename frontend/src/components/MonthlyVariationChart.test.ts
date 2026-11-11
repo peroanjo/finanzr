@@ -106,6 +106,43 @@ describe("MonthlyVariationChart", () => {
     wrapper.unmount();
   });
 
+  it("averages the monthly totals for the current series and period, including zero months", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const wrapper = mount(MonthlyVariationChart, { props });
+    const chart = wrapper.get('[role="slider"]');
+    const average = () =>
+      chart.attributes("aria-description")?.replaceAll("\u00a0", " ");
+
+    expect(average()).toBe("Media mensual · 416,67 €");
+    await wrapper.setProps({
+      series: props.series.slice(2),
+      values: [-465, -120, 260],
+    });
+    expect(average()).toBe("Media mensual · -108,33 €");
+
+    await wrapper.setProps({
+      labels: props.labels.slice(1),
+      series: [{ key: "pnl", label: "P&L", values: [-120, 260] }],
+      values: [-120, 260],
+    });
+    expect(average()).toBe("Media mensual · 70,00 €");
+
+    await wrapper.setProps({
+      labels: props.labels,
+      series: [{ key: "pnl", label: "P&L", values: [-0.01, 0, 0] }],
+      values: [-0.01, 0, 0],
+    });
+    expect(average()).toBe("Media mensual · 0,00 €");
+
+    await wrapper.setProps({
+      labels: [props.labels[2]],
+      series: [{ key: "pnl", label: "P&L", values: [0] }],
+      values: [0],
+    });
+    expect(average()).toBe("Media mensual · 0,00 €");
+    wrapper.unmount();
+  });
+
   it("retracts signed P&L values and reverses from the current frame", async () => {
     let frame: FrameRequestCallback | undefined;
     vi.stubGlobal("matchMedia", () => ({ matches: false }));

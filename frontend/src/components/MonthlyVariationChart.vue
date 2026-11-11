@@ -39,10 +39,13 @@ let chart: Chart<"bar", number[], string> | null = null;
 let themeObserver: MutationObserver | null = null;
 let selectionAccent = "";
 let zeroLineColor = "";
+let averageStyle = { line: "", ink: "", surface: "", font: "" };
 let pnlFrame: number | null = null;
 let pnlTransition: {
   series: MonthlyVariationSeries;
   amount: number;
+  targetAmount: number;
+  average: number;
   range: AxisRange;
 } | null = null;
 let activePointer: {
@@ -57,8 +60,21 @@ const currency = computed(
     new Intl.NumberFormat(locale.value, {
       style: "currency",
       currency: reportingCurrency.value,
+      signDisplay: "negative",
     }),
 );
+function mean(values: number[]) {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+const monthlyAverage = computed(() =>
+  props.values.length ? mean(props.values) : null,
+);
+function averageLabel(value: number) {
+  return t("shared.monthlyVariationChart.average", {
+    amount: currency.value.format(value),
+  });
+}
+
 function stackedRange(series: MonthlyVariationSeries[], monthCount: number) {
   let min = 0;
   let max = 0;
@@ -107,7 +123,13 @@ function animatePnl(
   const toAmount = include ? 1 : 0;
   const fromRange = previous?.range ?? previousRange;
   const toRange = axisRange.value;
-  const transition = { series, amount: fromAmount, range: fromRange };
+  const transition = {
+    series,
+    amount: fromAmount,
+    targetAmount: toAmount,
+    average: mean(series.values),
+    range: fromRange,
+  };
   pnlTransition = transition;
   render();
 
@@ -210,6 +232,46 @@ function cancelScrub(event: PointerEvent) {
   if (activePointer?.id === event.pointerId) activePointer = null;
 }
 
+function drawMonthlyAverage({ chartArea, ctx, scales }: Chart<"bar">) {
+  const average = monthlyAverage.value;
+  if (average === null) return;
+
+  const { left, right, top, bottom } = chartArea;
+  const transition = pnlTransition;
+  // Account for the part of the P&L series still being added or removed.
+  const value = transition
+    ? average +
+      transition.average * (transition.amount - transition.targetAmount)
+    : average;
+  const pixel = scales.y.getPixelForValue(value);
+  if (pixel < top - 1 || pixel > bottom + 1) return;
+  const y = Math.max(top + 1, Math.min(bottom - 1, pixel));
+
+  ctx.save();
+  ctx.strokeStyle = averageStyle.line;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
+  ctx.stroke();
+
+  const label = averageLabel(value);
+  ctx.font = averageStyle.font;
+  const labelWidth = Math.min(ctx.measureText(label).width, right - left - 16);
+  if (labelWidth > 0) {
+    const x = right - 4;
+    const labelY = y - 22 >= top ? y - 22 : y + 3;
+    ctx.fillStyle = averageStyle.surface;
+    ctx.fillRect(x - labelWidth - 8, labelY, labelWidth + 8, 19);
+    ctx.fillStyle = averageStyle.ink;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x - 4, labelY + 9.5, labelWidth);
+  }
+  ctx.restore();
+}
+
 function render() {
   if (!canvas.value) return;
 
@@ -228,6 +290,12 @@ function render() {
   const range = transition?.range ?? axisRange.value;
 
   const styles = getComputedStyle(canvas.value);
+  averageStyle = {
+    line: styles.getPropertyValue("--fz-chart-average").trim() || "#7d8790",
+    ink: styles.getPropertyValue("--fz-ink").trim() || "#152019",
+    surface: styles.getPropertyValue("--fz-surface").trim() || "#fff",
+    font: `600 11px ${styles.fontFamily || "sans-serif"}`,
+  };
   const colors = {
     savings: styles.getPropertyValue("--monthly-savings").trim() || "#148a62",
     interest: styles.getPropertyValue("--monthly-interest").trim() || "#d08a32",
@@ -288,7 +356,9 @@ function render() {
           ctx.stroke();
           ctx.restore();
         },
-        afterDatasetsDraw({ chartArea, ctx, data, scales }) {
+        afterDatasetsDraw(instance) {
+          drawMonthlyAverage(instance);
+          const { chartArea, ctx, data, scales } = instance;
           if (data.datasets.some(({ data }) => data[props.selectedIndex] !== 0))
             return;
           const x = scales.x.getPixelForValue(props.selectedIndex);
@@ -381,7 +451,7 @@ onMounted(() => {
   }
 });
 watch(
-  () => [props.labels, props.series] as const,
+  () => [props.labels, props.series, props.values] as const,
   ([labels, series], [previousLabels, previousSeries]) => {
     const pnl = series.find((item) => item.key === "pnl");
     const previousPnl = previousSeries.find((item) => item.key === "pnl");
@@ -420,6 +490,9 @@ onBeforeUnmount(() => {
     role="slider"
     tabindex="0"
     :aria-label="t('shared.monthlyVariationChart.chartAria', { label })"
+    :aria-description="
+      monthlyAverage === null ? undefined : averageLabel(monthlyAverage)
+    "
     :aria-valuemin="1"
     :aria-valuemax="labels.length"
     :aria-valuenow="selectedIndex + 1"
