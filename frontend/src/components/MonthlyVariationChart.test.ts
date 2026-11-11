@@ -1,25 +1,31 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 import MonthlyVariationChart, {
   type MonthlyVariationSeries,
 } from "./MonthlyVariationChart.vue";
 import type { ChartConfiguration } from "chart.js";
 
-const { recordOptions } = vi.hoisted(() => ({ recordOptions: vi.fn() }));
+const { recordOptions, recordPnl } = vi.hoisted(() => ({
+  recordOptions: vi.fn(),
+  recordPnl: vi.fn(),
+}));
 
 vi.mock("chart.js", () => ({
   Chart: class {
     static register() {}
     width = 300;
     scales = { x: { getValueForPixel: (x: number) => Math.floor(x / 100) } };
+    data: ChartConfiguration<"bar">["data"];
     options: ChartConfiguration<"bar">["options"];
     constructor(_canvas: HTMLCanvasElement, config: ChartConfiguration<"bar">) {
+      this.data = config.data;
       this.options = config.options;
       recordOptions(this.options);
     }
     update() {
       recordOptions(this.options);
+      recordPnl(this.data.datasets.find(({ label }) => label === "P&L")?.data);
     }
     destroy() {}
   },
@@ -44,7 +50,13 @@ const props = {
 };
 
 describe("MonthlyVariationChart", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it("fits the axis to the visible positive and negative stacks", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
     const wrapper = mount(MonthlyVariationChart, { props });
     expect(recordOptions).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -64,6 +76,42 @@ describe("MonthlyVariationChart", () => {
         }),
       }),
     );
+    expect(recordPnl).toHaveBeenLastCalledWith(undefined);
+    wrapper.unmount();
+  });
+
+  it("retracts signed P&L values and reverses from the current frame", async () => {
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frame = callback;
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {
+      frame = undefined;
+    });
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const wrapper = mount(MonthlyVariationChart, { props });
+
+    const excluded = {
+      series: props.series.slice(0, 2),
+      values: [215, 120, 1240],
+    };
+    await wrapper.setProps(excluded);
+    expect(recordPnl).toHaveBeenLastCalledWith([-465, -120, 260]);
+    frame?.(1170);
+    expect(recordPnl).toHaveBeenLastCalledWith([-232.5, -60, 130]);
+
+    now.mockReturnValue(1170);
+    await wrapper.setProps({ series: props.series, values: props.values });
+    expect(recordPnl).toHaveBeenLastCalledWith([-232.5, -60, 130]);
+    frame?.(1510);
+    expect(recordPnl).toHaveBeenLastCalledWith([-465, -120, 260]);
+
+    now.mockReturnValue(1510);
+    await wrapper.setProps(excluded);
+    frame?.(1850);
+    expect(recordPnl).toHaveBeenLastCalledWith(undefined);
     wrapper.unmount();
   });
   it("announces the selected month and signed amount and supports arrow and end keys", async () => {

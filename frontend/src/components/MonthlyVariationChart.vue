@@ -21,6 +21,9 @@ export interface MonthlyVariationSeries {
   values: number[];
 }
 
+type AxisRange = { min: number; max: number };
+const pnlTransitionDuration = 340;
+
 const props = defineProps<{
   labels: string[];
   values: number[];
@@ -37,6 +40,12 @@ let chart: Chart<"bar", number[], string> | null = null;
 let themeObserver: MutationObserver | null = null;
 let selectionAccent = "";
 let zeroLineColor = "";
+let pnlFrame: number | null = null;
+let pnlTransition: {
+  series: MonthlyVariationSeries;
+  amount: number;
+  range: AxisRange;
+} | null = null;
 let activePointer: {
   id: number;
   x: number;
@@ -51,14 +60,14 @@ const currency = computed(
       currency: reportingCurrency.value,
     }),
 );
-const axisRange = computed(() => {
+function stackedRange(series: MonthlyVariationSeries[], monthCount: number) {
   let min = 0;
   let max = 0;
   // Chart.js stacks gains and losses on opposite sides of zero.
-  for (const index of props.labels.keys()) {
+  for (let index = 0; index < monthCount; index++) {
     let losses = 0;
     let gains = 0;
-    for (const { values } of props.series) {
+    for (const { values } of series) {
       const value = values[index];
       if (value < 0) losses += value;
       else gains += value;
@@ -67,7 +76,70 @@ const axisRange = computed(() => {
     max = Math.max(max, gains);
   }
   return { min, max: min === max ? 1 : max };
-});
+}
+const axisRange = computed(() =>
+  stackedRange(props.series, props.labels.length),
+);
+
+function stopPnlTransition() {
+  if (pnlFrame !== null) window.cancelAnimationFrame(pnlFrame);
+  pnlFrame = null;
+  pnlTransition = null;
+}
+
+function animatePnl(
+  series: MonthlyVariationSeries,
+  previousRange: AxisRange,
+  include: boolean,
+) {
+  const instance = chart;
+  const previous = pnlTransition;
+  stopPnlTransition();
+  if (
+    !instance ||
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
+    series.values.every((value) => value === 0)
+  ) {
+    render();
+    return;
+  }
+
+  const fromAmount = previous?.amount ?? (include ? 0 : 1);
+  const toAmount = include ? 1 : 0;
+  const fromRange = previous?.range ?? previousRange;
+  const toRange = axisRange.value;
+  const transition = { series, amount: fromAmount, range: fromRange };
+  pnlTransition = transition;
+  render();
+
+  const started = performance.now();
+  const drawFrame = (now: number) => {
+    const time = Math.max(0, (now - started) / pnlTransitionDuration);
+    if (time >= 1) {
+      stopPnlTransition();
+      render();
+      return;
+    }
+    const progress = time * time * (3 - 2 * time);
+    // Expand the axis ahead of the growing bars and tighten it as they retract.
+    const axisProgress = include ? 1 - (1 - time) ** 3 : time ** 3;
+    transition.amount = fromAmount + (toAmount - fromAmount) * progress;
+    transition.range = {
+      min: fromRange.min + (toRange.min - fromRange.min) * axisProgress,
+      max: fromRange.max + (toRange.max - fromRange.max) * axisProgress,
+    };
+    const dataset = instance.data.datasets[instance.data.datasets.length - 1];
+    dataset.data = series.values.map((value) => value * transition.amount);
+    const y = instance.options.scales?.y;
+    if (y) {
+      y.min = transition.range.min;
+      y.max = transition.range.max;
+    }
+    instance.update("none");
+    pnlFrame = window.requestAnimationFrame(drawFrame);
+  };
+  pnlFrame = window.requestAnimationFrame(drawFrame);
+}
 function signedAmount(value: number) {
   return `${value >= 0 ? "+" : "−"}${currency.value.format(Math.abs(value))}`;
 }
@@ -127,6 +199,20 @@ function render() {
   hoverDetail.value = null;
   if (!canvas.value) return;
 
+  const transition = pnlTransition;
+  const series = transition
+    ? [
+        ...props.series.filter((item) => item.key !== "pnl"),
+        {
+          ...transition.series,
+          values: transition.series.values.map(
+            (value) => value * transition.amount,
+          ),
+        },
+      ]
+    : props.series;
+  const range = transition?.range ?? axisRange.value;
+
   const styles = getComputedStyle(canvas.value);
   const colors = {
     savings: styles.getPropertyValue("--monthly-savings").trim() || "#148a62",
@@ -150,7 +236,7 @@ function render() {
     type: "bar",
     data: {
       labels: props.labels,
-      datasets: props.series.map(({ key, label, values }) => ({
+      datasets: series.map(({ key, label, values }) => ({
         label,
         data: values,
         backgroundColor: values.map((_value, index) =>
@@ -176,10 +262,8 @@ function render() {
           ctx.stroke();
           ctx.restore();
         },
-        afterDatasetsDraw({ chartArea, ctx, scales }) {
-          if (
-            props.series.some(({ values }) => values[props.selectedIndex] !== 0)
-          )
+        afterDatasetsDraw({ chartArea, ctx, data, scales }) {
+          if (data.datasets.some(({ data }) => data[props.selectedIndex] !== 0))
             return;
           const x = scales.x.getPixelForValue(props.selectedIndex);
           const y = Math.max(
@@ -206,7 +290,9 @@ function render() {
         tooltip: {
           enabled: false,
           filter: (context) =>
-            context.dataIndex !== props.selectedIndex && context.parsed.y !== 0,
+            !pnlTransition &&
+            context.dataIndex !== props.selectedIndex &&
+            context.parsed.y !== 0,
           external: ({ tooltip }) => {
             hoverDetail.value =
               tooltip.opacity && tooltip.dataPoints.length
@@ -240,8 +326,8 @@ function render() {
         y: {
           stacked: true,
           bounds: "ticks",
-          min: axisRange.value.min,
-          max: axisRange.value.max,
+          min: range.min,
+          max: range.max,
           border: { display: false },
           grid: {
             color: (context) =>
@@ -253,7 +339,16 @@ function render() {
             color: muted,
             maxTicksLimit: 5,
             autoSkip: false,
-            callback: (value) => money.format(Number(value)),
+            callback: (value) => {
+              const amount = Number(value);
+              const movingRange = pnlTransition?.range;
+              // Keep interim labels from shifting as fractional digits change.
+              return money.format(
+                movingRange && movingRange.max - movingRange.min >= 100
+                  ? Math.round(amount)
+                  : amount,
+              );
+            },
             font: { size: 10, weight: 600 },
           },
         },
@@ -281,19 +376,34 @@ onMounted(() => {
   }
 });
 watch(
-  () => [
-    props.labels,
-    props.values,
-    props.label,
-    props.series,
-    props.selectedIndex,
-    locale.value,
-    reportingCurrency.value,
-  ],
-  render,
+  () => [props.labels, props.series] as const,
+  ([labels, series], [previousLabels, previousSeries]) => {
+    const pnl = series.find((item) => item.key === "pnl");
+    const previousPnl = previousSeries.find((item) => item.key === "pnl");
+    const changedPnl = pnl ?? previousPnl;
+    if (
+      labels === previousLabels &&
+      changedPnl &&
+      Boolean(pnl) !== Boolean(previousPnl)
+    ) {
+      animatePnl(
+        changedPnl,
+        stackedRange(previousSeries, labels.length),
+        Boolean(pnl),
+      );
+    } else {
+      stopPnlTransition();
+      render();
+    }
+  },
   { deep: true },
 );
+watch(
+  () => [props.selectedIndex, locale.value, reportingCurrency.value],
+  render,
+);
 onBeforeUnmount(() => {
+  stopPnlTransition();
   themeObserver?.disconnect();
   chart?.destroy();
 });
