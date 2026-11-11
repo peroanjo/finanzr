@@ -13,6 +13,7 @@ import {
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { reportingCurrency } from "../i18n";
+import ChartHoverDetail, { type ChartHoverData } from "./ChartHoverDetail.vue";
 
 export interface LineChartSeries {
   key: string;
@@ -40,12 +41,7 @@ const props = defineProps<{
 }>();
 const { locale, t } = useI18n();
 const canvas = ref<HTMLCanvasElement>();
-const hoverDetail = ref<{
-  x: number;
-  y: number;
-  title: string;
-  rows: Array<{ label: string; value: string; color: string }>;
-} | null>(null);
+const hoverDetail = ref<ChartHoverData | null>(null);
 let chart: Chart | null = null;
 let themeObserver: MutationObserver | null = null;
 
@@ -289,65 +285,12 @@ onBeforeUnmount(() => {
       role="img"
       :aria-label="ariaLabel || t('shared.lineChart.aria')"
     />
-    <div
-      v-if="featured && hoverDetail"
-      class="line-chart-hover"
-      :style="{
-        left: `clamp(0px, ${hoverDetail.x}px, max(0px, calc(100% - 340px)))`,
-        top: `clamp(0px, ${hoverDetail.y}px, max(0px, calc(100% - ${44 + hoverDetail.rows.length * 20}px)))`,
-      }"
-    >
-      <strong>{{ hoverDetail.title }}</strong>
-      <div
-        v-for="row in hoverDetail.rows"
-        :key="row.label"
-        class="line-chart-hover-row"
-      >
-        <i :style="{ background: row.color }" aria-hidden="true" />
-        <span
-          >{{ row.label }}: <b>{{ row.value }}</b></span
-        >
-      </div>
-    </div>
+    <ChartHoverDetail v-if="featured && hoverDetail" :detail="hoverDetail" />
   </div>
 </template>
 
 <style scoped>
 .line-chart {
   position: relative;
-}
-.line-chart-hover {
-  position: absolute;
-  z-index: 4;
-  width: min(340px, 100%);
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--fz-tooltip);
-  color: var(--fz-tooltip-text);
-  box-shadow: 0 6px 24px var(--fz-chart-tooltip-shadow);
-  font-size: 12px;
-  line-height: 20px;
-  pointer-events: none;
-}
-.line-chart-hover > strong {
-  display: block;
-  margin-bottom: 4px;
-}
-.line-chart-hover-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-.line-chart-hover-row i {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
-  border-radius: 2px;
-}
-.line-chart-hover-row span {
-  overflow-wrap: anywhere;
-}
-.line-chart-hover-row b {
-  font-weight: 600;
 }
 </style>

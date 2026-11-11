@@ -11,6 +11,7 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { reportingCurrency } from "../i18n";
+import ChartHoverDetail, { type ChartHoverData } from "./ChartHoverDetail.vue";
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
 
@@ -31,6 +32,7 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [index: number] }>();
 const { locale, t } = useI18n();
 const canvas = ref<HTMLCanvasElement>();
+const hoverDetail = ref<ChartHoverData | null>(null);
 let chart: Chart<"bar", number[], string> | null = null;
 let themeObserver: MutationObserver | null = null;
 let selectionAccent = "";
@@ -122,6 +124,7 @@ function cancelScrub(event: PointerEvent) {
 }
 
 function render() {
+  hoverDetail.value = null;
   if (!canvas.value) return;
 
   const styles = getComputedStyle(canvas.value);
@@ -136,9 +139,6 @@ function render() {
   const grid =
     styles.getPropertyValue("--fz-chart-grid").trim() ||
     "rgba(143,164,154,.15)";
-  const tooltip = styles.getPropertyValue("--fz-tooltip").trim() || "#101e18";
-  const tooltipText =
-    styles.getPropertyValue("--fz-tooltip-text").trim() || "#edf3ef";
   const money = new Intl.NumberFormat(locale.value, {
     style: "currency",
     currency: reportingCurrency.value,
@@ -204,15 +204,23 @@ function render() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: tooltip,
-          titleColor: tooltipText,
-          bodyColor: tooltipText,
-          padding: 12,
+          enabled: false,
           filter: (context) =>
             context.dataIndex !== props.selectedIndex && context.parsed.y !== 0,
-          callbacks: {
-            label: (context) =>
-              `${context.dataset.label} · ${signedAmount(Number(context.parsed.y))}`,
+          external: ({ tooltip }) => {
+            hoverDetail.value =
+              tooltip.opacity && tooltip.dataPoints.length
+                ? {
+                    x: tooltip.x,
+                    y: tooltip.y,
+                    title: tooltip.title.join(" · "),
+                    rows: tooltip.dataPoints.map((point) => ({
+                      label: point.dataset.label ?? "",
+                      value: signedAmount(Number(point.parsed.y)),
+                      color: String(point.dataset.hoverBackgroundColor),
+                    })),
+                  }
+                : null;
           },
         },
       },
@@ -316,6 +324,11 @@ onBeforeUnmount(() => {
       @pointerup="finishScrub"
       @pointercancel="cancelScrub"
       @lostpointercapture="cancelScrub"
+    />
+    <ChartHoverDetail
+      v-if="hoverDetail"
+      :detail="hoverDetail"
+      aria-hidden="true"
     />
   </div>
 </template>
