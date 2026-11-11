@@ -15,6 +15,8 @@ vi.mock("chart.js", () => ({
   Chart: class {
     static register() {}
     width = 300;
+    height = 200;
+    chartArea = { left: 20, right: 300, top: 10, bottom: 180 };
     scales = { x: { getValueForPixel: (x: number) => Math.floor(x / 100) } };
     data: ChartConfiguration<"bar">["data"];
     options: ChartConfiguration<"bar">["options"];
@@ -33,7 +35,6 @@ vi.mock("chart.js", () => ({
   BarElement: {},
   CategoryScale: {},
   LinearScale: {},
-  Tooltip: {},
 }));
 
 const props = {
@@ -53,6 +54,31 @@ describe("MonthlyVariationChart", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("previews the hovered month without selecting it and clears the preview outside the plot", async () => {
+    const wrapper = mount(MonthlyVariationChart, { props });
+    const canvas = wrapper.get("canvas");
+    vi.spyOn(canvas.element, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 300, 200),
+    );
+    for (const [clientX, clientY] of [
+      [125, 65],
+      [245, 80],
+      [245, 190],
+    ]) {
+      canvas.element.dispatchEvent(
+        Object.assign(
+          new MouseEvent("pointermove", { bubbles: true, clientX, clientY }),
+          { pointerType: "mouse" },
+        ),
+      );
+    }
+    expect(wrapper.emitted("preview")).toEqual([[1], [2], [null]]);
+    expect(wrapper.emitted("select")).toBeUndefined();
+    await canvas.trigger("pointerleave");
+    expect(wrapper.emitted("preview")?.at(-1)).toEqual([null]);
+    wrapper.unmount();
   });
 
   it("fits the axis to the visible positive and negative stacks", async () => {

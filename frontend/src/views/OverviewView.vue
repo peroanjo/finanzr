@@ -30,6 +30,7 @@ const sourceInfoOpen = ref(false);
 const period = ref<Period>("2y");
 const pnlMode = ref<PnlMode>("include");
 const selectedVariationMonth = ref<string | null>(null);
+const previewVariationIndex = ref<number | null>(null);
 
 const periods = computed<
   Array<{ key: Period; label: string; points?: number }>
@@ -277,8 +278,8 @@ const monthlyVariationLabel = computed(() =>
     ? t("overview.monthly.chartLabelInclude")
     : t("overview.monthly.chartLabelExclude"),
 );
-const selectedMonthlyBreakdown = computed(() => {
-  const selected = monthlyVariationPoints.value[selectedVariationIndex.value];
+function monthlyBreakdownAt(index: number) {
+  const selected = monthlyVariationPoints.value[index];
   if (!selected) return null;
   const [year, month] = selected.fecha.split("-").map(Number);
   const monthName = new Intl.DateTimeFormat(locale.value, {
@@ -288,13 +289,24 @@ const selectedMonthlyBreakdown = computed(() => {
   return {
     ...selected,
     month: monthName,
-    total: monthlyVariationValues.value[selectedVariationIndex.value],
+    total: monthlyVariationValues.value[index],
   };
+}
+const selectedMonthlyBreakdown = computed(() =>
+  monthlyBreakdownAt(selectedVariationIndex.value),
+);
+const visibleMonthlyBreakdown = computed(() => {
+  const index = previewVariationIndex.value;
+  return (
+    (index === null ? null : monthlyBreakdownAt(index)) ??
+    selectedMonthlyBreakdown.value
+  );
 });
 
 watch(
   monthlyVariationPoints,
   (points) => {
+    previewVariationIndex.value = null;
     if (!points.some((item) => item.fecha === selectedVariationMonth.value)) {
       selectedVariationMonth.value = points.at(-1)?.fecha ?? null;
     }
@@ -308,7 +320,10 @@ const signedMoney = (value: number) =>
   `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
 function selectVariationMonth(index: number) {
   const month = monthlyVariationPoints.value[index];
-  if (month) selectedVariationMonth.value = month.fecha;
+  if (month) {
+    previewVariationIndex.value = null;
+    selectedVariationMonth.value = month.fecha;
+  }
 }
 
 async function load() {
@@ -595,12 +610,18 @@ onBeforeUnmount(() => {
           </div>
         </header>
 
-        <div v-if="selectedMonthlyBreakdown" class="monthly-variation-body">
-          <div class="monthly-chart-details">
+        <div
+          v-if="visibleMonthlyBreakdown && selectedMonthlyBreakdown"
+          class="monthly-variation-body"
+        >
+          <div
+            class="monthly-chart-details"
+            :aria-live="previewVariationIndex === null ? undefined : 'off'"
+          >
             <div class="monthly-breakdown-total">
               <div class="monthly-month-navigation">
                 <h3 id="monthly-breakdown-title">
-                  {{ selectedMonthlyBreakdown.month }}
+                  {{ visibleMonthlyBreakdown.month }}
                 </h3>
                 <div class="monthly-month-buttons">
                   <button
@@ -629,11 +650,11 @@ onBeforeUnmount(() => {
               </div>
               <strong
                 :class="{
-                  positive: selectedMonthlyBreakdown.total >= 0,
-                  negative: selectedMonthlyBreakdown.total < 0,
+                  positive: visibleMonthlyBreakdown.total >= 0,
+                  negative: visibleMonthlyBreakdown.total < 0,
                 }"
               >
-                {{ signedMoney(selectedMonthlyBreakdown.total) }}
+                {{ signedMoney(visibleMonthlyBreakdown.total) }}
               </strong>
             </div>
 
@@ -644,13 +665,13 @@ onBeforeUnmount(() => {
                 :data-series="component.key"
                 :class="{
                   excluded: component.key === 'pnl' && pnlMode === 'exclude',
-                  'is-negative': selectedMonthlyBreakdown[component.key] < 0,
+                  'is-negative': visibleMonthlyBreakdown[component.key] < 0,
                 }"
               >
                 <dt>{{ t(component.label) }}</dt>
                 <dd>
                   <span>
-                    {{ signedMoney(selectedMonthlyBreakdown[component.key]) }}
+                    {{ signedMoney(visibleMonthlyBreakdown[component.key]) }}
                   </span>
                   <small
                     v-if="component.key === 'pnl' && pnlMode === 'exclude'"
@@ -690,6 +711,7 @@ onBeforeUnmount(() => {
             :selected-index="selectedVariationIndex"
             :selected-month="selectedMonthlyBreakdown.month"
             @select="selectVariationMonth"
+            @preview="previewVariationIndex = $event"
           />
         </div>
         <div v-else class="chart-empty monthly-variation-empty">

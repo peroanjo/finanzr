@@ -25,7 +25,7 @@ const chartStubs = {
       "selectedIndex",
       "selectedMonth",
     ],
-    emits: ["select"],
+    emits: ["select", "preview"],
     template:
       '<button data-testid="monthly-variation-chart" @click="$emit(\'select\', 0)">{{ values.join(",") }}</button>',
   },
@@ -214,6 +214,27 @@ describe("OverviewView", () => {
       wrapper.get('[data-testid="monthly-variation-chart"]').text().split(","),
     ).toHaveLength(24);
     expect(wrapper.text()).toContain("+2400,00");
+    wrapper.unmount();
+  });
+
+  it("previews a month in the breakdown and returns to the selected month", async () => {
+    const { default: OverviewView } = await import("./OverviewView.vue");
+    const wrapper = mount(OverviewView, { global: { stubs: chartStubs } });
+    await flushPromises();
+
+    const chart = wrapper.getComponent({ name: "MonthlyVariationChart" });
+    const title = wrapper.get("#monthly-breakdown-title");
+    expect(title.text()).toBe("junio de 2027");
+
+    chart.vm.$emit("preview", 0);
+    await wrapper.vm.$nextTick();
+    expect(title.text()).toBe("julio de 2025");
+    expect(chart.props("selectedIndex")).toBe(23);
+    expect(chart.props("selectedMonth")).toBe("junio de 2027");
+
+    chart.vm.$emit("preview", null);
+    await wrapper.vm.$nextTick();
+    expect(title.text()).toBe("junio de 2027");
     wrapper.unmount();
   });
 

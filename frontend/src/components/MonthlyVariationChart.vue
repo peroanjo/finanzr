@@ -5,15 +5,12 @@ import {
   CategoryScale,
   Chart,
   LinearScale,
-  Tooltip,
   type ChartConfiguration,
 } from "chart.js";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { reportingCurrency } from "../i18n";
-import ChartHoverDetail, { type ChartHoverData } from "./ChartHoverDetail.vue";
-
-Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
+Chart.register(BarController, BarElement, CategoryScale, LinearScale);
 
 export interface MonthlyVariationSeries {
   key: "savings" | "interest" | "pnl";
@@ -32,10 +29,12 @@ const props = defineProps<{
   selectedIndex: number;
   selectedMonth: string;
 }>();
-const emit = defineEmits<{ select: [index: number] }>();
+const emit = defineEmits<{
+  select: [index: number];
+  preview: [index: number | null];
+}>();
 const { locale, t } = useI18n();
 const canvas = ref<HTMLCanvasElement>();
-const hoverDetail = ref<ChartHoverData | null>(null);
 let chart: Chart<"bar", number[], string> | null = null;
 let themeObserver: MutationObserver | null = null;
 let selectionAccent = "";
@@ -145,16 +144,26 @@ function signedAmount(value: number) {
 }
 
 function selectMonth(index: number) {
+  emit("preview", null);
   const next = Math.max(0, Math.min(index, props.values.length - 1));
   if (props.values.length && next !== props.selectedIndex) emit("select", next);
 }
 
-function selectAtPointer(event: PointerEvent) {
+function monthAtPointer(event: PointerEvent, plotOnly = false) {
   if (!chart || !canvas.value) return;
   const bounds = canvas.value.getBoundingClientRect();
   if (!bounds.width) return;
   const x = ((event.clientX - bounds.left) * chart.width) / bounds.width;
-  const index = chart.scales.x.getValueForPixel(x);
+  if (plotOnly) {
+    const y = ((event.clientY - bounds.top) * chart.height) / bounds.height;
+    const { left, right, top, bottom } = chart.chartArea;
+    if (x < left || x > right || y < top || y > bottom) return;
+  }
+  return chart.scales.x.getValueForPixel(x);
+}
+
+function selectAtPointer(event: PointerEvent) {
+  const index = monthAtPointer(event);
   if (index !== undefined) selectMonth(index);
 }
 
@@ -170,7 +179,13 @@ function startScrub(event: PointerEvent) {
   if (activePointer.scrubbing) selectAtPointer(event);
 }
 
-function moveScrub(event: PointerEvent) {
+function movePointer(event: PointerEvent) {
+  if (!activePointer) {
+    if (event.pointerType === "mouse") {
+      emit("preview", monthAtPointer(event, true) ?? null);
+    }
+    return;
+  }
   if (activePointer?.id !== event.pointerId) return;
   if (!activePointer.scrubbing) {
     const distanceX = Math.abs(event.clientX - activePointer.x);
@@ -196,7 +211,6 @@ function cancelScrub(event: PointerEvent) {
 }
 
 function render() {
-  hoverDetail.value = null;
   if (!canvas.value) return;
 
   const transition = pnlTransition;
@@ -299,31 +313,7 @@ function render() {
       interaction: { intersect: false, mode: "index" },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          enabled: false,
-          filter: (context) =>
-            !pnlTransition &&
-            context.dataIndex !== props.selectedIndex &&
-            context.parsed.y !== 0,
-          external: ({ tooltip }) => {
-            hoverDetail.value =
-              tooltip.opacity && tooltip.dataPoints.length
-                ? {
-                    x: tooltip.x,
-                    y: tooltip.y,
-                    title: tooltip.title.join(" · "),
-                    rows: tooltip.dataPoints.map((point) => ({
-                      label: point.dataset.label ?? "",
-                      value: signedAmount(Number(point.parsed.y)),
-                      color: colorFor(
-                        series[point.datasetIndex].key,
-                        Number(point.parsed.y),
-                      ),
-                    })),
-                  }
-                : null;
-          },
-        },
+        tooltip: { enabled: false },
       },
       scales: {
         x: {
@@ -445,15 +435,11 @@ onBeforeUnmount(() => {
       ref="canvas"
       aria-hidden="true"
       @pointerdown="startScrub"
-      @pointermove="moveScrub"
+      @pointermove="movePointer"
+      @pointerleave="emit('preview', null)"
       @pointerup="finishScrub"
       @pointercancel="cancelScrub"
       @lostpointercapture="cancelScrub"
-    />
-    <ChartHoverDetail
-      v-if="hoverDetail"
-      :detail="hoverDetail"
-      aria-hidden="true"
     />
   </div>
 </template>
