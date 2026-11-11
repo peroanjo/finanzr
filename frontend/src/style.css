@@ -1117,8 +1117,8 @@ select:focus-visible {
 }
 .monthly-breakdown-list > div {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  align-items: baseline;
+  grid-template-columns: minmax(0, 1fr) fit-content(45%);
+  align-items: center;
   gap: 8px;
   min-width: 0;
   padding: 8px 0;
@@ -1162,6 +1162,9 @@ select:focus-visible {
   font-size: 11px;
   line-height: 1.45;
 }
+.monthly-breakdown-list dt {
+  overflow-wrap: anywhere;
+}
 .monthly-breakdown-list dd {
   margin: 0;
   font-size: 14px;
@@ -1183,6 +1186,10 @@ select:focus-visible {
   margin-top: auto;
   padding-top: 9px;
   border-top: 1px solid var(--fz-line);
+}
+.monthly-chart-meta.is-hidden,
+.monthly-chart-meta > .is-hidden {
+  visibility: hidden;
 }
 .monthly-chart-meta strong {
   margin-inline-start: 3px;
@@ -1210,24 +1217,23 @@ select:focus-visible {
   }
   .monthly-breakdown-total {
     grid-row: 1;
-    display: flex;
-    flex-wrap: wrap;
+    grid-template-columns: minmax(145px, 1fr) minmax(0, 40%);
     align-items: center;
-    justify-content: space-between;
     gap: 4px 12px;
   }
-  .monthly-month-navigation {
-    flex: 1 1 145px;
+  .monthly-breakdown-total strong {
+    text-align: end;
   }
   .monthly-chart-meta {
     grid-row: 2;
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     gap: 2px 12px;
     margin: 0;
     padding: 0;
     border: 0;
+  }
+  .monthly-chart-meta > :last-child {
+    text-align: end;
   }
   .monthly-variation-chart {
     grid-row: 3;
@@ -1239,6 +1245,22 @@ select:focus-visible {
   }
   .monthly-breakdown-list > div {
     padding: 6px 0;
+  }
+}
+@container (width < 360px) {
+  .monthly-chart-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .monthly-chart-meta > :last-child {
+    text-align: start;
+  }
+}
+@container (width < 280px) {
+  .monthly-breakdown-total {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .monthly-breakdown-total strong {
+    text-align: start;
   }
 }
 @media (max-width: 720px) {

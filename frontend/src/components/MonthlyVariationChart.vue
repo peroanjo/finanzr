@@ -269,7 +269,7 @@ function render() {
           ),
           hoverBackgroundColor: swatches,
           borderRadius: 4,
-          borderSkipped: "middle",
+          borderSkipped: "start",
           maxBarThickness: 44,
         };
       }),

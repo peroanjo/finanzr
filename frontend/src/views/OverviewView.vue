@@ -673,8 +673,8 @@ onBeforeUnmount(() => {
             </dl>
 
             <footer
-              v-if="monthlyVariationSeries.length"
               class="monthly-chart-meta"
+              :class="{ 'is-hidden': !monthlyVariationSeries.length }"
             >
               <span>{{
                 t("overview.monthly.positiveMonths", {
@@ -682,7 +682,7 @@ onBeforeUnmount(() => {
                   count: monthlyVariationPoints.length,
                 })
               }}</span>
-              <span v-if="monthlyVisibility.pnl">
+              <span :class="{ 'is-hidden': !monthlyVisibility.pnl }">
                 {{ t("overview.monthly.pnlEffect") }}
                 <strong
                   :class="{
