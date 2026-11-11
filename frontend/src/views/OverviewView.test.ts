@@ -169,15 +169,12 @@ describe("OverviewView", () => {
     ).toBe(0);
     expect(previousMonth.attributes("disabled")).toBeDefined();
 
-    const excludePnl = wrapper
-      .findAll("button")
-      .find((button) => button.text() === "Sin P&L");
-    expect(excludePnl).toBeDefined();
-    await excludePnl!.trigger("click");
+    const excludePnl = wrapper.get('[data-series="pnl"] input');
+    await excludePnl.setValue(false);
     expect(
       wrapper.get('[data-testid="monthly-variation-chart"]').text(),
     ).toContain("90");
-    expect(excludePnl!.attributes("aria-pressed")).toBe("true");
+    expect(excludePnl.element).toHaveProperty("checked", false);
     expect(wrapper.get("#monthly-breakdown-title").text()).toBe(
       "julio de 2026",
     );
@@ -187,9 +184,7 @@ describe("OverviewView", () => {
         .text()
         .replaceAll("\u00a0", " "),
     ).toBe("+90,00 €");
-    expect(
-      wrapper.get(".monthly-breakdown-list > div.excluded small").text(),
-    ).toBe("Fuera del total");
+    expect(wrapper.get('[data-series="pnl"]').classes()).toContain("excluded");
 
     const sixMonths = wrapper
       .findAll("button")
@@ -235,6 +230,38 @@ describe("OverviewView", () => {
     chart.vm.$emit("preview", null);
     await wrapper.vm.$nextTick();
     expect(title.text()).toBe("junio de 2027");
+    wrapper.unmount();
+  });
+
+  it("filters each chart component and recovers from an empty selection", async () => {
+    const { default: OverviewView } = await import("./OverviewView.vue");
+    const wrapper = mount(OverviewView, { global: { stubs: chartStubs } });
+    await flushPromises();
+
+    const chart = () => wrapper.getComponent({ name: "MonthlyVariationChart" });
+    const keys = () =>
+      (chart().props("series") as MonthlyVariationSeries[]).map(
+        ({ key }) => key,
+      );
+    const savings = wrapper.get('[data-series="savings"] input');
+    const interest = wrapper.get('[data-series="interest"] input');
+    const pnl = wrapper.get('[data-series="pnl"] input');
+
+    await savings.setValue(false);
+    expect(keys()).toEqual(["interest", "pnl"]);
+    expect(chart().props("values")[0]).toBe(20);
+    await interest.setValue(false);
+    expect(keys()).toEqual(["pnl"]);
+    expect(chart().props("values")[0]).toBe(10);
+    await pnl.setValue(false);
+    expect(wrapper.get(".monthly-series-empty").text()).toBe(
+      "Activa un elemento de la leyenda para ver el gráfico.",
+    );
+    expect(wrapper.get(".monthly-breakdown-total strong").text()).toBe("—");
+    await savings.setValue(true);
+    expect(keys()).toEqual(["savings"]);
+    expect(chart().props("values")[0]).toBe(80);
+    expect(chart().props("selectedIndex")).toBe(23);
     wrapper.unmount();
   });
 
@@ -309,10 +336,7 @@ describe("OverviewView", () => {
     expect(
       components.reduce((total, item) => total + item.values[0], 0),
     ).toBeCloseTo(355.04, 2);
-    const excludePnl = wrapper
-      .findAll("button")
-      .find((button) => button.text() === "Sin P&L");
-    await excludePnl!.trigger("click");
+    await wrapper.get('[data-series="pnl"] input').setValue(false);
     expect(monthlyChart.props("series")).toEqual(components.slice(0, 2));
 
     expect(

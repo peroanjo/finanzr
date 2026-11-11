@@ -16,7 +16,6 @@ import type {
 } from "../types/api";
 
 type Period = "6m" | "1y" | "2y" | "all";
-type PnlMode = "include" | "exclude";
 
 const { t, n, d, locale } = useI18n();
 const summarySourcesUpdatedEvent = "finanzr:summary-sources-updated";
@@ -28,7 +27,7 @@ const loading = ref(true);
 const error = ref("");
 const sourceInfoOpen = ref(false);
 const period = ref<Period>("2y");
-const pnlMode = ref<PnlMode>("include");
+const monthlyVisibility = ref({ savings: true, interest: true, pnl: true });
 const selectedVariationMonth = ref<string | null>(null);
 const previewVariationIndex = ref<number | null>(null);
 
@@ -240,24 +239,30 @@ const monthlyVariationLabels = computed(() =>
       .replace(".", "");
   }),
 );
-const monthlyVariationValues = computed(() =>
-  monthlyVariationPoints.value.map((item) =>
-    pnlMode.value === "include" ? item.withPnl : item.withoutPnl,
-  ),
-);
 const monthlyComponents = [
   { key: "savings", label: "overview.monthly.savingsAndMovements" },
   { key: "interest", label: "overview.monthly.interest" },
   { key: "pnl", label: "overview.monthly.balancePnl" },
 ] as const;
+const visibleMonthlyComponents = computed(() =>
+  monthlyComponents.filter(({ key }) => monthlyVisibility.value[key]),
+);
+const monthlyVariationValues = computed(() => {
+  const { savings, interest, pnl } = monthlyVisibility.value;
+  return monthlyVariationPoints.value.map((point) => {
+    if (savings && interest) return pnl ? point.withPnl : point.withoutPnl;
+    return visibleMonthlyComponents.value.reduce(
+      (total, { key }) => total + point[key],
+      0,
+    );
+  });
+});
 const monthlyVariationSeries = computed<MonthlyVariationSeries[]>(() =>
-  monthlyComponents
-    .filter(({ key }) => key !== "pnl" || pnlMode.value === "include")
-    .map(({ key, label }) => ({
-      key,
-      label: t(label),
-      values: monthlyVariationPoints.value.map((point) => point[key]),
-    })),
+  visibleMonthlyComponents.value.map(({ key, label }) => ({
+    key,
+    label: t(label),
+    values: monthlyVariationPoints.value.map((point) => point[key]),
+  })),
 );
 const selectedVariationIndex = computed(() => {
   const index = monthlyVariationPoints.value.findIndex(
@@ -272,11 +277,6 @@ const positiveMonths = computed(
 );
 const periodPnlImpact = computed(() =>
   monthlyVariationPoints.value.reduce((total, item) => total + item.pnl, 0),
-);
-const monthlyVariationLabel = computed(() =>
-  pnlMode.value === "include"
-    ? t("overview.monthly.chartLabelInclude")
-    : t("overview.monthly.chartLabelExclude"),
 );
 function monthlyBreakdownAt(index: number) {
   const selected = monthlyVariationPoints.value[index];
@@ -586,28 +586,6 @@ onBeforeUnmount(() => {
           <h2 id="monthly-variation-title">
             {{ t("overview.monthly.title") }}
           </h2>
-
-          <div
-            v-if="selectedMonthlyBreakdown"
-            class="monthly-pnl-control"
-            role="group"
-            :aria-label="t('overview.monthly.pnlAria')"
-          >
-            <button
-              type="button"
-              :aria-pressed="pnlMode === 'include'"
-              @click="pnlMode = 'include'"
-            >
-              {{ t("overview.monthly.withPnl") }}
-            </button>
-            <button
-              type="button"
-              :aria-pressed="pnlMode === 'exclude'"
-              @click="pnlMode = 'exclude'"
-            >
-              {{ t("overview.monthly.withoutPnl") }}
-            </button>
-          </div>
         </header>
 
         <div
@@ -650,11 +628,19 @@ onBeforeUnmount(() => {
               </div>
               <strong
                 :class="{
-                  positive: visibleMonthlyBreakdown.total >= 0,
-                  negative: visibleMonthlyBreakdown.total < 0,
+                  positive:
+                    monthlyVariationSeries.length &&
+                    visibleMonthlyBreakdown.total >= 0,
+                  negative:
+                    monthlyVariationSeries.length &&
+                    visibleMonthlyBreakdown.total < 0,
                 }"
               >
-                {{ signedMoney(visibleMonthlyBreakdown.total) }}
+                {{
+                  monthlyVariationSeries.length
+                    ? signedMoney(visibleMonthlyBreakdown.total)
+                    : "—"
+                }}
               </strong>
             </div>
 
@@ -664,32 +650,39 @@ onBeforeUnmount(() => {
                 :key="component.key"
                 :data-series="component.key"
                 :class="{
-                  excluded: component.key === 'pnl' && pnlMode === 'exclude',
+                  excluded: !monthlyVisibility[component.key],
                   'is-negative': visibleMonthlyBreakdown[component.key] < 0,
                 }"
               >
-                <dt>{{ t(component.label) }}</dt>
+                <dt>
+                  <label class="monthly-series-toggle">
+                    <input
+                      v-model="monthlyVisibility[component.key]"
+                      type="checkbox"
+                      @change="previewVariationIndex = null"
+                    />
+                    <span>{{ t(component.label) }}</span>
+                  </label>
+                </dt>
                 <dd>
                   <span>
                     {{ signedMoney(visibleMonthlyBreakdown[component.key]) }}
                   </span>
-                  <small
-                    v-if="component.key === 'pnl' && pnlMode === 'exclude'"
-                  >
-                    {{ t("overview.monthly.excluded") }}
-                  </small>
                 </dd>
               </div>
             </dl>
 
-            <footer class="monthly-chart-meta">
+            <footer
+              v-if="monthlyVariationSeries.length"
+              class="monthly-chart-meta"
+            >
               <span>{{
                 t("overview.monthly.positiveMonths", {
                   positive: positiveMonths,
                   count: monthlyVariationPoints.length,
                 })
               }}</span>
-              <span>
+              <span v-if="monthlyVisibility.pnl">
                 {{ t("overview.monthly.pnlEffect") }}
                 <strong
                   :class="{
@@ -704,15 +697,19 @@ onBeforeUnmount(() => {
           </div>
 
           <MonthlyVariationChart
+            v-if="monthlyVariationSeries.length"
             :labels="monthlyVariationLabels"
             :values="monthlyVariationValues"
             :series="monthlyVariationSeries"
-            :label="monthlyVariationLabel"
+            :label="t('overview.monthly.chartLabel')"
             :selected-index="selectedVariationIndex"
             :selected-month="selectedMonthlyBreakdown.month"
             @select="selectVariationMonth"
             @preview="previewVariationIndex = $event"
           />
+          <div v-else class="monthly-variation-chart monthly-series-empty">
+            {{ t("overview.monthly.selectSeries") }}
+          </div>
         </div>
         <div v-else class="chart-empty monthly-variation-empty">
           <strong>{{ t("overview.monthly.emptyTitle") }}</strong>
