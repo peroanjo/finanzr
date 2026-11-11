@@ -247,6 +247,9 @@ const monthlyComponents = [
 const visibleMonthlyComponents = computed(() =>
   monthlyComponents.filter(({ key }) => monthlyVisibility.value[key]),
 );
+const hasMonthlySeries = computed(
+  () => visibleMonthlyComponents.value.length > 0,
+);
 const monthlyVariationValues = computed(() => {
   const { savings, interest, pnl } = monthlyVisibility.value;
   return monthlyVariationPoints.value.map((point) => {
@@ -272,8 +275,10 @@ const selectedVariationIndex = computed(() => {
     ? index
     : Math.max(0, monthlyVariationPoints.value.length - 1);
 });
-const positiveMonths = computed(
-  () => monthlyVariationValues.value.filter((value) => value > 0).length,
+const positiveMonths = computed<number>((previous = 0) =>
+  hasMonthlySeries.value
+    ? monthlyVariationValues.value.filter((value) => value > 0).length
+    : previous,
 );
 const periodPnlImpact = computed(() =>
   monthlyVariationPoints.value.reduce((total, item) => total + item.pnl, 0),
@@ -318,6 +323,13 @@ const money = (value: number) => n(value, "currency");
 const percentage = (value: number) => n(value, "percent");
 const signedMoney = (value: number) =>
   `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
+// Keep the space taken by a wrapped total when the empty state shows a dash.
+const monthlyTotal = computed<string>((previous = "") => {
+  const breakdown = visibleMonthlyBreakdown.value;
+  return hasMonthlySeries.value && breakdown
+    ? signedMoney(breakdown.total)
+    : previous;
+});
 function selectVariationMonth(index: number) {
   const month = monthlyVariationPoints.value[index];
   if (month) {
@@ -626,22 +638,20 @@ onBeforeUnmount(() => {
                   </button>
                 </div>
               </div>
-              <strong
-                :class="{
-                  positive:
-                    monthlyVariationSeries.length &&
-                    visibleMonthlyBreakdown.total >= 0,
-                  negative:
-                    monthlyVariationSeries.length &&
-                    visibleMonthlyBreakdown.total < 0,
-                }"
-              >
-                {{
-                  monthlyVariationSeries.length
-                    ? signedMoney(visibleMonthlyBreakdown.total)
-                    : "—"
-                }}
-              </strong>
+              <div class="monthly-breakdown-amount">
+                <span v-if="!hasMonthlySeries" class="monthly-amount-spacer">
+                  {{ monthlyTotal }}
+                </span>
+                <strong
+                  :class="{
+                    positive:
+                      hasMonthlySeries && visibleMonthlyBreakdown.total >= 0,
+                    negative:
+                      hasMonthlySeries && visibleMonthlyBreakdown.total < 0,
+                  }"
+                  >{{ hasMonthlySeries ? monthlyTotal : "—" }}</strong
+                >
+              </div>
             </div>
 
             <dl class="monthly-breakdown-list">
@@ -674,7 +684,7 @@ onBeforeUnmount(() => {
 
             <footer
               class="monthly-chart-meta"
-              :class="{ 'is-hidden': !monthlyVariationSeries.length }"
+              :class="{ 'is-hidden': !hasMonthlySeries }"
             >
               <span>{{
                 t("overview.monthly.positiveMonths", {
@@ -697,7 +707,7 @@ onBeforeUnmount(() => {
           </div>
 
           <MonthlyVariationChart
-            v-if="monthlyVariationSeries.length"
+            v-if="hasMonthlySeries"
             :labels="monthlyVariationLabels"
             :values="monthlyVariationValues"
             :series="monthlyVariationSeries"

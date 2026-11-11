@@ -1097,7 +1097,8 @@ select:focus-visible {
   margin: 0 0 0 2px;
   transform: rotate(225deg);
 }
-.monthly-breakdown-total strong {
+.monthly-breakdown-amount {
+  display: grid;
   min-width: 0;
   font-size: clamp(23px, 2.6vw, 32px);
   font-weight: 650;
@@ -1105,6 +1106,13 @@ select:focus-visible {
   letter-spacing: -0.05em;
   line-height: 1.15;
   overflow-wrap: anywhere;
+}
+.monthly-breakdown-amount > * {
+  grid-area: 1 / 1;
+  font-weight: inherit;
+}
+.monthly-amount-spacer {
+  visibility: hidden;
 }
 .monthly-variation-chart {
   position: relative;
@@ -1221,7 +1229,7 @@ select:focus-visible {
     align-items: center;
     gap: 4px 12px;
   }
-  .monthly-breakdown-total strong {
+  .monthly-breakdown-amount {
     text-align: end;
   }
   .monthly-chart-meta {
@@ -1259,7 +1267,7 @@ select:focus-visible {
   .monthly-breakdown-total {
     grid-template-columns: minmax(0, 1fr);
   }
-  .monthly-breakdown-total strong {
+  .monthly-breakdown-amount {
     text-align: start;
   }
 }

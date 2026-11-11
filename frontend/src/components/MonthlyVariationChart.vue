@@ -446,6 +446,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .monthly-variation-chart canvas {
+  max-width: 100%;
+  max-height: 100%;
   cursor: crosshair;
   touch-action: pan-y pinch-zoom;
 }

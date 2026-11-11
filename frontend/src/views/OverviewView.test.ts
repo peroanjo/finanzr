@@ -253,11 +253,13 @@ describe("OverviewView", () => {
     await interest.setValue(false);
     expect(keys()).toEqual(["pnl"]);
     expect(chart().props("values")[0]).toBe(10);
+    const lastAmount = wrapper.get(".monthly-breakdown-total strong").text();
     await pnl.setValue(false);
     expect(wrapper.get(".monthly-series-empty").text()).toBe(
       "Activa un elemento de la leyenda para ver el gráfico.",
     );
     expect(wrapper.get(".monthly-breakdown-total strong").text()).toBe("—");
+    expect(wrapper.get(".monthly-amount-spacer").text()).toBe(lastAmount);
     await savings.setValue(true);
     expect(keys()).toEqual(["savings"]);
     expect(chart().props("values")[0]).toBe(80);
