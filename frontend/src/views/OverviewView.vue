@@ -644,17 +644,12 @@ onBeforeUnmount(() => {
                 :data-series="component.key"
                 :class="{
                   excluded: component.key === 'pnl' && pnlMode === 'exclude',
+                  'is-negative': selectedMonthlyBreakdown[component.key] < 0,
                 }"
               >
                 <dt>{{ t(component.label) }}</dt>
                 <dd>
-                  <span
-                    :class="{
-                      negative:
-                        selectedMonthlyBreakdown[component.key] < 0 &&
-                        (component.key !== 'pnl' || pnlMode === 'include'),
-                    }"
-                  >
+                  <span>
                     {{ signedMoney(selectedMonthlyBreakdown[component.key]) }}
                   </span>
                   <small

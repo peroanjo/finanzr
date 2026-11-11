@@ -1009,8 +1009,10 @@ select:focus-visible {
 /* The selected month and its breakdown stay on the same surface. */
 .overview-panel.monthly-variation-panel {
   --monthly-savings: var(--fz-accent);
+  --monthly-savings-negative: var(--fz-source-manual-investments);
   --monthly-interest: var(--fz-source-stocks);
   --monthly-pnl: var(--fz-source-crypto);
+  --monthly-pnl-negative: var(--fz-negative);
   grid-column: 1 / -1;
   min-width: 0;
   padding: 22px 24px;
@@ -1153,12 +1155,14 @@ select:focus-visible {
 }
 .monthly-breakdown-list [data-series="savings"] {
   --monthly-series: var(--monthly-savings);
+  --monthly-series-negative: var(--monthly-savings-negative);
 }
 .monthly-breakdown-list [data-series="interest"] {
   --monthly-series: var(--monthly-interest);
 }
 .monthly-breakdown-list [data-series="pnl"] {
   --monthly-series: var(--monthly-pnl);
+  --monthly-series-negative: var(--monthly-pnl-negative);
 }
 .monthly-breakdown-list dt {
   display: flex;
@@ -1171,6 +1175,9 @@ select:focus-visible {
   height: 7px;
   border-radius: 2px;
   background: var(--monthly-series);
+}
+.monthly-breakdown-list .is-negative dt::before {
+  background: var(--monthly-series-negative, var(--monthly-series));
 }
 .monthly-breakdown-list .excluded dt::before {
   background: var(--fz-muted);
@@ -1189,6 +1196,9 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
+}
+.monthly-breakdown-list .is-negative:not(.excluded) dd span {
+  color: var(--monthly-series-negative, var(--fz-negative));
 }
 .monthly-breakdown-list .excluded dd span,
 .monthly-breakdown-list dd small {

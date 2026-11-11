@@ -219,6 +219,13 @@ function render() {
     interest: styles.getPropertyValue("--monthly-interest").trim() || "#d08a32",
     pnl: styles.getPropertyValue("--monthly-pnl").trim() || "#8870c5",
   };
+  const negativeColors: Partial<typeof colors> = {
+    savings:
+      styles.getPropertyValue("--monthly-savings-negative").trim() || "#5479bd",
+    pnl: styles.getPropertyValue("--monthly-pnl-negative").trim() || "#c95151",
+  };
+  const colorFor = (key: MonthlyVariationSeries["key"], value: number) =>
+    value < 0 ? (negativeColors[key] ?? colors[key]) : colors[key];
   selectionAccent = colors.savings;
   const muted = styles.getPropertyValue("--fz-muted").trim() || "#8fa49a";
   zeroLineColor = muted;
@@ -236,17 +243,22 @@ function render() {
     type: "bar",
     data: {
       labels: props.labels,
-      datasets: series.map(({ key, label, values }) => ({
-        label,
-        data: values,
-        backgroundColor: values.map((_value, index) =>
-          index === props.selectedIndex ? colors[key] : `${colors[key]}a6`,
-        ),
-        hoverBackgroundColor: colors[key],
-        borderRadius: 4,
-        borderSkipped: "middle",
-        maxBarThickness: 44,
-      })),
+      datasets: series.map(({ key, label, values }) => {
+        const amounts =
+          key === "pnl" && transition ? transition.series.values : values;
+        const swatches = amounts.map((value) => colorFor(key, value));
+        return {
+          label,
+          data: values,
+          backgroundColor: swatches.map((color, index) =>
+            index === props.selectedIndex ? color : `${color}a6`,
+          ),
+          hoverBackgroundColor: swatches,
+          borderRadius: 4,
+          borderSkipped: "middle",
+          maxBarThickness: 44,
+        };
+      }),
     },
     plugins: [
       {
@@ -303,7 +315,10 @@ function render() {
                     rows: tooltip.dataPoints.map((point) => ({
                       label: point.dataset.label ?? "",
                       value: signedAmount(Number(point.parsed.y)),
-                      color: String(point.dataset.hoverBackgroundColor),
+                      color: colorFor(
+                        series[point.datasetIndex].key,
+                        Number(point.parsed.y),
+                      ),
                     })),
                   }
                 : null;
