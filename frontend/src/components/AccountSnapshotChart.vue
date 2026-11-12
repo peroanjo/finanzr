@@ -62,6 +62,12 @@ function render() {
     maximumFractionDigits: 2,
   });
 
+  const resolveColor = (value: string) => {
+    const match = value.match(/^var\((--fz-[\w-]+)\)$/);
+    return match
+      ? styles.getPropertyValue(match[1]).trim() || "#148a62"
+      : value;
+  };
   chart = new Chart(canvas.value, {
     type: balanceMode ? "line" : "bar",
     data: {
@@ -69,8 +75,10 @@ function render() {
       datasets: props.series.map((item) => ({
         label: item.label,
         data: item.values,
-        borderColor: item.color,
-        backgroundColor: balanceMode ? `${item.color}30` : `${item.color}d8`,
+        borderColor: resolveColor(item.color),
+        backgroundColor: balanceMode
+          ? `${resolveColor(item.color)}30`
+          : `${resolveColor(item.color)}d8`,
         borderWidth: balanceMode ? 2 : 0,
         borderRadius: 0,
         borderSkipped: false,

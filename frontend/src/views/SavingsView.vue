@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
+import LineChart from "../components/LineChart.vue";
 import AccountSnapshotChart from "../components/AccountSnapshotChart.vue";
 import type {
   SavingsAccount,
@@ -14,12 +15,12 @@ type Range = "6m" | "12m" | "24m" | "all";
 const { t, n, d, locale } = useI18n();
 
 const colors = [
-  "#3ddc97",
-  "#5681d8",
-  "#c78359",
-  "#9775d7",
-  "#50a9b7",
-  "#d8ae4e",
+  "var(--fz-source-savings)",
+  "var(--fz-source-manual-investments)",
+  "var(--fz-source-stocks)",
+  "var(--fz-source-crypto)",
+  "var(--fz-source-funds)",
+  "var(--fz-source-crowdfunding)",
 ];
 const ranges = computed<Array<{ key: Range; label: string; months?: number }>>(
   () => [
@@ -35,6 +36,7 @@ const loading = ref(true);
 const error = ref("");
 const range = ref<Range>("12m");
 const historyAccount = ref("all");
+const expandedAccount = ref<string | null>(null);
 const accountDialog = ref<HTMLDialogElement>();
 const snapshotDialog = ref<HTMLDialogElement>();
 const accountMode = ref<"create" | "edit">("create");
@@ -71,10 +73,6 @@ const accountRows = computed(() =>
       (total, item) => total + item.interest,
       0,
     );
-    const twelveMonthCutoff = allMonths.value.slice(-12);
-    const lastTwelveInterest = rows
-      .filter((item) => twelveMonthCutoff.includes(item.date.slice(0, 7)))
-      .reduce((total, item) => total + item.interest, 0);
     return {
       account,
       color: colors[index % colors.length],
@@ -85,7 +83,9 @@ const accountRows = computed(() =>
       contribution: latest?.contribution ?? 0,
       lastInterest: latest?.interest ?? 0,
       totalInterest,
-      lastTwelveInterest,
+      periodInterest: rows
+        .filter((item) => visibleMonths.value.includes(item.date.slice(0, 7)))
+        .reduce((total, item) => total + item.interest, 0),
       remunerated:
         totalInterest > 0 ||
         account.type.toLocaleLowerCase().includes("remunerada") ||
@@ -99,12 +99,6 @@ const totalBalance = computed(() =>
 const totalInterest = computed(() =>
   history.value.reduce((total, item) => total + item.interest, 0),
 );
-const lastTwelveInterest = computed(() => {
-  const cutoff = allMonths.value.slice(-12);
-  return history.value
-    .filter((item) => cutoff.includes(item.date.slice(0, 7)))
-    .reduce((total, item) => total + item.interest, 0);
-});
 const remuneratedBalance = computed(() =>
   accountRows.value
     .filter((item) => item.remunerated)
@@ -129,7 +123,12 @@ function accountTypeLabel(value: string) {
 }
 const visibleMonths = computed(() => {
   const months = ranges.value.find((item) => item.key === range.value)?.months;
-  return months ? allMonths.value.slice(-months) : allMonths.value;
+  const latest = allMonths.value.at(-1);
+  if (!months || !latest) return allMonths.value;
+  const [year, month] = latest.split("-").map(Number);
+  const cutoff = new Date(year, month - months, 1);
+  const cutoffMonth = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}`;
+  return allMonths.value.filter((value) => value >= cutoffMonth);
 });
 const visibleInterest = computed(() =>
   history.value
@@ -142,14 +141,21 @@ const activeRangeLabel = computed(
 const latestMonthTotal = computed(() =>
   monthTotal(visibleMonths.value.at(-1) ?? ""),
 );
-const previousMonthTotal = computed(() =>
-  monthTotal(visibleMonths.value.at(-2) ?? ""),
+const periodChange = computed(
+  () => latestMonthTotal.value - monthTotal(visibleMonths.value[0] ?? ""),
 );
-const monthlyChange = computed(
-  () => latestMonthTotal.value - previousMonthTotal.value,
+const periodChangePercent = computed(() => {
+  const start = monthTotal(visibleMonths.value[0] ?? "");
+  return start ? periodChange.value / Math.abs(start) : null;
+});
+const periodDates = computed(() =>
+  visibleMonths.value.length
+    ? `${monthLabel(visibleMonths.value[0])} – ${monthLabel(visibleMonths.value.at(-1)!)}`
+    : "",
 );
-const balanceSeries = computed<AccountChartSeries[]>(() =>
+const balanceSeries = computed(() =>
   accountRows.value.map((row) => ({
+    key: row.account.id,
     label: row.account.name,
     color: row.color,
     values: visibleMonths.value.map((month) => balanceAt(row.rows, month)),
@@ -448,221 +454,251 @@ onMounted(load);
     </article>
 
     <template v-else>
-      <article class="liquidity-hero">
-        <header>
-          <div>
-            <p class="section-label">{{ t("savings.hero.eyebrow") }}</p>
-            <h2>{{ t("savings.hero.title") }}</h2>
-            <p>{{ t("savings.hero.description") }}</p>
-          </div>
-          <div class="hero-actions">
-            <button type="button" @click="openAccountCreate">
-              ＋ {{ t("savings.actions.newAccount") }}</button
-            ><button
-              class="primary"
-              type="button"
-              @click="openSnapshotCreate()"
-            >
-              ＋ {{ t("savings.actions.monthlySnapshot") }}
-            </button>
-          </div>
-        </header>
-        <div class="hero-grid">
-          <div class="cash-total">
-            <span>{{ t("savings.hero.availableNow") }}</span
-            ><strong>{{ money(totalBalance) }}</strong
-            ><small :class="{ negative: monthlyChange < 0 }">{{
-              t("savings.hero.vsPrevious", {
-                change: signedMoney(monthlyChange),
-              })
-            }}</small>
-          </div>
-          <div class="savings-kpis">
-            <div>
-              <span>{{ t("savings.hero.interestBearingBalance") }}</span
-              ><strong>{{ money(remuneratedBalance) }}</strong
-              ><small>{{
-                t("savings.hero.ofCash", {
-                  share: percentage(remuneratedShare),
-                })
-              }}</small>
-            </div>
-            <div>
-              <span>{{ t("savings.hero.interestTwelveMonths") }}</span
-              ><strong class="positive">{{
-                signedMoney(lastTwelveInterest)
-              }}</strong
-              ><small>{{
-                t("savings.hero.sinceStart", { total: money(totalInterest) })
-              }}</small>
-            </div>
-            <div>
-              <span>{{ t("savings.hero.activeAccounts") }}</span
-              ><strong>{{ accounts.length }}</strong
-              ><small>{{
-                t("savings.hero.earningInterest", {
-                  count: accountRows.filter((item) => item.remunerated).length,
-                })
-              }}</small>
-            </div>
-          </div>
-        </div>
-        <div
-          class="liquidity-line"
-          :aria-label="t('savings.cashDistributionAria')"
-        >
-          <i
-            v-for="item in accountRows"
-            :key="item.account.id"
-            :style="{
-              width: `${totalBalance ? (item.balance / totalBalance) * 100 : 0}%`,
-              background: item.color,
-            }"
-            :title="`${item.account.name}: ${money(item.balance)}`"
-          />
-        </div>
-        <div class="liquidity-legend">
-          <span v-for="item in accountRows" :key="item.account.id"
-            ><i :style="{ background: item.color }" />{{ item.account.name }}
-            <strong>{{
-              percentage(totalBalance ? item.balance / totalBalance : 0)
-            }}</strong></span
+      <header class="savings-heading">
+        <h1>{{ t("savings.redesign.title") }}</h1>
+        <div class="hero-actions">
+          <button type="button" @click="openAccountCreate">
+            ＋ {{ t("savings.actions.newAccount") }}
+          </button>
+          <button
+            class="primary"
+            type="button"
+            :disabled="!accounts.length"
+            @click="openSnapshotCreate()"
           >
+            ＋ {{ t("savings.redesign.recordBalance") }}
+          </button>
         </div>
-      </article>
-
-      <div class="accounts-heading">
-        <div>
-          <p class="section-label">{{ t("savings.accounts.eyebrow") }}</p>
-          <h2>{{ t("savings.accounts.title") }}</h2>
-        </div>
-        <p>{{ t("savings.accounts.description") }}</p>
-      </div>
-      <div class="account-grid">
-        <article
-          v-for="item in accountRows"
-          :key="item.account.id"
-          class="cash-account"
-          :class="{ remunerated: item.remunerated }"
-        >
-          <header>
-            <span
-              class="bank-mark"
-              :style="{
-                color: item.color,
-                background: `color-mix(in srgb, ${item.color} 12%, var(--fz-surface-soft))`,
-              }"
-              >{{ item.account.name.slice(0, 2).toUpperCase() }}</span
-            >
-            <div>
-              <h3>{{ item.account.name }}</h3>
-              <p>
-                {{ item.account.bank }} ·
-                {{ accountTypeLabel(item.account.type) }}
-              </p>
-            </div>
-            <button
-              type="button"
-              :aria-label="
-                t('savings.actions.editNamed', { name: item.account.name })
-              "
-              @click="openAccountEdit(item.account)"
-            >
-              <svg viewBox="0 0 18 4" aria-hidden="true">
-                <circle cx="2" cy="2" r="2" />
-                <circle cx="9" cy="2" r="2" />
-                <circle cx="16" cy="2" r="2" />
-              </svg>
-            </button>
-          </header>
-          <div class="account-balance">
-            <span>{{ t("savings.accounts.currentBalance") }}</span
-            ><strong>{{ money(item.balance) }}</strong
-            ><small>{{
-              t("savings.hero.ofCash", {
-                share: percentage(
-                  totalBalance ? item.balance / totalBalance : 0,
-                ),
-              })
-            }}</small>
-          </div>
-          <div class="account-rail">
-            <i
-              :style="{
-                width: `${totalBalance ? (item.balance / totalBalance) * 100 : 0}%`,
-                background: item.color,
-              }"
-            />
-          </div>
-          <div class="account-kpis">
-            <div>
-              <span>{{ t("savings.accounts.latestChange") }}</span
-              ><strong
-                :class="{
-                  positive: item.change > 0,
-                  negative: item.change < 0,
-                }"
-                >{{ signedMoney(item.change) }}</strong
-              >
-            </div>
-            <div>
-              <span>{{ t("savings.accounts.latestInterest") }}</span
-              ><strong :class="{ positive: item.lastInterest > 0 }">{{
-                money(item.lastInterest)
-              }}</strong>
-            </div>
-            <div>
-              <span>{{ t("savings.accounts.interestTwelveMonths") }}</span
-              ><strong :class="{ positive: item.lastTwelveInterest > 0 }">{{
-                money(item.lastTwelveInterest)
-              }}</strong>
-            </div>
-          </div>
-          <footer>
-            <span v-if="item.remunerated" class="yield-badge"
-              ><i /> {{ t("savings.accounts.interestBearing") }}</span
-            ><span v-else class="cash-badge">{{
-              t("savings.accounts.cash")
-            }}</span
-            ><small>{{
-              t("savings.accounts.updated", {
-                date: displayDate(item.latest?.date ?? ""),
-              })
-            }}</small
-            ><button type="button" @click="openSnapshotCreate(item.account.id)">
-              {{ t("savings.actions.updateBalance") }}
-            </button>
-          </footer>
-        </article>
-      </div>
-
-      <article class="savings-panel balance-panel">
+      </header>
+      <article class="liquidity-hero" aria-labelledby="savings-total-title">
         <header>
-          <div>
-            <p class="section-label">
-              {{ t("savings.charts.balanceEyebrow") }}
-            </p>
-            <h2>{{ t("savings.charts.balanceTitle") }}</h2>
-          </div>
-          <div class="range-control">
+          <h2 id="savings-total-title">
+            {{ t("savings.redesign.recordedBalance") }}
+          </h2>
+          <div
+            class="range-control"
+            role="group"
+            :aria-label="t('overview.periodAria')"
+          >
             <button
               v-for="item in ranges"
               :key="item.key"
               type="button"
               :class="{ active: range === item.key }"
+              :aria-pressed="range === item.key"
               @click="range = item.key"
             >
               {{ item.label }}
             </button>
           </div>
         </header>
-        <AccountSnapshotChart
-          :labels="chartLabels"
-          :series="balanceSeries"
-          mode="balance"
-          :minimum-font-size="10"
-        />
+        <div class="cash-total">
+          <strong>{{ money(totalBalance) }}</strong>
+          <div class="savings-delta" :class="{ negative: periodChange < 0 }">
+            <template v-if="visibleMonths.length > 1">
+              <strong
+                >{{ signedMoney(periodChange)
+                }}<template v-if="periodChangePercent !== null">
+                  · {{ percentage(periodChangePercent) }}</template
+                ></strong
+              >
+              <small>{{ periodDates }}</small>
+            </template>
+            <small v-else>{{ t("savings.redesign.needHistory") }}</small>
+          </div>
+        </div>
+        <div class="savings-trend">
+          <LineChart
+            v-if="visibleMonths.length"
+            :labels="chartLabels"
+            :values="visibleMonths.map(monthTotal)"
+            :series="balanceSeries"
+            featured
+            :total-label="t('savings.redesign.recordedBalance')"
+            :aria-label="t('savings.charts.balanceTitle')"
+          />
+          <p v-else class="empty-chart">
+            {{ t("savings.redesign.noHistory") }}
+          </p>
+        </div>
+        <div class="liquidity-legend">
+          <span
+            ><i class="total-marker" />{{
+              t("savings.redesign.recordedBalance")
+            }}</span
+          >
+          <span v-for="item in accountRows" :key="item.account.id"
+            ><i :style="{ background: item.color }" />{{
+              item.account.name
+            }}</span
+          >
+        </div>
       </article>
+
+      <div class="accounts-heading">
+        <h2>{{ t("savings.redesign.yourAccounts") }}</h2>
+        <p>{{ t("savings.redesign.balanceNote") }}</p>
+      </div>
+      <div class="account-grid">
+        <div v-if="!accountRows.length" class="savings-panel empty-accounts">
+          <h3>{{ t("savings.redesign.noAccounts") }}</h3>
+          <p>{{ t("savings.redesign.createFirst") }}</p>
+          <button type="button" @click="openAccountCreate">
+            ＋ {{ t("savings.actions.newAccount") }}
+          </button>
+        </div>
+        <article
+          v-for="item in accountRows"
+          :key="item.account.id"
+          class="cash-account"
+        >
+          <div class="account-row">
+            <button
+              class="account-identity"
+              type="button"
+              :aria-expanded="expandedAccount === item.account.id"
+              :aria-controls="`account-detail-${item.account.id}`"
+              @click="
+                expandedAccount =
+                  expandedAccount === item.account.id ? null : item.account.id
+              "
+            >
+              <span class="bank-mark" :style="{ color: item.color }">{{
+                item.account.name.slice(0, 2).toUpperCase()
+              }}</span>
+              <span
+                ><strong>{{ item.account.name }}</strong
+                ><small>{{
+                  [item.account.bank, accountTypeLabel(item.account.type)]
+                    .filter(Boolean)
+                    .join(" · ")
+                }}</small></span
+              >
+              <span aria-hidden="true">{{
+                expandedAccount === item.account.id ? "⌃" : "⌄"
+              }}</span>
+            </button>
+            <div class="account-balance">
+              <span>{{ t("savings.accounts.currentBalance") }}</span>
+              <strong>{{ item.latest ? money(item.balance) : "—" }}</strong>
+              <div class="account-rail" aria-hidden="true">
+                <i
+                  :style="{
+                    width: `${totalBalance > 0 ? Math.max(0, Math.min(100, (item.balance / totalBalance) * 100)) : 0}%`,
+                    background: item.color,
+                  }"
+                />
+              </div>
+            </div>
+            <div class="account-period-interest">
+              <small>{{ t("savings.redesign.periodInterest") }}</small
+              ><strong>{{ money(item.periodInterest) }}</strong>
+            </div>
+            <div class="account-updated">
+              <small>{{ t("savings.redesign.lastRecord") }}</small
+              ><span>{{
+                item.latest ? displayDate(item.latest.date) : t("common.noData")
+              }}</span>
+            </div>
+            <button
+              class="update-balance"
+              type="button"
+              @click="openSnapshotCreate(item.account.id)"
+            >
+              {{ t("savings.actions.updateBalance") }}
+            </button>
+            <button
+              class="edit-account"
+              type="button"
+              :aria-label="
+                t('savings.actions.editNamed', { name: item.account.name })
+              "
+              @click="openAccountEdit(item.account)"
+            >
+              ⋯
+            </button>
+          </div>
+          <div
+            v-if="expandedAccount === item.account.id"
+            :id="`account-detail-${item.account.id}`"
+            class="account-detail"
+          >
+            <div class="account-detail-heading">
+              <h3>{{ t("savings.charts.balanceTitle") }}</h3>
+              <span>{{ activeRangeLabel }}</span>
+            </div>
+            <div class="account-detail-chart">
+              <LineChart
+                v-if="item.rows.length"
+                :labels="chartLabels"
+                :values="
+                  visibleMonths.map((month) => balanceAt(item.rows, month))
+                "
+                :total-label="item.account.name"
+                :aria-label="t('savings.charts.balanceTitle')"
+              />
+              <p v-else>{{ t("savings.redesign.noHistory") }}</p>
+            </div>
+            <div class="account-detail-history">
+              <button
+                v-for="entry in [...item.rows].reverse()"
+                :key="entry.date"
+                type="button"
+                @click="openSnapshotEdit(entry)"
+              >
+                <span>{{ displayDate(entry.date) }}</span>
+                <span
+                  >{{ t("savings.history.balance") }}
+                  <strong>{{ money(entry.balance) }}</strong></span
+                >
+                <span
+                  >{{ t("savings.redesign.contribution") }}
+                  <strong>{{ money(entry.contribution) }}</strong></span
+                >
+                <span
+                  >{{ t("savings.history.interest") }}
+                  <strong>{{ money(entry.interest) }}</strong></span
+                >
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <section
+        class="savings-essentials"
+        aria-labelledby="savings-essentials-title"
+      >
+        <h2 id="savings-essentials-title">{{ t("overview.essentials") }}</h2>
+        <div class="savings-kpis">
+          <div>
+            <span>{{ t("savings.hero.interestBearingBalance") }}</span
+            ><strong>{{ money(remuneratedBalance) }}</strong
+            ><small>{{
+              t("savings.hero.ofCash", { share: percentage(remuneratedShare) })
+            }}</small>
+          </div>
+          <div>
+            <span>{{ t("savings.redesign.periodInterest") }}</span
+            ><strong>{{ signedMoney(visibleInterest) }}</strong
+            ><small
+              >{{ periodDates || activeRangeLabel }} ·
+              {{
+                t("savings.hero.sinceStart", { total: money(totalInterest) })
+              }}</small
+            >
+          </div>
+          <div>
+            <span>{{ t("savings.hero.activeAccounts") }}</span
+            ><strong>{{ accounts.length }}</strong
+            ><small>{{
+              t("savings.hero.earningInterest", {
+                count: accountRows.filter((item) => item.remunerated).length,
+              })
+            }}</small>
+          </div>
+        </div>
+      </section>
 
       <div class="lower-grid">
         <article class="savings-panel interest-panel">
@@ -713,8 +749,11 @@ onMounted(load);
             </select>
           </header>
           <div class="history-list">
+            <p v-if="!displayedHistory.length" class="empty-chart">
+              {{ t("savings.redesign.noHistory") }}
+            </p>
             <button
-              v-for="item in displayedHistory.slice(0, 18)"
+              v-for="item in displayedHistory"
               :key="`${item.account_id}:${item.date}`"
               type="button"
               @click="openSnapshotEdit(item)"
@@ -729,7 +768,7 @@ onMounted(load);
                 ><strong>{{ money(item.balance) }}</strong></span
               >
               <span
-                ><small>{{ t("savings.history.variation") }}</small
+                ><small>{{ t("savings.redesign.contribution") }}</small
                 ><strong
                   :class="{
                     positive: item.contribution > 0,
@@ -910,412 +949,449 @@ onMounted(load);
 
 <style scoped>
 .savings-page {
-  --cash-blue: #5681d8;
-  --cash-cyan: #50a9b7;
   width: min(100%, 1440px);
   margin: 0 auto;
   padding: 8px 48px 56px;
+  --cash-blue: var(--fz-accent);
+  font-size: 13px;
 }
-.section-label {
-  margin: 0 0 5px;
-  color: var(--fz-muted);
-  font-size: 8px;
-  font-weight: 780;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.savings-heading,
+.accounts-heading,
+.liquidity-hero > header,
+.savings-panel > header,
+.account-detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.savings-heading {
+  margin-bottom: 20px;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+h2 {
+  font-size: 18px;
+  letter-spacing: -0.03em;
+}
+h3 {
+  font-size: 14px;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.hero-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hero-actions button,
+.update-balance,
+.edit-account,
+.empty-accounts button {
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid var(--fz-line);
+  border-radius: 9px;
+  background: var(--fz-surface);
+  color: var(--fz-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.hero-actions .primary,
+.empty-accounts button {
+  background: var(--fz-accent);
+  border-color: var(--fz-accent);
+  color: var(--fz-canvas);
 }
 .liquidity-hero,
 .savings-panel,
 .cash-account,
 .savings-error {
-  border: 1px solid var(--fz-line);
   background: var(--fz-surface);
-  box-shadow: var(--fz-shadow);
+  border: 1px solid var(--fz-line);
+  border-radius: 20px;
 }
 .liquidity-hero {
-  position: relative;
-  overflow: hidden;
-  padding: 28px;
-  border-radius: 24px;
-}
-.liquidity-hero::after {
-  content: "";
-  position: absolute;
-  right: -110px;
-  bottom: -260px;
-  width: 570px;
-  height: 570px;
-  border: 1px solid color-mix(in srgb, var(--cash-cyan) 18%, transparent);
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 70px color-mix(in srgb, var(--cash-cyan) 3%, transparent),
-    0 0 0 140px color-mix(in srgb, var(--cash-blue) 2%, transparent);
-  pointer-events: none;
-}
-.liquidity-hero > header,
-.savings-panel > header,
-.cash-account > header,
-.accounts-heading,
-.savings-dialog header {
-  position: relative;
-  z-index: 1;
+  padding: 24px 28px;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
+  flex-direction: column;
+  gap: 20px;
+  background:
+    radial-gradient(
+      ellipse at 95% 0%,
+      color-mix(in srgb, var(--fz-accent) 12%, transparent),
+      transparent 60%
+    ),
+    var(--fz-surface);
+  box-shadow: var(--fz-shadow);
 }
-.liquidity-hero h2,
-.savings-panel h2,
-.accounts-heading h2,
-.savings-dialog h2 {
-  margin: 0;
-  font-size: 19px;
-  letter-spacing: -0.035em;
-}
-.liquidity-hero > header p:last-child,
-.accounts-heading > p {
-  margin: 5px 0 0;
+.liquidity-hero h2 {
   color: var(--fz-muted);
-  font-size: 9px;
-}
-.hero-actions {
-  display: flex;
-  gap: 8px;
-}
-.hero-actions button {
-  padding: 9px 12px;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--fz-muted);
-  font-size: 8px;
-}
-.hero-actions .primary {
-  border-color: var(--cash-blue);
-  background: var(--cash-blue);
-  color: #fff;
-}
-.hero-grid {
-  position: relative;
-  z-index: 1;
-  margin-top: 28px;
-  display: grid;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(560px, 1.4fr);
-  gap: 35px;
-}
-.cash-total > span,
-.savings-kpis span,
-.account-balance span,
-.account-kpis span {
-  color: var(--fz-muted);
-  font-size: 8px;
-}
-.cash-total > strong {
-  display: block;
-  margin-top: 5px;
-  font-size: clamp(35px, 4.8vw, 54px);
-  line-height: 1;
-  letter-spacing: -0.065em;
-}
-.cash-total > small {
-  display: block;
-  margin-top: 10px;
-  color: var(--fz-positive);
-  font-size: 9px;
-}
-.negative {
-  color: var(--fz-negative) !important;
-}
-.positive {
-  color: var(--fz-positive) !important;
-}
-.savings-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--fz-line);
-  border-left: 1px solid var(--fz-line);
-}
-.savings-kpis > div {
-  padding: 16px;
-  display: grid;
-  gap: 5px;
-  border-right: 1px solid var(--fz-line);
-  border-bottom: 1px solid var(--fz-line);
-  background: color-mix(in srgb, var(--fz-surface-soft) 45%, transparent);
-}
-.savings-kpis strong {
   font-size: 15px;
-}
-.savings-kpis small {
-  color: var(--fz-muted);
-  font-size: 7px;
-}
-.liquidity-line {
-  position: relative;
-  z-index: 1;
-  height: 9px;
-  margin-top: 26px;
-  display: flex;
-  overflow: hidden;
-  border-radius: 99px;
-  background: var(--fz-surface-soft);
-}
-.liquidity-line i {
-  min-width: 2px;
-  height: 100%;
-}
-.liquidity-legend {
-  position: relative;
-  z-index: 1;
-  margin-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-}
-.liquidity-legend span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--fz-muted);
-  font-size: 7px;
-}
-.liquidity-legend i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-.liquidity-legend strong {
-  color: var(--fz-ink);
-}
-.accounts-heading {
-  margin: 31px 0 15px;
-}
-.accounts-heading > p {
-  max-width: 430px;
-  text-align: right;
-}
-.account-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-.cash-account {
-  padding: 21px;
-  border-radius: 19px;
-}
-.cash-account > header {
-  align-items: center;
-}
-.cash-account > header > div {
-  min-width: 0;
-  flex: 1;
-}
-.cash-account h3 {
-  margin: 0;
-  font-size: 13px;
-}
-.cash-account header p {
-  margin: 3px 0 0;
-  color: var(--fz-muted);
-  font-size: 8px;
-}
-.bank-mark {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border-radius: 12px;
-  font-size: 9px;
-  font-weight: 820;
-}
-.cash-account header button {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid var(--fz-line);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--fz-muted);
-}
-.account-balance {
-  margin-top: 19px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  gap: 4px 10px;
-}
-.account-balance > span {
-  grid-column: 1/-1;
-}
-.account-balance strong {
-  font-size: 25px;
-  letter-spacing: -0.04em;
-}
-.account-balance small {
-  color: var(--fz-muted);
-  font-size: 8px;
-}
-.account-rail {
-  height: 4px;
-  margin-top: 12px;
-  overflow: hidden;
-  border-radius: 99px;
-  background: var(--fz-surface-soft);
-}
-.account-rail i {
-  height: 100%;
-  display: block;
-  min-width: 2px;
-}
-.account-kpis {
-  margin-top: 17px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid var(--fz-line);
-  border-left: 1px solid var(--fz-line);
-}
-.account-kpis > div {
-  padding: 11px;
-  display: grid;
-  gap: 4px;
-  border-right: 1px solid var(--fz-line);
-  border-bottom: 1px solid var(--fz-line);
-}
-.account-kpis strong {
-  font-size: 10px;
-}
-.cash-account > footer {
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.cash-account footer small {
-  flex: 1;
-  color: var(--fz-muted);
-  font-size: 7px;
-}
-.cash-account footer button {
-  padding: 7px 9px;
-  border: 1px solid var(--fz-line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fz-muted);
-  font-size: 7px;
-}
-.yield-badge,
-.cash-badge {
-  padding: 5px 7px;
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--fz-accent) 10%, transparent);
-  color: var(--fz-positive);
-  font-size: 7px;
-  font-weight: 760;
-}
-.yield-badge i {
-  width: 5px;
-  height: 5px;
-  display: inline-block;
-  border-radius: 50%;
-  background: var(--fz-accent);
-}
-.cash-badge {
-  background: var(--fz-surface-soft);
-  color: var(--fz-muted);
-}
-.savings-panel {
-  min-width: 0;
-  padding: 24px;
-  border-radius: 21px;
-}
-.balance-panel {
-  margin-top: 20px;
+  font-weight: 600;
 }
 .range-control {
-  padding: 4px;
   display: flex;
-  border-radius: 11px;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--fz-line);
+  border-radius: 10px;
   background: var(--fz-surface-soft);
 }
 .range-control button {
-  padding: 7px 10px;
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--fz-muted);
-  font-size: 8px;
 }
 .range-control button.active {
   background: var(--fz-surface);
   color: var(--fz-ink);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px #00000008;
 }
-.lower-grid {
-  margin-top: 20px;
+.cash-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.cash-total > strong {
+  font-size: clamp(32px, 3.4vw, 52px);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+}
+.savings-delta {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(440px, 1.1fr);
-  gap: 20px;
+  gap: 5px;
+  color: var(--fz-accent);
 }
-.interest-panel > header > span {
-  padding: 6px 9px;
-  border-radius: 99px;
-  background: var(--fz-surface-soft);
-  color: var(--fz-positive);
-  font-size: 8px;
+.savings-delta strong {
+  font-size: 15px;
 }
-.history-panel h2 span {
+.savings-delta small {
   color: var(--fz-muted);
-  font-size: 9px;
+  font-size: 12px;
 }
-.history-panel header select {
-  padding: 8px 10px;
-  border: 1px solid var(--fz-line);
-  border-radius: 9px;
-  background: var(--fz-surface-soft);
+.negative {
+  color: var(--fz-negative);
+}
+.positive {
+  color: var(--fz-positive);
+}
+.savings-trend {
+  height: 236px;
+  padding-top: 16px;
+  border-top: 1px solid var(--fz-line);
+  min-width: 0;
+}
+.savings-trend :deep(.line-chart),
+.account-detail-chart :deep(.line-chart) {
+  height: 100%;
+}
+.liquidity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  color: var(--fz-muted);
+  font-size: 11px;
+}
+.liquidity-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.liquidity-legend i {
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+}
+.liquidity-legend .total-marker {
+  background: var(--fz-accent);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.accounts-heading {
+  margin: 30px 0 14px;
+}
+.accounts-heading p {
+  color: var(--fz-muted);
+  font-size: 12px;
+}
+.account-grid {
+  display: grid;
+  gap: 10px;
+}
+.cash-account {
+  min-width: 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.account-row {
+  display: grid;
+  grid-template-columns:
+    minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(105px, 0.8fr)
+    minmax(100px, 0.8fr) auto 40px;
+  gap: 18px;
+  align-items: center;
+  padding: 20px;
+}
+.account-identity {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--fz-ink);
-  font-size: 8px;
+  text-align: left;
 }
-.history-list {
-  max-height: 330px;
-  margin-top: 14px;
+.account-identity > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+.account-identity strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.account-identity small {
+  display: block;
+  margin-top: 4px;
+  color: var(--fz-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.bank-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 1px solid var(--fz-line);
+  border-radius: 10px;
+  background: var(--fz-surface-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+.account-balance,
+.account-period-interest,
+.account-updated {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.account-balance > span,
+.account-period-interest small,
+.account-updated small {
+  color: var(--fz-muted);
+  font-size: 11px;
+}
+.account-balance strong {
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.account-row strong,
+.cash-total,
+.savings-kpis strong {
+  font-variant-numeric: tabular-nums;
+}
+.account-rail {
+  height: 3px;
+  background: var(--fz-surface-soft);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.account-rail i {
+  display: block;
+  height: 100%;
+}
+.edit-account {
+  padding: 6px;
+  font-size: 20px;
+}
+.update-balance:hover,
+.edit-account:hover,
+.hero-actions button:not(.primary):hover {
+  background: var(--fz-surface-soft);
+}
+.account-detail {
+  padding: 20px;
+  border-top: 1px solid var(--fz-line);
+  background: color-mix(in srgb, var(--fz-surface-soft) 40%, var(--fz-surface));
+}
+.account-detail-heading span {
+  color: var(--fz-muted);
+  font-size: 12px;
+}
+.account-detail-chart {
+  height: 190px;
+  margin: 16px 0;
+}
+.account-detail-history {
+  max-height: 250px;
   overflow: auto;
 }
-.history-list > button {
-  width: 100%;
-  min-width: 560px;
-  padding: 9px 6px;
+.account-detail-history button {
   display: grid;
-  grid-template-columns: 5px minmax(100px, 1fr) repeat(3, minmax(82px, 0.7fr));
-  align-items: center;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  text-align: left;
+  color: var(--fz-muted);
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--fz-line);
+  font-size: 12px;
+}
+.account-detail-history strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--fz-ink);
+}
+.savings-essentials {
+  margin-top: 30px;
+}
+.savings-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+.savings-kpis > div {
+  display: grid;
   gap: 9px;
+  padding: 20px;
+  border: 1px solid var(--fz-line);
+  border-radius: 14px;
+  background: var(--fz-surface);
+}
+.savings-kpis span,
+.savings-kpis small {
+  color: var(--fz-muted);
+  font-size: 12px;
+}
+.savings-kpis strong {
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.lower-grid {
+  display: grid;
+  gap: 20px;
+  margin-top: 24px;
+}
+.savings-panel {
+  padding: 24px;
+  min-width: 0;
+}
+.section-label {
+  margin-bottom: 6px;
+  color: var(--fz-muted);
+  font-size: 11px;
+}
+.interest-panel > header > span,
+.history-panel h2 span {
+  color: var(--fz-muted);
+  font-size: 12px;
+}
+.history-panel select {
+  padding: 9px;
+  max-width: 100%;
+  border: 1px solid var(--fz-line);
+  border-radius: 8px;
+  background: var(--fz-surface-soft);
+  color: var(--fz-ink);
+}
+.history-list {
+  max-height: 400px;
+  overflow: auto;
+  margin-top: 18px;
+}
+.history-list > button {
+  display: grid;
+  grid-template-columns: 4px minmax(110px, 1.5fr) repeat(3, minmax(90px, 1fr));
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  min-width: 550px;
+  padding: 13px 4px;
   border: 0;
   border-bottom: 1px solid var(--fz-line);
   background: transparent;
   color: var(--fz-ink);
   text-align: left;
 }
-.history-list > button > i {
-  width: 4px;
-  height: 27px;
-  border-radius: 99px;
+.history-list > button:hover,
+.account-detail-history button:hover {
+  background: var(--fz-surface-soft);
+}
+.history-list i {
+  height: 28px;
+  border-radius: 3px;
 }
 .history-list span {
   display: grid;
+  gap: 4px;
 }
 .history-list small {
+  font-size: 11px;
   color: var(--fz-muted);
-  font-size: 7px;
 }
 .history-list strong {
-  font-size: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 .empty-chart {
-  height: 290px;
+  min-height: 160px;
   display: grid;
   place-content: center;
   color: var(--fz-muted);
-  font-size: 9px;
+  font-size: 13px;
+}
+.empty-accounts {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+}
+.empty-accounts p {
+  color: var(--fz-muted);
+}
+.savings-loading {
+  display: grid;
+  gap: 18px;
+}
+.savings-loading > div {
+  height: 100px;
+  border-radius: 20px;
+  background: var(--fz-surface-soft);
+}
+.savings-loading > div:first-child {
+  height: 370px;
+}
+.savings-error {
+  padding: 24px;
 }
 .savings-dialog {
   width: min(590px, calc(100vw - 32px));
@@ -1398,69 +1474,91 @@ onMounted(load);
 .savings-dialog footer .danger {
   color: var(--fz-negative);
 }
-.savings-loading {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
+.dialog-fields span,
+.dialog-fields input,
+.dialog-fields select,
+.dialog-error {
+  font-size: 13px;
 }
-.savings-loading div {
-  min-height: 350px;
-  border-radius: 22px;
-  background: var(--fz-surface-soft);
+.savings-dialog footer .primary {
+  color: var(--fz-canvas);
 }
-.savings-loading div:first-child {
-  grid-column: 1/-1;
-  min-height: 270px;
-}
-.savings-error {
-  padding: 20px;
-  border-radius: 18px;
-}
-.savings-error p {
-  color: var(--fz-muted);
-}
-@media (max-width: 1100px) {
-  .hero-grid,
-  .lower-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 1200px) {
+  .savings-page {
+    padding-inline: 24px;
   }
-  .account-grid {
-    grid-template-columns: 1fr;
+  .account-row {
+    grid-template-columns:
+      minmax(150px, 1.5fr) minmax(120px, 1fr) minmax(95px, 0.8fr)
+      auto 36px;
+    gap: 12px;
+  }
+  .account-updated {
+    grid-column: 1;
+    grid-row: 2;
   }
 }
 @media (max-width: 720px) {
   .savings-page {
-    padding: 4px 18px 32px;
+    padding: 8px 16px 32px;
   }
-  .liquidity-hero,
-  .savings-panel {
-    padding: 19px 17px;
-    border-radius: 18px;
-  }
-  .liquidity-hero > header,
-  .accounts-heading {
-    flex-direction: column;
+  .savings-heading {
+    align-items: flex-start;
   }
   .hero-actions {
     width: 100%;
-    display: grid;
-    grid-template-columns: 1fr;
+  }
+  .hero-actions button {
+    flex: 1;
+    min-height: 44px;
+  }
+  .liquidity-hero,
+  .savings-panel {
+    padding: 20px 16px;
+  }
+  .savings-trend {
+    height: 210px;
+  }
+  .account-row {
+    grid-template-columns: minmax(0, 1fr) auto 36px;
+    padding: 16px;
+    gap: 14px 10px;
+  }
+  .account-identity {
+    grid-column: 1 / 3;
+  }
+  .edit-account {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .account-balance {
+    grid-column: 1 / 4;
+    grid-row: 2;
+  }
+  .account-balance strong {
+    font-size: 26px;
+  }
+  .account-period-interest {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .account-updated {
+    grid-column: 2 / 4;
+    grid-row: 3;
+  }
+  .update-balance {
+    grid-column: 1 / 4;
+    min-height: 44px;
   }
   .savings-kpis {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
-  .accounts-heading > p {
-    text-align: left;
+  .account-detail {
+    padding: 16px;
   }
-  .account-kpis {
-    grid-template-columns: 1fr;
-  }
-  .cash-account > footer {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-  .cash-account footer button {
-    width: 100%;
+  .account-detail-history button {
+    grid-template-columns: 1fr 1fr;
   }
   .dialog-fields {
     grid-template-columns: 1fr;
@@ -1470,193 +1568,6 @@ onMounted(load);
   }
   .savings-dialog footer {
     flex-wrap: wrap;
-  }
-  .savings-dialog footer .danger {
-    order: 2;
-    width: 100%;
-  }
-}
-.cash-account header button {
-  display: grid;
-  place-items: center;
-}
-.cash-account header button svg {
-  width: 14px;
-  fill: currentColor;
-}
-/* Savings: type scale with 10 px as the readable minimum. */
-.savings-page {
-  --savings-type-min: 10px;
-  --savings-type-caption: 11px;
-  --savings-type-body: 12px;
-}
-.section-label {
-  margin-bottom: 6px;
-  font-size: var(--savings-type-caption);
-}
-.liquidity-hero h2,
-.savings-panel h2,
-.accounts-heading h2,
-.savings-dialog h2 {
-  font-size: 20px;
-  line-height: 1.2;
-}
-.liquidity-hero > header p:last-child,
-.accounts-heading > p {
-  margin-top: 7px;
-  font-size: var(--savings-type-caption);
-  line-height: 1.55;
-}
-.hero-actions button {
-  padding: 10px 13px;
-  font-size: var(--savings-type-caption);
-  font-weight: 680;
-}
-.cash-total > span,
-.savings-kpis span,
-.account-balance span,
-.account-kpis span {
-  font-size: var(--savings-type-caption);
-  font-weight: 620;
-}
-.cash-total > small {
-  margin-top: 11px;
-  font-size: var(--savings-type-caption);
-}
-.savings-kpis > div {
-  padding: 18px;
-  gap: 6px;
-}
-.savings-kpis strong {
-  font-size: 17px;
-}
-.savings-kpis small {
-  font-size: var(--savings-type-min);
-  line-height: 1.45;
-}
-.liquidity-legend {
-  margin-top: 12px;
-  gap: 9px 20px;
-}
-.liquidity-legend span {
-  font-size: var(--savings-type-min);
-}
-.cash-account {
-  padding: 23px;
-}
-.cash-account h3 {
-  font-size: 15px;
-}
-.cash-account header p {
-  margin-top: 4px;
-  font-size: var(--savings-type-caption);
-}
-.bank-mark {
-  width: 40px;
-  height: 40px;
-  font-size: var(--savings-type-min);
-}
-.account-balance {
-  margin-top: 21px;
-}
-.account-balance strong {
-  font-size: 27px;
-}
-.account-balance small {
-  font-size: var(--savings-type-min);
-}
-.account-kpis > div {
-  min-height: 62px;
-  padding: 12px;
-  gap: 5px;
-}
-.account-kpis strong {
-  font-size: var(--savings-type-body);
-}
-.cash-account > footer {
-  margin-top: 16px;
-  gap: 10px;
-}
-.cash-account footer small {
-  font-size: var(--savings-type-min);
-}
-.cash-account footer button {
-  padding: 8px 10px;
-  font-size: var(--savings-type-caption);
-}
-.yield-badge,
-.cash-badge {
-  font-size: var(--savings-type-min);
-}
-.savings-panel {
-  padding: 26px;
-}
-.range-control button {
-  padding: 8px 11px;
-  font-size: var(--savings-type-caption);
-  font-weight: 680;
-}
-.lower-grid {
-  grid-template-columns: minmax(0, 0.9fr) minmax(470px, 1.1fr);
-}
-.interest-panel > header > span {
-  font-size: var(--savings-type-min);
-}
-.history-panel h2 span {
-  font-size: var(--savings-type-min);
-}
-.history-panel header select {
-  font-size: var(--savings-type-caption);
-}
-.history-list > button {
-  min-width: 620px;
-  padding: 11px 8px;
-  grid-template-columns: 5px minmax(130px, 1fr) repeat(3, minmax(94px, 0.7fr));
-  gap: 10px;
-}
-.history-list small {
-  font-size: var(--savings-type-min);
-  line-height: 1.35;
-}
-.history-list strong {
-  font-size: var(--savings-type-caption);
-}
-.empty-chart {
-  font-size: var(--savings-type-caption);
-}
-.savings-dialog {
-  width: min(620px, calc(100vw - 32px));
-}
-.dialog-fields span {
-  font-size: var(--savings-type-caption);
-  font-weight: 650;
-}
-.dialog-fields input,
-.dialog-fields select {
-  font-size: var(--savings-type-body);
-}
-.dialog-error {
-  font-size: var(--savings-type-caption);
-}
-.savings-dialog footer button {
-  font-size: var(--savings-type-caption);
-  font-weight: 650;
-}
-.savings-error {
-  font-size: var(--savings-type-body);
-}
-@media (max-width: 1100px) {
-  .lower-grid {
-    grid-template-columns: 1fr;
-  }
-}
-@media (max-width: 720px) {
-  .liquidity-hero,
-  .savings-panel {
-    padding: 19px 17px;
-  }
-  .cash-account {
-    padding: 20px 18px;
   }
 }
 </style>

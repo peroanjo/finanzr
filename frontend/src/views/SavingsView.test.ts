@@ -22,6 +22,13 @@ vi.mock("../components/AccountSnapshotChart.vue", () => ({
   },
 }));
 
+vi.mock("../components/LineChart.vue", () => ({
+  default: {
+    props: ["labels", "values", "series"],
+    template: '<div data-testid="savings-trend">{{ values.join(",") }}</div>',
+  },
+}));
+
 const apiMock = vi.mocked(api);
 const accounts = [
   {
@@ -108,6 +115,7 @@ const history = [
 
 describe("SavingsView", () => {
   beforeEach(() => {
+    applyLocale("es-ES");
     HTMLDialogElement.prototype.showModal = vi.fn(function (
       this: HTMLDialogElement,
     ) {
@@ -129,12 +137,14 @@ describe("SavingsView", () => {
     const wrapper = mount(SavingsView);
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Tu efectivo, cuenta a cuenta");
+    expect(wrapper.text()).toContain("Saldo total registrado");
     expect(wrapper.get(".cash-total").text()).toContain("5700,00");
     expect(wrapper.get(".savings-kpis").text()).toContain("3200,00");
     expect(wrapper.get(".savings-kpis").text()).toContain("+10,00");
     expect(wrapper.findAll(".cash-account")).toHaveLength(2);
-    expect(wrapper.get('[data-testid="savings-balance"]').text()).toBe("2-2");
+    expect(wrapper.get('[data-testid="savings-trend"]').text()).toBe(
+      "5000,5700",
+    );
     expect(wrapper.get('[data-testid="savings-interest"]').text()).toBe("2-1");
   });
 
@@ -151,7 +161,7 @@ describe("SavingsView", () => {
 
     const newClose = wrapper
       .findAll(".hero-actions button")
-      .find((button) => button.text().includes("Cierre mensual"));
+      .find((button) => button.text().includes("Registrar saldo"));
     await newClose!.trigger("click");
     expect(wrapper.get(".savings-dialog[open]").text()).toContain(
       "Nuevo cierre mensual",
@@ -164,7 +174,7 @@ describe("SavingsView", () => {
 
     const newClose = wrapper
       .findAll(".hero-actions button")
-      .find((button) => button.text().includes("Cierre mensual"));
+      .find((button) => button.text().includes("Registrar saldo"));
     await newClose!.trigger("click");
     await wrapper
       .get('.savings-dialog[open] input[type="month"]')
@@ -186,12 +196,92 @@ describe("SavingsView", () => {
     });
   });
 
+  it("expands account history and opens the correct balance form", async () => {
+    const wrapper = mount(SavingsView);
+    await flushPromises();
+    const row = wrapper.findAll(".cash-account")[1];
+    await row.get(".account-identity").trigger("click");
+    expect(row.get(".account-identity").attributes("aria-expanded")).toBe(
+      "true",
+    );
+    expect(row.findAll(".account-detail-history button")).toHaveLength(2);
+    await row.get(".update-balance").trigger("click");
+    expect(
+      (wrapper.get(".savings-dialog[open] select").element as HTMLSelectElement)
+        .value,
+    ).toBe(accounts[1].id);
+    await row.get(".account-identity").trigger("click");
+    expect(row.find(".account-detail").exists()).toBe(false);
+  });
+
+  it("updates period interest and comparison without changing current balances", async () => {
+    const older = history.map((entry) => ({
+      ...entry,
+      date: "2025-01-31",
+      balance: 100,
+      interest: 50,
+    }));
+    apiMock.mockImplementation(async (path) =>
+      path === "/savings/accounts"
+        ? accounts
+        : [...older.slice(0, 2), ...history],
+    );
+    const wrapper = mount(SavingsView);
+    await flushPromises();
+    await wrapper.findAll(".range-control button")[3].trigger("click");
+    expect(wrapper.get(".savings-kpis").text()).toContain("+110,00");
+    expect(wrapper.get(".savings-delta").text()).toContain("5500,00");
+    expect(wrapper.get(".savings-delta").text()).toContain("2750");
+    await wrapper.findAll(".range-control button")[0].trigger("click");
+    expect(wrapper.get(".cash-total").text()).toContain("5700,00");
+    expect(wrapper.get(".savings-kpis").text()).toContain("+10,00");
+    expect(wrapper.get(".savings-delta").text()).toContain("700,00");
+    expect(
+      wrapper.get(".range-control button").attributes("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("does not show a percentage for a zero starting balance", async () => {
+    apiMock.mockImplementation(async (path) =>
+      path === "/savings/accounts"
+        ? accounts
+        : history.map((entry) =>
+            entry.date === "2026-05-31" ? { ...entry, balance: 0 } : entry,
+          ),
+    );
+    const wrapper = mount(SavingsView);
+    await flushPromises();
+    expect(wrapper.get(".savings-delta").text()).toContain("5700,00");
+    expect(wrapper.get(".savings-delta").text()).not.toContain("%");
+  });
+
+  it("guides empty accounts and avoids a fabricated change with one month", async () => {
+    apiMock.mockResolvedValue([]);
+    const empty = mount(SavingsView);
+    await flushPromises();
+    expect(empty.get(".empty-accounts").text()).toContain(
+      "Crea tu primera cuenta",
+    );
+    expect(
+      empty.get(".hero-actions .primary").attributes("disabled"),
+    ).toBeDefined();
+    apiMock.mockImplementation(async (path) =>
+      path === "/savings/accounts" ? accounts : history.slice(0, 2),
+    );
+    const single = mount(SavingsView);
+    await flushPromises();
+    expect(single.get(".savings-delta").text()).toContain(
+      "Registra al menos dos meses",
+    );
+    expect(single.get(".savings-delta").text()).not.toContain("%");
+  });
+
   it("renders the view in English", async () => {
     applyLocale("en");
     const wrapper = mount(SavingsView);
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Your cash, account by account");
+    expect(wrapper.text()).toContain("Total recorded balance");
     expect(wrapper.get(".cash-total").text()).toContain("€5,700.00");
     expect(wrapper.get(".history-panel select").attributes("aria-label")).toBe(
       "Filter history by account",
