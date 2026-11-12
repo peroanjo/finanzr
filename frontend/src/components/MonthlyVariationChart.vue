@@ -39,7 +39,7 @@ let chart: Chart<"bar", number[], string> | null = null;
 let themeObserver: MutationObserver | null = null;
 let selectionAccent = "";
 let zeroLineColor = "";
-let averageStyle = { line: "", ink: "", surface: "", font: "" };
+let averageStyle = { line: "", ink: "", font: "" };
 let pnlFrame: number | null = null;
 let pnlTransition: {
   series: MonthlyVariationSeries;
@@ -249,8 +249,9 @@ function drawMonthlyAverage({ chartArea, ctx, scales }: Chart<"bar">) {
 
   ctx.save();
   ctx.strokeStyle = averageStyle.line;
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([5, 4]);
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = "round";
+  ctx.setLineDash([2, 4]);
   ctx.beginPath();
   ctx.moveTo(left, y);
   ctx.lineTo(right, y);
@@ -258,16 +259,18 @@ function drawMonthlyAverage({ chartArea, ctx, scales }: Chart<"bar">) {
 
   const label = averageLabel(value);
   ctx.font = averageStyle.font;
-  const labelWidth = Math.min(ctx.measureText(label).width, right - left - 16);
+  const labelWidth = Math.min(ctx.measureText(label).width, right - left - 28);
   if (labelWidth > 0) {
-    const x = right - 4;
-    const labelY = y - 22 >= top ? y - 22 : y + 3;
-    ctx.fillStyle = averageStyle.surface;
-    ctx.fillRect(x - labelWidth - 8, labelY, labelWidth + 8, 19);
+    const legendY = top - 14;
+    const swatchEnd = right - labelWidth - 8;
+    ctx.beginPath();
+    ctx.moveTo(swatchEnd - 18, legendY);
+    ctx.lineTo(swatchEnd, legendY);
+    ctx.stroke();
     ctx.fillStyle = averageStyle.ink;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, x - 4, labelY + 9.5, labelWidth);
+    ctx.fillText(label, right, legendY, labelWidth);
   }
   ctx.restore();
 }
@@ -293,7 +296,6 @@ function render() {
   averageStyle = {
     line: styles.getPropertyValue("--fz-chart-average").trim() || "#7d8790",
     ink: styles.getPropertyValue("--fz-ink").trim() || "#152019",
-    surface: styles.getPropertyValue("--fz-surface").trim() || "#fff",
     font: `600 11px ${styles.fontFamily || "sans-serif"}`,
   };
   const colors = {
@@ -379,6 +381,7 @@ function render() {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
+      layout: { padding: { top: 18 } },
       events: ["mousemove", "mouseout"],
       interaction: { intersect: false, mode: "index" },
       plugins: {
