@@ -12,14 +12,22 @@ import { useI18n } from "vue-i18n";
 import { reportingCurrency } from "../i18n";
 Chart.register(BarController, BarElement, CategoryScale, LinearScale);
 
+const seriesOrder = ["savings", "interest", "pnl"] as const;
 export interface MonthlyVariationSeries {
-  key: "savings" | "interest" | "pnl";
+  key: (typeof seriesOrder)[number];
   label: string;
   values: number[];
 }
 
 type AxisRange = { min: number; max: number };
-const pnlTransitionDuration = 340;
+type AnimatedSeries = {
+  series: MonthlyVariationSeries;
+  amount: number;
+  fromAmount: number;
+  toAmount: number;
+  average: number;
+};
+const transitionDuration = 340;
 
 const props = defineProps<{
   labels: string[];
@@ -40,12 +48,9 @@ let themeObserver: MutationObserver | null = null;
 let selectionAccent = "";
 let zeroLineColor = "";
 let averageStyle = { line: "", ink: "", font: "" };
-let pnlFrame: number | null = null;
-let pnlTransition: {
-  series: MonthlyVariationSeries;
-  amount: number;
-  targetAmount: number;
-  average: number;
+let animationFrame: number | null = null;
+let seriesTransition: {
+  tracks: AnimatedSeries[];
   range: AxisRange;
 } | null = null;
 let activePointer: {
@@ -96,70 +101,101 @@ const axisRange = computed(() =>
   stackedRange(props.series, props.labels.length),
 );
 
-function stopPnlTransition() {
-  if (pnlFrame !== null) window.cancelAnimationFrame(pnlFrame);
-  pnlFrame = null;
-  pnlTransition = null;
+function stopSeriesTransition() {
+  if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+  animationFrame = null;
+  seriesTransition = null;
 }
 
-function animatePnl(
-  series: MonthlyVariationSeries,
-  previousRange: AxisRange,
-  include: boolean,
-) {
+function animatedValues({ series, amount }: AnimatedSeries) {
+  return amount === 1
+    ? series.values
+    : series.values.map((value) => value * amount);
+}
+
+function animateSeries(previousSeries: MonthlyVariationSeries[]) {
   const instance = chart;
-  const previous = pnlTransition;
-  stopPnlTransition();
+  const previous = seriesTransition;
+  stopSeriesTransition();
   if (
     !instance ||
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
-    series.values.every((value) => value === 0)
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
   ) {
     render();
     return;
   }
 
-  const fromAmount = previous?.amount ?? (include ? 0 : 1);
-  const toAmount = include ? 1 : 0;
-  const fromRange = previous?.range ?? previousRange;
+  const tracks = seriesOrder.flatMap((key): AnimatedSeries[] => {
+    const before = previousSeries.find((item) => item.key === key);
+    const after = props.series.find((item) => item.key === key);
+    const running = previous?.tracks.find(({ series }) => series.key === key);
+    const series = after ?? running?.series ?? before;
+    const fromAmount = running?.amount ?? (before ? 1 : 0);
+    const toAmount = after ? 1 : 0;
+    if (!series || (!fromAmount && !toAmount)) return [];
+    return [
+      {
+        series,
+        amount: fromAmount,
+        fromAmount,
+        toAmount,
+        average: mean(series.values),
+      },
+    ];
+  });
+  if (
+    tracks.every(
+      ({ fromAmount, toAmount, series }) =>
+        fromAmount === toAmount || series.values.every((value) => value === 0),
+    )
+  ) {
+    render();
+    return;
+  }
+
+  const fromRange =
+    previous?.range ?? stackedRange(previousSeries, props.labels.length);
   const toRange = axisRange.value;
-  const transition = {
-    series,
-    amount: fromAmount,
-    targetAmount: toAmount,
-    average: mean(series.values),
-    range: fromRange,
-  };
-  pnlTransition = transition;
+  const transition = { tracks, range: fromRange };
+  seriesTransition = transition;
   render();
 
   const started = performance.now();
   const drawFrame = (now: number) => {
-    const time = Math.max(0, (now - started) / pnlTransitionDuration);
+    const time = Math.max(0, (now - started) / transitionDuration);
     if (time >= 1) {
-      stopPnlTransition();
+      stopSeriesTransition();
       render();
       return;
     }
     const progress = time * time * (3 - 2 * time);
-    // Expand the axis ahead of the growing bars and tighten it as they retract.
-    const axisProgress = include ? 1 - (1 - time) ** 3 : time ** 3;
-    transition.amount = fromAmount + (toAmount - fromAmount) * progress;
+    // Make room for growing stacks before tightening either end of the axis.
+    const expand = 1 - (1 - progress) ** 2;
+    const contract = progress ** 2;
     transition.range = {
-      min: fromRange.min + (toRange.min - fromRange.min) * axisProgress,
-      max: fromRange.max + (toRange.max - fromRange.max) * axisProgress,
+      min:
+        fromRange.min +
+        (toRange.min - fromRange.min) *
+          (toRange.min < fromRange.min ? expand : contract),
+      max:
+        fromRange.max +
+        (toRange.max - fromRange.max) *
+          (toRange.max > fromRange.max ? expand : contract),
     };
-    const dataset = instance.data.datasets[instance.data.datasets.length - 1];
-    dataset.data = series.values.map((value) => value * transition.amount);
+    for (const [index, track] of tracks.entries()) {
+      track.amount =
+        track.fromAmount + (track.toAmount - track.fromAmount) * progress;
+      instance.data.datasets[index].data = animatedValues(track);
+    }
     const y = instance.options.scales?.y;
     if (y) {
       y.min = transition.range.min;
       y.max = transition.range.max;
     }
     instance.update("none");
-    pnlFrame = window.requestAnimationFrame(drawFrame);
+    animationFrame = window.requestAnimationFrame(drawFrame);
   };
-  pnlFrame = window.requestAnimationFrame(drawFrame);
+  animationFrame = window.requestAnimationFrame(drawFrame);
 }
 function signedAmount(value: number) {
   return `${value >= 0 ? "+" : "−"}${currency.value.format(Math.abs(value))}`;
@@ -237,12 +273,12 @@ function drawMonthlyAverage({ chartArea, ctx, scales }: Chart<"bar">) {
   if (average === null) return;
 
   const { left, right, top, bottom } = chartArea;
-  const transition = pnlTransition;
-  // Account for the part of the P&L series still being added or removed.
-  const value = transition
-    ? average +
-      transition.average * (transition.amount - transition.targetAmount)
-    : average;
+  // Keep the line aligned with the amounts currently drawn during the transition.
+  const value =
+    seriesTransition?.tracks.reduce(
+      (total, track) => total + track.average * (track.amount - track.toAmount),
+      average,
+    ) ?? average;
   const pixel = scales.y.getPixelForValue(value);
   if (pixel < top - 1 || pixel > bottom + 1) return;
   const y = Math.max(top + 1, Math.min(bottom - 1, pixel));
@@ -278,18 +314,12 @@ function drawMonthlyAverage({ chartArea, ctx, scales }: Chart<"bar">) {
 function render() {
   if (!canvas.value) return;
 
-  const transition = pnlTransition;
-  const series = transition
-    ? [
-        ...props.series.filter((item) => item.key !== "pnl"),
-        {
-          ...transition.series,
-          values: transition.series.values.map(
-            (value) => value * transition.amount,
-          ),
-        },
-      ]
-    : props.series;
+  const transition = seriesTransition;
+  const series =
+    transition?.tracks.map((track) => ({
+      ...track.series,
+      values: animatedValues(track),
+    })) ?? props.series;
   const range = transition?.range ?? axisRange.value;
 
   const styles = getComputedStyle(canvas.value);
@@ -327,9 +357,8 @@ function render() {
     type: "bar",
     data: {
       labels: props.labels,
-      datasets: series.map(({ key, label, values }) => {
-        const amounts =
-          key === "pnl" && transition ? transition.series.values : values;
+      datasets: series.map(({ key, label, values }, index) => {
+        const amounts = transition?.tracks[index].series.values ?? values;
         const swatches = amounts.map((value) => colorFor(key, value));
         return {
           label,
@@ -419,7 +448,7 @@ function render() {
             autoSkip: false,
             callback: (value) => {
               const amount = Number(value);
-              const movingRange = pnlTransition?.range;
+              const movingRange = seriesTransition?.range;
               // Keep interim labels from shifting as fractional digits change.
               return money.format(
                 movingRange && movingRange.max - movingRange.min >= 100
@@ -456,21 +485,15 @@ onMounted(() => {
 watch(
   () => [props.labels, props.series, props.values] as const,
   ([labels, series], [previousLabels, previousSeries]) => {
-    const pnl = series.find((item) => item.key === "pnl");
-    const previousPnl = previousSeries.find((item) => item.key === "pnl");
-    const changedPnl = pnl ?? previousPnl;
-    if (
-      labels === previousLabels &&
-      changedPnl &&
-      Boolean(pnl) !== Boolean(previousPnl)
-    ) {
-      animatePnl(
-        changedPnl,
-        stackedRange(previousSeries, labels.length),
-        Boolean(pnl),
+    const visibilityChanged =
+      series.length !== previousSeries.length ||
+      series.some(
+        ({ key }) => !previousSeries.some((item) => item.key === key),
       );
+    if (labels === previousLabels && visibilityChanged) {
+      animateSeries(previousSeries);
     } else {
-      stopPnlTransition();
+      stopSeriesTransition();
       render();
     }
   },
@@ -481,7 +504,7 @@ watch(
   render,
 );
 onBeforeUnmount(() => {
-  stopPnlTransition();
+  stopSeriesTransition();
   themeObserver?.disconnect();
   chart?.destroy();
 });
