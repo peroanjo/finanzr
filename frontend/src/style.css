@@ -1780,6 +1780,15 @@ th {
   gap: 12px;
   min-width: 0;
 }
+#app-topbar-page-actions {
+  display: contents;
+}
+.app-topbar:has(.savings-topbar-actions) {
+  flex-wrap: wrap;
+}
+.app-topbar-actions:has(.savings-topbar-actions) {
+  flex-wrap: wrap;
+}
 .app-topbar .workspace-picker {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -2254,6 +2263,13 @@ th {
   .app-topbar-actions {
     justify-content: space-between;
     flex-direction: row-reverse;
+  }
+  .app-topbar-actions:has(.savings-topbar-actions) {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+  .savings-topbar-actions {
+    flex-basis: 100%;
   }
   .app-topbar .workspace-picker {
     max-width: 230px;

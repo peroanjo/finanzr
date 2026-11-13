@@ -333,6 +333,7 @@ onMounted(() => {
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="app-topbar-actions">
+          <div id="app-topbar-page-actions"></div>
           <div
             class="workspace-picker"
             :class="{

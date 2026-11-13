@@ -568,19 +568,21 @@ onMounted(load);
     </article>
 
     <template v-else>
-      <div class="hero-actions">
-        <button type="button" @click="openAccountCreate">
-          ＋ {{ t("savings.actions.newAccount") }}
-        </button>
-        <button
-          class="primary"
-          type="button"
-          :disabled="!accounts.length"
-          @click="openSnapshotCreate()"
-        >
-          ＋ {{ t("savings.redesign.recordBalance") }}
-        </button>
-      </div>
+      <Teleport to="#app-topbar-page-actions">
+        <div class="savings-topbar-actions">
+          <button type="button" @click="openAccountCreate">
+            ＋ {{ t("savings.actions.newAccount") }}
+          </button>
+          <button
+            class="primary"
+            type="button"
+            :disabled="!accounts.length"
+            @click="openSnapshotCreate()"
+          >
+            ＋ {{ t("savings.redesign.recordBalance") }}
+          </button>
+        </div>
+      </Teleport>
       <div class="liquidity-grid">
         <article class="liquidity-hero" aria-labelledby="savings-total-title">
           <header>
@@ -1211,14 +1213,13 @@ button:disabled {
   opacity: 0.5;
   cursor: default;
 }
-.hero-actions {
+.savings-topbar-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
 }
-.hero-actions button,
+.savings-topbar-actions button,
 .update-balance,
 .edit-account,
 .empty-accounts button {
@@ -1231,7 +1232,7 @@ button:disabled {
   font-size: 12px;
   font-weight: 650;
 }
-.hero-actions .primary,
+.savings-topbar-actions .primary,
 .empty-accounts button {
   background: var(--fz-accent);
   border-color: var(--fz-accent);
@@ -1540,7 +1541,7 @@ button:disabled {
 }
 .update-balance:hover,
 .edit-account:hover,
-.hero-actions button:not(.primary):hover {
+.savings-topbar-actions button:not(.primary):hover {
   background: var(--fz-surface-soft);
 }
 .account-detail {
@@ -1896,7 +1897,7 @@ button:disabled {
   .savings-page {
     padding: 8px 16px 32px;
   }
-  .hero-actions button {
+  .savings-topbar-actions button {
     flex: 1;
     min-height: 44px;
   }

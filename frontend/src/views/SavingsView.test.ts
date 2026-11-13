@@ -117,6 +117,10 @@ const history = [
   },
 ];
 
+function mountSavings() {
+  return mount(SavingsView, { global: { stubs: { Teleport: true } } });
+}
+
 describe("SavingsView", () => {
   beforeEach(() => {
     applyLocale("es-ES");
@@ -138,7 +142,7 @@ describe("SavingsView", () => {
   });
 
   it("summarizes liquidity, interest, and account evolution", async () => {
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
 
     expect(wrapper.text()).toContain("Saldo total registrado");
@@ -179,7 +183,7 @@ describe("SavingsView", () => {
       if (path === "/savings/history") return history;
       throw new Error(`Unexpected path: ${path}`);
     });
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
     const names = () =>
       wrapper.findAll(".account-identity strong").map((name) => name.text());
@@ -226,7 +230,7 @@ describe("SavingsView", () => {
       }
       throw new Error(`Unexpected path: ${path}`);
     });
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
     const panel = wrapper.get(".interest-panel");
     const chart = '[data-testid="savings-interest"]';
@@ -253,7 +257,7 @@ describe("SavingsView", () => {
   });
 
   it("filters history and opens a monthly close", async () => {
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
 
     await wrapper
@@ -264,7 +268,7 @@ describe("SavingsView", () => {
     expect(wrapper.get(".history-list").text()).not.toContain("Principal");
 
     const newClose = wrapper
-      .findAll(".hero-actions button")
+      .findAll(".savings-topbar-actions button")
       .find((button) => button.text().includes("Registrar saldo"));
     await newClose!.trigger("click");
     expect(wrapper.get(".savings-dialog[open]").text()).toContain(
@@ -273,11 +277,11 @@ describe("SavingsView", () => {
   });
 
   it("saves monthly closes on the last calendar day", async () => {
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
 
     const newClose = wrapper
-      .findAll(".hero-actions button")
+      .findAll(".savings-topbar-actions button")
       .find((button) => button.text().includes("Registrar saldo"));
     await newClose!.trigger("click");
     await wrapper
@@ -301,7 +305,7 @@ describe("SavingsView", () => {
   });
 
   it("expands account history and opens the correct balance form", async () => {
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
     const row = wrapper.findAll(".cash-account")[1];
     await row.get(".account-identity").trigger("click");
@@ -330,7 +334,7 @@ describe("SavingsView", () => {
         ? accounts
         : [...older.slice(0, 2), ...history],
     );
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
     await wrapper.findAll(".range-control button")[3].trigger("click");
     expect(wrapper.get(".savings-kpis").text()).toContain("+110,00");
@@ -353,7 +357,7 @@ describe("SavingsView", () => {
             entry.date === "2026-05-31" ? { ...entry, balance: 0 } : entry,
           ),
     );
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
     expect(wrapper.get(".savings-delta").text()).toContain("5700,00");
     expect(wrapper.get(".savings-delta").text()).not.toContain("%");
@@ -361,18 +365,18 @@ describe("SavingsView", () => {
 
   it("guides empty accounts and avoids a fabricated change with one month", async () => {
     apiMock.mockResolvedValue([]);
-    const empty = mount(SavingsView);
+    const empty = mountSavings();
     await flushPromises();
     expect(empty.get(".empty-accounts").text()).toContain(
       "Crea tu primera cuenta",
     );
     expect(
-      empty.get(".hero-actions .primary").attributes("disabled"),
+      empty.get(".savings-topbar-actions .primary").attributes("disabled"),
     ).toBeDefined();
     apiMock.mockImplementation(async (path) =>
       path === "/savings/accounts" ? accounts : history.slice(0, 2),
     );
-    const single = mount(SavingsView);
+    const single = mountSavings();
     await flushPromises();
     expect(single.get(".savings-delta").text()).toContain(
       "Registra al menos dos meses",
@@ -382,7 +386,7 @@ describe("SavingsView", () => {
 
   it("renders the view in English", async () => {
     applyLocale("en");
-    const wrapper = mount(SavingsView);
+    const wrapper = mountSavings();
     await flushPromises();
 
     expect(wrapper.text()).toContain("Total recorded balance");
