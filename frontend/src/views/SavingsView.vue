@@ -1181,7 +1181,6 @@ onMounted(load);
   width: min(100%, 1440px);
   margin: 0 auto;
   padding: 8px 48px 56px;
-  --cash-blue: var(--fz-accent);
   container: savings / inline-size;
   font-size: 13px;
 }
@@ -1474,13 +1473,13 @@ button:disabled {
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
-.account-owner,
-.account-interest-bearing {
+.account-owner {
   background: color-mix(in srgb, var(--tag-accent) 14%, var(--fz-surface));
   color: color-mix(in srgb, var(--tag-accent) 48%, var(--fz-ink));
 }
 .account-interest-bearing {
-  --tag-accent: var(--fz-accent);
+  background: var(--fz-accent-soft);
+  color: var(--fz-interest-badge-ink);
 }
 .account-balance {
   display: grid;
@@ -1872,9 +1871,9 @@ button:disabled {
   color: var(--fz-muted);
 }
 .savings-dialog footer .primary {
-  border-color: var(--cash-blue);
-  background: var(--cash-blue);
-  color: #fff;
+  border-color: var(--fz-accent);
+  background: var(--fz-accent);
+  color: var(--fz-canvas);
 }
 .savings-dialog footer .danger {
   color: var(--fz-negative);
@@ -1884,9 +1883,6 @@ button:disabled {
 .dialog-fields select,
 .dialog-error {
   font-size: 13px;
-}
-.savings-dialog footer .primary {
-  color: var(--fz-canvas);
 }
 @media (max-width: 1200px) {
   .savings-page {
