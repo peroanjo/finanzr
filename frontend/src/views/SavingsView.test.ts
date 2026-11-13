@@ -218,6 +218,40 @@ describe("SavingsView", () => {
     ]);
   });
 
+  it("toggles each interest series and keeps the legend available when all are hidden", async () => {
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/savings/accounts") return accounts;
+      if (path === "/savings/history") {
+        return [{ ...history[0], interest: 2 }, ...history.slice(1)];
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const wrapper = mount(SavingsView);
+    await flushPromises();
+    const panel = wrapper.get(".interest-panel");
+    const chart = '[data-testid="savings-interest"]';
+    const [first, second] = panel.findAll(".interest-legend button");
+
+    expect(panel.get(chart).text()).toBe("2-2 · 7,5 · 1");
+    expect(first.attributes("aria-pressed")).toBe("true");
+    expect(second.attributes("aria-pressed")).toBe("true");
+
+    await first.trigger("click");
+    expect(first.attributes("aria-pressed")).toBe("false");
+    expect(panel.get(chart).text()).toBe("2-1 · 5,5 · 1");
+    expect(panel.get("header > span").text()).toContain("10,00");
+    expect(wrapper.get(".savings-kpis").text()).toContain("+12,00");
+
+    await second.trigger("click");
+    expect(second.attributes("aria-pressed")).toBe("false");
+    expect(panel.find(chart).exists()).toBe(false);
+    expect(panel.text()).toContain("Activa un elemento de la leyenda");
+
+    await first.trigger("click");
+    expect(first.attributes("aria-pressed")).toBe("true");
+    expect(panel.get(chart).text()).toBe("2-1 · 2,0 · 1");
+  });
+
   it("filters history and opens a monthly close", async () => {
     const wrapper = mount(SavingsView);
     await flushPromises();

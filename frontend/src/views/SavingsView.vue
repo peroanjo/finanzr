@@ -64,6 +64,7 @@ const loading = ref(true);
 const error = ref("");
 const range = ref<Range>("12m");
 const selectedInterestMonth = ref<string | null>(null);
+const hiddenInterestAccounts = ref(new Set<string>());
 const historyAccount = ref("all");
 const accountSort = ref<{
   key: AccountSortKey;
@@ -260,14 +261,27 @@ const interestSeries = computed<MonthlyVariationSeries[]>(() =>
       ),
     })),
 );
+const visibleInterestSeries = computed(() =>
+  interestSeries.value.filter(
+    ({ key }) => !hiddenInterestAccounts.value.has(key),
+  ),
+);
 const monthlyInterest = computed(() =>
   visibleMonths.value.map((_, index) =>
-    interestSeries.value.reduce(
+    visibleInterestSeries.value.reduce(
       (total, series) => total + series.values[index],
       0,
     ),
   ),
 );
+const chartInterestTotal = computed(() =>
+  monthlyInterest.value.reduce((total, value) => total + value, 0),
+);
+function toggleInterestAccount(id: string) {
+  const hidden = hiddenInterestAccounts.value;
+  if (hidden.has(id)) hidden.delete(id);
+  else hidden.add(id);
+}
 const selectedInterestIndex = computed(() => {
   const index = visibleMonths.value.findIndex(
     (month) => month === selectedInterestMonth.value,
@@ -894,35 +908,49 @@ onMounted(load);
             <h2 id="savings-interest-title">
               {{ t("savings.charts.interestTitle") }}
             </h2>
-            <span>{{ money(visibleInterest) }} · {{ activeRangeLabel }}</span>
+            <span
+              >{{ money(chartInterestTotal) }} · {{ activeRangeLabel }}</span
+            >
           </header>
           <MonthlyVariationChart
-            v-if="interestSeries.length && chartLabels.length"
+            v-if="visibleInterestSeries.length && chartLabels.length"
             class="interest-chart"
             :labels="chartLabels"
             :values="monthlyInterest"
-            :series="interestSeries"
+            :series="visibleInterestSeries"
             :label="t('savings.charts.interestTitle')"
             :selected-index="selectedInterestIndex"
             :selected-month="chartLabels[selectedInterestIndex]"
             show-tooltip
             @select="selectedInterestMonth = visibleMonths[$event]"
           />
+          <div v-else class="chart-empty interest-chart">
+            {{
+              t(
+                interestSeries.length && chartLabels.length
+                  ? "overview.monthly.selectSeries"
+                  : "savings.charts.noInterest",
+              )
+            }}
+          </div>
           <ul
             v-if="interestSeries.length && chartLabels.length"
             class="liquidity-legend interest-legend"
           >
             <li v-for="series in interestSeries" :key="series.key">
-              <i
-                :style="{ background: `var(${series.color})` }"
-                aria-hidden="true"
-              />
-              {{ series.label }}
+              <button
+                type="button"
+                :aria-pressed="!hiddenInterestAccounts.has(series.key)"
+                @click="toggleInterestAccount(series.key)"
+              >
+                <i
+                  :style="{ background: `var(${series.color})` }"
+                  aria-hidden="true"
+                />
+                <span>{{ series.label }}</span>
+              </button>
             </li>
           </ul>
-          <div v-else class="chart-empty interest-chart">
-            {{ t("savings.charts.noInterest") }}
-          </div>
         </article>
 
         <article class="savings-panel history-panel">
@@ -1621,15 +1649,41 @@ button:disabled {
   height: 290px;
 }
 .interest-legend {
+  gap: 4px 8px;
   margin: 12px 0 0;
   padding: 0;
   list-style: none;
 }
 .interest-legend li {
+  min-width: 0;
+  max-width: 100%;
+}
+.interest-legend button {
   display: flex;
   align-items: center;
   gap: 7px;
+  min-height: 28px;
+  max-width: 100%;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fz-ink);
+  text-align: left;
   overflow-wrap: anywhere;
+}
+.interest-legend button:hover {
+  background: var(--fz-surface-soft);
+}
+.interest-legend i {
+  flex-shrink: 0;
+}
+.interest-legend button[aria-pressed="false"] {
+  color: var(--fz-muted);
+  text-decoration: line-through;
+}
+.interest-legend button[aria-pressed="false"] i {
+  opacity: 0.35;
 }
 .savings-panel {
   padding: 24px;
