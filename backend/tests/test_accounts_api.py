@@ -65,8 +65,17 @@ def test_savings_native_contract_uses_uuid_and_english_fields(
 ) -> None:
     client, _ = snapshot_context
     account = client.get("/api/savings/accounts").json()[0]
-    assert set(account) == {"id", "name", "bank", "type", "currency"}
+    assert set(account) == {
+        "id",
+        "name",
+        "bank",
+        "type",
+        "currency",
+        "workspace_id",
+        "workspace_name",
+    }
     UUID(account["id"])
+    assert account["workspace_id"] == str(client.get("/api/auth/me").json()["active_workspace_id"])
 
     assert client.get("/api/savings/accounts/1").status_code == 404
     assert client.get("/api/savings/history?cuenta_id=1").status_code == 400
@@ -84,8 +93,9 @@ def test_savings_native_contract_uses_uuid_and_english_fields(
     )
     assert created.status_code == 201
     native = created.json()
-    assert set(native) == {"id", "name", "bank", "type", "currency"}
+    assert set(native) == set(account)
     UUID(native["id"])
+    assert native["workspace_id"] == account["workspace_id"]
     assert Account.objects.get(pk=native["id"]).external_id is None
 
     snapshot = client.post(

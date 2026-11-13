@@ -358,6 +358,8 @@ class NativeSavingsAccountResponseSerializer(serializers.Serializer[dict[str, An
     bank = serializers.CharField()
     type = serializers.CharField()
     currency = serializers.CharField()
+    workspace_id = serializers.UUIDField()
+    workspace_name = serializers.CharField(allow_blank=True)
 
 
 class NativeSavingsSnapshotResponseSerializer(serializers.Serializer[dict[str, Any]]):

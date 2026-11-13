@@ -64,6 +64,8 @@ class OpenApiMutationContractTests(SimpleTestCase):
             "bank",
             "type",
             "currency",
+            "workspace_id",
+            "workspace_name",
         }
 
         savings_snapshot = self._request_schema(document, "/api/savings/history", "post")

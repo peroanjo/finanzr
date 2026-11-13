@@ -35,8 +35,10 @@ const accounts = [
     id: "00000000-0000-0000-0000-000000000001",
     name: "Principal",
     bank: "Abanca",
-    type: "Cuenta corriente",
+    type: "Cuenta no remunerada",
     currency: "EUR",
+    workspace_id: "20000000-0000-0000-0000-000000000001",
+    workspace_name: "Titular A",
   },
   {
     id: "00000000-0000-0000-0000-000000000002",
@@ -44,6 +46,8 @@ const accounts = [
     bank: "Trade Republic",
     type: "Cuenta remunerada",
     currency: "EUR",
+    workspace_id: "20000000-0000-0000-0000-000000000002",
+    workspace_name: "Titular B",
   },
 ];
 const history = [
@@ -141,7 +145,23 @@ describe("SavingsView", () => {
     expect(wrapper.get(".cash-total").text()).toContain("5700,00");
     expect(wrapper.get(".savings-kpis").text()).toContain("3200,00");
     expect(wrapper.get(".savings-kpis").text()).toContain("+10,00");
-    expect(wrapper.findAll(".cash-account")).toHaveLength(2);
+    const accountCards = wrapper.findAll(".cash-account");
+    expect(accountCards).toHaveLength(2);
+    expect(accountCards[0].get(".account-owner").text()).toBe(
+      "Titular: Titular A",
+    );
+    expect(accountCards[1].get(".account-owner").text()).toBe(
+      "Titular: Titular B",
+    );
+    expect(accountCards[0].get(".account-owner").attributes("style")).not.toBe(
+      accountCards[1].get(".account-owner").attributes("style"),
+    );
+    expect(accountCards[0].get(".account-tags").text()).toContain(
+      "No remunerada",
+    );
+    expect(accountCards[1].get(".account-interest-bearing").text()).toBe(
+      "Remunerada",
+    );
     expect(wrapper.get('[data-testid="savings-trend"]').text()).toBe(
       "5000,5700",
     );

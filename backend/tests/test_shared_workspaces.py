@@ -89,9 +89,14 @@ def test_share_exposes_exactly_one_record_and_its_history(context: dict[str, Any
         account=c["hidden"], date="2026-01-31", value=9999, base_value=9999
     )
     grant(c)
-    assert [row["id"] for row in c["cb"].get("/api/savings/accounts").json()] == [
-        str(c["account"].pk)
-    ]
+    rows = c["cb"].get("/api/savings/accounts").json()
+    assert [row["id"] for row in rows] == [str(c["account"].pk)]
+    assert rows[0]["workspace_id"] == str(c["pa"].pk)
+    assert rows[0]["workspace_name"] == ""
+    Workspace.objects.filter(pk=c["pa"].pk).update(name="Synthetic account owner")
+    assert c["cb"].get("/api/savings/accounts").json()[0]["workspace_name"] == (
+        "Synthetic account owner"
+    )
     history = c["cb"].get("/api/savings/history").json()
     assert len(history) == 1 and history[0]["balance"] == 100
     assert c["cb"].get("/api/summary").json()["net_worth"] == 100

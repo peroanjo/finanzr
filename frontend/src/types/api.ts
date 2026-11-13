@@ -164,6 +164,8 @@ export interface SavingsAccount {
   bank: string;
   type: string;
   currency: string;
+  workspace_id: string;
+  workspace_name: string;
 }
 export interface SavingsSnapshot {
   id: string;

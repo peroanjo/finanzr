@@ -18,6 +18,17 @@ def savings_account_row(account: Account) -> dict[str, Any]:
     }
 
 
+def savings_account_response(account: Account) -> dict[str, Any]:
+    source = account.workspace
+    # A personal workspace may use its owner's email as its default name.
+    name = "" if source.is_personal and "@" in source.name else source.name
+    return {
+        **savings_account_row(account),
+        "workspace_id": str(source.pk),
+        "workspace_name": name,
+    }
+
+
 def savings_snapshot_row(snapshot: AccountSnapshot) -> dict[str, Any]:
     return {
         "id": str(snapshot.id),

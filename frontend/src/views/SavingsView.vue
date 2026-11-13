@@ -32,6 +32,26 @@ const ranges = computed<Array<{ key: Range; label: string; months?: number }>>(
   ],
 );
 const accounts = ref<SavingsAccount[]>([]);
+const workspaceTags = computed(() => {
+  const palette = [
+    "var(--fz-source-manual-investments)",
+    "var(--fz-source-crypto)",
+    "var(--fz-source-stocks)",
+    "var(--fz-source-crowdfunding)",
+    "var(--fz-source-funds)",
+  ];
+  const ids = [
+    ...new Set(accounts.value.map((account) => account.workspace_id)),
+  ]
+    .filter(Boolean)
+    .sort();
+  return new Map(
+    ids.map((id, index) => [
+      id,
+      { color: palette[index % palette.length], number: index + 1 },
+    ]),
+  );
+});
 const history = ref<SavingsSnapshot[]>([]);
 const loading = ref(true);
 const error = ref("");
@@ -74,9 +94,11 @@ const accountRows = computed(() =>
       (total, item) => total + item.interest,
       0,
     );
+    const accountType = account.type.toLowerCase();
     return {
       account,
       color: colors[index % colors.length],
+      ownerTag: workspaceTags.value.get(account.workspace_id),
       rows,
       latest,
       balance: latest?.balance ?? 0,
@@ -89,8 +111,10 @@ const accountRows = computed(() =>
         .reduce((total, item) => total + item.interest, 0),
       remunerated:
         totalInterest > 0 ||
-        account.type.toLocaleLowerCase().includes("remunerada") ||
-        account.type.toLocaleLowerCase().includes("interest"),
+        (accountType.includes("remunerada") &&
+          !accountType.includes("no remunerada")) ||
+        (accountType.includes("interest") &&
+          !accountType.includes("non-interest")),
     };
   }),
 );
@@ -593,7 +617,6 @@ onMounted(load);
             <h2 id="savings-accounts-title">
               {{ t("savings.redesign.yourAccounts") }}
             </h2>
-            <p>{{ t("savings.redesign.balanceNote") }}</p>
           </div>
           <div class="account-grid">
             <div
@@ -624,68 +647,97 @@ onMounted(load);
                         : item.account.id
                   "
                 >
-                  <span class="bank-mark" :style="{ color: item.color }">{{
-                    item.account.name.slice(0, 2).toUpperCase()
+                  <span class="account-expand" aria-hidden="true">{{
+                    expandedAccount === item.account.id ? "⌃" : "⌄"
                   }}</span>
                   <span
                     ><strong>{{ item.account.name }}</strong
-                    ><small>{{
-                      [item.account.bank, accountTypeLabel(item.account.type)]
-                        .filter(Boolean)
-                        .join(" · ")
+                    ><small v-if="item.account.bank">{{
+                      item.account.bank
                     }}</small></span
                   >
-                  <span aria-hidden="true">{{
-                    expandedAccount === item.account.id ? "⌃" : "⌄"
-                  }}</span>
                 </button>
+                <div class="account-tags">
+                  <span
+                    class="account-tag account-owner"
+                    :style="{ '--tag-accent': item.ownerTag?.color }"
+                  >
+                    {{
+                      item.account.workspace_name
+                        ? t("savings.accounts.ownedBy", {
+                            name: item.account.workspace_name,
+                          })
+                        : item.ownerTag
+                          ? t("savings.accounts.numberedOwner", {
+                              number: item.ownerTag.number,
+                            })
+                          : t("savings.accounts.unnamedOwner")
+                    }}
+                  </span>
+                  <span
+                    class="account-tag"
+                    :class="{ 'account-interest-bearing': item.remunerated }"
+                  >
+                    {{
+                      t(
+                        item.remunerated
+                          ? "savings.accounts.interestBearing"
+                          : "savings.accounts.nonInterestBearing",
+                      )
+                    }}
+                  </span>
+                </div>
                 <div class="account-balance">
                   <span>{{ t("savings.accounts.currentBalance") }}</span>
                   <strong>{{ item.latest ? money(item.balance) : "—" }}</strong>
-                  <div class="account-rail" aria-hidden="true">
-                    <i
-                      :style="{
-                        width: `${totalBalance > 0 ? Math.max(0, Math.min(100, (item.balance / totalBalance) * 100)) : 0}%`,
-                        background: item.color,
-                      }"
-                    />
-                  </div>
                 </div>
-                <div class="account-period-interest">
-                  <small>{{ t("savings.redesign.periodInterest") }}</small
-                  ><strong>{{ money(item.periodInterest) }}</strong>
+                <div class="account-actions">
+                  <button
+                    class="update-balance"
+                    type="button"
+                    @click="openSnapshotCreate(item.account.id)"
+                  >
+                    {{ t("savings.actions.updateBalance") }}
+                  </button>
+                  <button
+                    class="edit-account"
+                    type="button"
+                    :aria-label="
+                      t('savings.actions.editNamed', {
+                        name: item.account.name,
+                      })
+                    "
+                    @click="openAccountEdit(item.account)"
+                  >
+                    ⋯
+                  </button>
                 </div>
-                <div class="account-updated">
-                  <small>{{ t("savings.redesign.lastRecord") }}</small
-                  ><span>{{
-                    item.latest
-                      ? displayDate(item.latest.date)
-                      : t("common.noData")
-                  }}</span>
-                </div>
-                <button
-                  class="update-balance"
-                  type="button"
-                  @click="openSnapshotCreate(item.account.id)"
-                >
-                  {{ t("savings.actions.updateBalance") }}
-                </button>
-                <button
-                  class="edit-account"
-                  type="button"
-                  :aria-label="
-                    t('savings.actions.editNamed', { name: item.account.name })
-                  "
-                  @click="openAccountEdit(item.account)"
-                >
-                  ⋯
-                </button>
               </div>
               <div
                 v-if="expandedAccount === item.account.id"
                 :id="`account-detail-${item.account.id}`"
                 class="account-detail"
               >
+                <dl class="account-facts">
+                  <div v-if="item.account.type">
+                    <dt>{{ t("common.type") }}</dt>
+                    <dd>{{ accountTypeLabel(item.account.type) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t("savings.redesign.periodInterest") }}</dt>
+                    <dd>{{ money(item.periodInterest) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t("savings.redesign.lastRecord") }}</dt>
+                    <dd>
+                      {{
+                        item.latest
+                          ? displayDate(item.latest.date)
+                          : t("common.noData")
+                      }}
+                    </dd>
+                  </div>
+                </dl>
                 <div class="account-detail-heading">
                   <h3>{{ t("savings.charts.balanceTitle") }}</h3>
                   <span>{{ activeRangeLabel }}</span>
@@ -977,7 +1029,6 @@ onMounted(load);
   container: savings / inline-size;
   font-size: 13px;
 }
-.accounts-heading,
 .liquidity-hero > header,
 .savings-panel > header,
 .account-detail-heading {
@@ -1155,51 +1206,43 @@ button:disabled {
   container: savings-accounts / inline-size;
 }
 .accounts-heading {
-  margin-bottom: 14px;
-  gap: 6px 16px;
-}
-.accounts-heading p {
-  color: var(--fz-muted);
-  font-size: 12px;
+  margin-bottom: 10px;
 }
 .account-grid {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 .cash-account {
   min-width: 0;
-  border-radius: 14px;
-  overflow: hidden;
+  border-radius: 12px;
 }
 .account-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) 36px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   grid-template-areas:
-    "identity identity edit"
-    "balance interest interest"
-    "updated update update";
-  gap: 14px 12px;
+    "identity balance"
+    "tags actions";
+  gap: 8px 12px;
   align-items: center;
-  padding: 16px;
-}
-.account-row .update-balance {
-  grid-area: update;
+  padding: 8px 12px;
 }
 .account-identity {
   grid-area: identity;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
   min-width: 0;
-  padding: 0;
+  padding: 4px 0;
   border: 0;
+  border-radius: 4px;
   background: transparent;
   color: var(--fz-ink);
   text-align: left;
 }
-.account-identity > span:nth-child(2) {
-  min-width: 0;
-  flex: 1;
+.account-expand {
+  color: var(--fz-muted);
+  flex: 0 0 12px;
+  text-align: center;
 }
 .account-identity strong {
   font-size: 14px;
@@ -1207,88 +1250,91 @@ button:disabled {
 }
 .account-identity small {
   display: block;
-  margin-top: 4px;
   color: var(--fz-muted);
   font-size: 11px;
   overflow-wrap: anywhere;
 }
-.bank-mark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  border: 1px solid var(--fz-line);
-  border-radius: 10px;
-  background: var(--fz-surface-soft);
-  font-size: 12px;
-  font-weight: 700;
-}
-.account-balance,
-.account-period-interest,
-.account-updated {
-  display: grid;
-  gap: 5px;
+.account-tags {
+  grid-area: tags;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   min-width: 0;
+}
+.account-tag {
+  --tag-accent: var(--fz-source-manual-assets);
+  max-width: 100%;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--fz-surface-soft);
+  color: var(--fz-muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
   overflow-wrap: anywhere;
+}
+.account-owner,
+.account-interest-bearing {
+  background: color-mix(in srgb, var(--tag-accent) 14%, var(--fz-surface));
+  color: color-mix(in srgb, var(--tag-accent) 48%, var(--fz-ink));
+}
+.account-interest-bearing {
+  --tag-accent: var(--fz-accent);
 }
 .account-balance {
   grid-area: balance;
-}
-.account-period-interest {
-  grid-area: interest;
-}
-.account-updated {
-  grid-area: updated;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 .account-balance > span,
-.account-period-interest small,
-.account-updated small {
+.account-facts dt {
   color: var(--fz-muted);
   font-size: 11px;
 }
 .account-balance strong {
-  font-size: 19px;
-  font-weight: 650;
+  font-size: 16px;
+  font-weight: 700;
   letter-spacing: -0.03em;
-}
-.account-row strong,
-.cash-total,
-.savings-kpis strong {
   font-variant-numeric: tabular-nums;
 }
-.account-rail {
-  height: 3px;
-  background: var(--fz-surface-soft);
-  border-radius: 9px;
-  overflow: hidden;
+.account-actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
 }
-.account-rail i {
-  display: block;
-  height: 100%;
+.account-actions button {
+  min-height: 32px;
+  padding: 5px 8px;
+  font-size: 11px;
 }
-.edit-account {
-  grid-area: edit;
-  justify-self: end;
-  width: 36px;
-  padding: 6px;
-  font-size: 20px;
+.account-actions .edit-account {
+  width: 32px;
+  padding: 0;
+  font-size: 18px;
 }
-@container savings-accounts (width >= 500px) {
-  .account-row {
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
-    grid-template-areas:
-      "identity balance edit"
-      "updated interest update";
-  }
-}
-@container savings-accounts (width >= 750px) {
+@container savings-accounts (width >= 660px) {
   .account-row {
     grid-template-columns:
-      minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 1fr)
-      minmax(0, 1fr) auto 36px;
-    grid-template-areas: "identity balance interest updated update edit";
-    padding: 20px;
+      minmax(0, 1fr) minmax(0, 1.3fr) minmax(110px, 0.6fr)
+      auto;
+    grid-template-areas: "identity tags balance actions";
+    gap: 14px;
+    padding-inline: 14px;
+  }
+}
+@container savings-accounts (width < 420px) {
+  .account-row {
+    grid-template-areas:
+      "identity balance"
+      "tags tags"
+      "actions actions";
   }
 }
 .update-balance:hover,
@@ -1300,6 +1346,17 @@ button:disabled {
   padding: 20px;
   border-top: 1px solid var(--fz-line);
   background: color-mix(in srgb, var(--fz-surface-soft) 40%, var(--fz-surface));
+}
+.account-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0 0 16px;
+}
+.account-facts dd {
+  margin: 2px 0 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
 }
 .account-detail-heading span {
   color: var(--fz-muted);
@@ -1609,8 +1666,8 @@ button:disabled {
   .savings-trend {
     height: 210px;
   }
-  .account-row .update-balance {
-    min-height: 44px;
+  .account-actions button {
+    min-height: 36px;
   }
   .account-detail {
     padding: 16px;

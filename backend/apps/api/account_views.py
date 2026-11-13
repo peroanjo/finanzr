@@ -26,7 +26,7 @@ from apps.api.investment_projection import investment_account_row, investment_sn
 from apps.api.permissions import forbidden_if_readonly
 from apps.api.projection import provider_name
 from apps.api.request_data import payload
-from apps.api.savings_projection import savings_account_row, savings_snapshot_row
+from apps.api.savings_projection import savings_account_response, savings_snapshot_row
 from apps.api.schemas import (
     InvestmentAccountRequestSerializer,
     InvestmentAccountUpdateRequestSerializer,
@@ -153,9 +153,11 @@ def account_detail(request: Request, kind: str, account_id: UUID) -> Response:
 
 @api_view(["GET", "POST"])
 def savings_accounts(request: Request) -> Response:
-    accounts = kind_accounts(request, Account.Kind.SAVINGS)
     if request.method == "GET":
-        return Response([savings_account_row(item) for item in accounts])
+        accounts = kind_accounts(request, Account.Kind.SAVINGS).select_related(
+            "workspace", "provider"
+        )
+        return Response([savings_account_response(item) for item in accounts])
     if denied := forbidden_if_readonly(request):
         return denied
     serializer = SavingsAccountRequestSerializer(data=payload(request))
@@ -179,7 +181,7 @@ def savings_accounts(request: Request) -> Response:
         currency=account_currency,
         external_id=None,
     )
-    return Response(savings_account_row(item), status=201)
+    return Response(savings_account_response(item), status=201)
 
 
 @api_view(["PUT", "DELETE"])
@@ -208,7 +210,7 @@ def savings_account(request: Request, account_id: UUID) -> Response:
     item.provider = provider
     item.provider_label = provider_label
     item.save()
-    return Response(savings_account_row(item))
+    return Response(savings_account_response(item))
 
 
 @api_view(["GET", "POST"])
