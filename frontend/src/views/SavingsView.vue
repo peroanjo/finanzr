@@ -741,12 +741,13 @@ onMounted(load);
           </header>
           <AccountSnapshotChart
             v-if="interestSeries.length"
+            class="interest-chart"
             :labels="chartLabels"
             :series="interestSeries"
             mode="interest"
             :minimum-font-size="10"
           />
-          <div v-else class="empty-chart">
+          <div v-else class="empty-chart interest-chart">
             {{ t("savings.charts.noInterest") }}
           </div>
         </article>
@@ -1373,13 +1374,19 @@ button:disabled {
 }
 .lower-grid {
   display: grid;
-  align-items: start;
   gap: 20px;
   margin-top: 24px;
 }
 @container savings (width >= 860px) {
   .lower-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .interest-panel {
+    display: flex;
+    flex-direction: column;
+  }
+  .interest-chart {
+    flex-grow: 1;
   }
 }
 .accounts-section {
