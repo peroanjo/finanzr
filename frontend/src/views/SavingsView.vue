@@ -731,12 +731,7 @@ onMounted(load);
 
         <article class="savings-panel interest-panel">
           <header>
-            <div>
-              <p class="section-label">
-                {{ t("savings.charts.interestEyebrow") }}
-              </p>
-              <h2>{{ t("savings.charts.interestTitle") }}</h2>
-            </div>
+            <h2>{{ t("savings.charts.interestTitle") }}</h2>
             <span>{{ money(visibleInterest) }} · {{ activeRangeLabel }}</span>
           </header>
           <AccountSnapshotChart
@@ -754,13 +749,10 @@ onMounted(load);
 
         <article class="savings-panel history-panel">
           <header>
-            <div>
-              <p class="section-label">{{ t("savings.history.eyebrow") }}</p>
-              <h2>
-                {{ t("savings.history.title") }}
-                <span>{{ displayedHistory.length }}</span>
-              </h2>
-            </div>
+            <h2>
+              {{ t("savings.history.title") }}
+              <span>{{ displayedHistory.length }}</span>
+            </h2>
             <select
               v-model="historyAccount"
               :aria-label="t('savings.history.filterAria')"

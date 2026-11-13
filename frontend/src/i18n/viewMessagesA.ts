@@ -151,12 +151,10 @@ export const viewMessagesA = defineMessageCatalog(
       charts: {
         balanceEyebrow: "Liquidity trajectory",
         balanceTitle: "Balance history",
-        interestEyebrow: "Yield",
         interestTitle: "Interest earned",
         noInterest: "No interest has been recorded yet.",
       },
       history: {
-        eyebrow: "Monthly ledger",
         title: "History",
         filterAria: "Filter history by account",
         allAccounts: "All accounts",
@@ -548,12 +546,10 @@ export const viewMessagesA = defineMessageCatalog(
       charts: {
         balanceEyebrow: "Trayectoria de liquidez",
         balanceTitle: "Evolución de saldos",
-        interestEyebrow: "Remuneración",
         interestTitle: "Intereses generados",
         noInterest: "Aún no hay intereses registrados.",
       },
       history: {
-        eyebrow: "Registro mensual",
         title: "Historial",
         filterAria: "Filtrar histórico por cuenta",
         allAccounts: "Todas las cuentas",
