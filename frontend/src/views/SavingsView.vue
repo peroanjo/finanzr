@@ -13,6 +13,15 @@ import type {
 
 type Range = "6m" | "12m" | "24m" | "all";
 
+const sortColumns = [
+  { key: "name", label: "savings.accounts.columnAccount" },
+  { key: "owner", label: "savings.accounts.columnOwner" },
+  { key: "interest", label: "savings.accounts.columnInterest" },
+  { key: "balance", label: "savings.accounts.currentBalance" },
+] as const;
+
+type AccountSortKey = (typeof sortColumns)[number]["key"];
+
 const { t, n, d, locale } = useI18n();
 
 const colors = [
@@ -57,6 +66,10 @@ const loading = ref(true);
 const error = ref("");
 const range = ref<Range>("12m");
 const historyAccount = ref("all");
+const accountSort = ref<{
+  key: AccountSortKey;
+  direction: "ascending" | "descending";
+}>({ key: "name", direction: "ascending" });
 const expandedAccount = ref<string | null>(null);
 const accountDialog = ref<HTMLDialogElement>();
 const snapshotDialog = ref<HTMLDialogElement>();
@@ -95,10 +108,17 @@ const accountRows = computed(() =>
       0,
     );
     const accountType = account.type.toLowerCase();
+    const ownerTag = workspaceTags.value.get(account.workspace_id);
+    const ownerName =
+      account.workspace_name ||
+      (ownerTag
+        ? t("savings.accounts.numberedOwner", { number: ownerTag.number })
+        : t("savings.accounts.unnamedOwner"));
     return {
       account,
+      ownerName,
       color: colors[index % colors.length],
-      ownerTag: workspaceTags.value.get(account.workspace_id),
+      ownerTag,
       rows,
       latest,
       balance: latest?.balance ?? 0,
@@ -118,6 +138,47 @@ const accountRows = computed(() =>
     };
   }),
 );
+const accountCollator = computed(
+  () => new Intl.Collator(locale.value, { numeric: true, sensitivity: "base" }),
+);
+const sortedAccountRows = computed(() => {
+  const { key, direction } = accountSort.value;
+  const compare = accountCollator.value.compare;
+  const sign = direction === "ascending" ? 1 : -1;
+  return [...accountRows.value].sort((a, b) => {
+    let result: number;
+    switch (key) {
+      case "name":
+        result = compare(a.account.name, b.account.name);
+        break;
+      case "owner":
+        result = compare(a.ownerName, b.ownerName);
+        break;
+      case "interest":
+        result = Number(a.remunerated) - Number(b.remunerated);
+        break;
+      case "balance":
+        if (Boolean(a.latest) !== Boolean(b.latest)) return a.latest ? -1 : 1;
+        result = a.balance - b.balance;
+        break;
+    }
+    return sign * result || compare(a.account.name, b.account.name);
+  });
+});
+
+function sortAccounts(key: AccountSortKey) {
+  const current = accountSort.value;
+  const direction =
+    current.key === key
+      ? current.direction === "ascending"
+        ? "descending"
+        : "ascending"
+      : key === "balance"
+        ? "descending"
+        : "ascending";
+  accountSort.value = { key, direction };
+}
+
 const totalBalance = computed(() =>
   accountRows.value.reduce((total, item) => total + item.balance, 0),
 );
@@ -618,62 +679,88 @@ onMounted(load);
               {{ t("savings.redesign.yourAccounts") }}
             </h2>
           </div>
-          <div class="account-grid">
-            <div
-              v-if="!accountRows.length"
-              class="savings-panel empty-accounts"
-            >
-              <h3>{{ t("savings.redesign.noAccounts") }}</h3>
-              <p>{{ t("savings.redesign.createFirst") }}</p>
-              <button type="button" @click="openAccountCreate">
-                ＋ {{ t("savings.actions.newAccount") }}
-              </button>
+          <div v-if="!accountRows.length" class="savings-panel empty-accounts">
+            <h3>{{ t("savings.redesign.noAccounts") }}</h3>
+            <p>{{ t("savings.redesign.createFirst") }}</p>
+            <button type="button" @click="openAccountCreate">
+              ＋ {{ t("savings.actions.newAccount") }}
+            </button>
+          </div>
+          <div
+            v-else
+            class="account-grid"
+            role="table"
+            aria-labelledby="savings-accounts-title"
+          >
+            <div class="account-columns" role="row">
+              <div
+                v-for="column in sortColumns"
+                :key="column.key"
+                :class="`account-column-${column.key}`"
+                role="columnheader"
+                :aria-sort="
+                  accountSort.key === column.key
+                    ? accountSort.direction
+                    : undefined
+                "
+              >
+                <button type="button" @click="sortAccounts(column.key)">
+                  {{ t(column.label) }}
+                  <span aria-hidden="true">
+                    {{
+                      accountSort.key === column.key
+                        ? accountSort.direction === "ascending"
+                          ? "↑"
+                          : "↓"
+                        : "↕"
+                    }}
+                  </span>
+                </button>
+              </div>
+              <div class="account-column-actions" role="columnheader">
+                {{ t("savings.accounts.columnActions") }}
+              </div>
             </div>
-            <article
-              v-for="item in accountRows"
+            <div
+              v-for="item in sortedAccountRows"
               :key="item.account.id"
               class="cash-account"
+              role="rowgroup"
             >
-              <div class="account-row">
-                <button
-                  class="account-identity"
-                  type="button"
-                  :aria-expanded="expandedAccount === item.account.id"
-                  :aria-controls="`account-detail-${item.account.id}`"
-                  @click="
-                    expandedAccount =
-                      expandedAccount === item.account.id
-                        ? null
-                        : item.account.id
-                  "
-                >
-                  <span class="account-expand" aria-hidden="true">{{
-                    expandedAccount === item.account.id ? "⌃" : "⌄"
-                  }}</span>
-                  <span
-                    ><strong>{{ item.account.name }}</strong
-                    ><small v-if="item.account.bank">{{
-                      item.account.bank
-                    }}</small></span
+              <div class="account-row" role="row">
+                <div class="account-column-name" role="cell">
+                  <button
+                    class="account-identity"
+                    type="button"
+                    :aria-expanded="expandedAccount === item.account.id"
+                    :aria-controls="`account-detail-${item.account.id}`"
+                    @click="
+                      expandedAccount =
+                        expandedAccount === item.account.id
+                          ? null
+                          : item.account.id
+                    "
                   >
-                </button>
-                <div class="account-tags">
+                    <span class="account-expand" aria-hidden="true">{{
+                      expandedAccount === item.account.id ? "⌃" : "⌄"
+                    }}</span>
+                    <span
+                      ><strong>{{ item.account.name }}</strong
+                      ><small v-if="item.account.bank">{{
+                        item.account.bank
+                      }}</small></span
+                    >
+                  </button>
+                </div>
+                <div class="account-column-owner" role="cell">
                   <span
                     class="account-tag account-owner"
                     :style="{ '--tag-accent': item.ownerTag?.color }"
                   >
-                    {{
-                      item.account.workspace_name
-                        ? t("savings.accounts.ownedBy", {
-                            name: item.account.workspace_name,
-                          })
-                        : item.ownerTag
-                          ? t("savings.accounts.numberedOwner", {
-                              number: item.ownerTag.number,
-                            })
-                          : t("savings.accounts.unnamedOwner")
-                    }}
+                    {{ item.ownerName }}
                   </span>
+                </div>
+                <div class="account-column-interest" role="cell">
                   <span
                     class="account-tag"
                     :class="{ 'account-interest-bearing': item.remunerated }"
@@ -687,11 +774,10 @@ onMounted(load);
                     }}
                   </span>
                 </div>
-                <div class="account-balance">
-                  <span>{{ t("savings.accounts.currentBalance") }}</span>
+                <div class="account-balance account-column-balance" role="cell">
                   <strong>{{ item.latest ? money(item.balance) : "—" }}</strong>
                 </div>
-                <div class="account-actions">
+                <div class="account-actions account-column-actions" role="cell">
                   <button
                     class="update-balance"
                     type="button"
@@ -713,71 +799,76 @@ onMounted(load);
                   </button>
                 </div>
               </div>
-              <div
-                v-if="expandedAccount === item.account.id"
-                :id="`account-detail-${item.account.id}`"
-                class="account-detail"
-              >
-                <dl class="account-facts">
-                  <div v-if="item.account.type">
-                    <dt>{{ t("common.type") }}</dt>
-                    <dd>{{ accountTypeLabel(item.account.type) }}</dd>
+              <div v-if="expandedAccount === item.account.id" role="row">
+                <div
+                  :id="`account-detail-${item.account.id}`"
+                  class="account-detail"
+                  role="cell"
+                  :aria-colspan="sortColumns.length + 1"
+                >
+                  <dl class="account-facts">
+                    <div v-if="item.account.type">
+                      <dt>{{ t("common.type") }}</dt>
+                      <dd>{{ accountTypeLabel(item.account.type) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ t("savings.redesign.periodInterest") }}</dt>
+                      <dd>{{ money(item.periodInterest) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ t("savings.redesign.lastRecord") }}</dt>
+                      <dd>
+                        {{
+                          item.latest
+                            ? displayDate(item.latest.date)
+                            : t("common.noData")
+                        }}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div class="account-detail-heading">
+                    <h3>{{ t("savings.charts.balanceTitle") }}</h3>
+                    <span>{{ activeRangeLabel }}</span>
                   </div>
-                  <div>
-                    <dt>{{ t("savings.redesign.periodInterest") }}</dt>
-                    <dd>{{ money(item.periodInterest) }}</dd>
+                  <div class="account-detail-chart">
+                    <LineChart
+                      v-if="item.rows.length"
+                      :labels="chartLabels"
+                      :values="
+                        visibleMonths.map((month) =>
+                          balanceAt(item.rows, month),
+                        )
+                      "
+                      :total-label="item.account.name"
+                      :aria-label="t('savings.charts.balanceTitle')"
+                    />
+                    <p v-else>{{ t("savings.redesign.noHistory") }}</p>
                   </div>
-                  <div>
-                    <dt>{{ t("savings.redesign.lastRecord") }}</dt>
-                    <dd>
-                      {{
-                        item.latest
-                          ? displayDate(item.latest.date)
-                          : t("common.noData")
-                      }}
-                    </dd>
+                  <div class="account-detail-history">
+                    <button
+                      v-for="entry in [...item.rows].reverse()"
+                      :key="entry.date"
+                      type="button"
+                      @click="openSnapshotEdit(entry)"
+                    >
+                      <span>{{ displayDate(entry.date) }}</span>
+                      <span
+                        >{{ t("savings.history.balance") }}
+                        <strong>{{ money(entry.balance) }}</strong></span
+                      >
+                      <span
+                        >{{ t("savings.redesign.contribution") }}
+                        <strong>{{ money(entry.contribution) }}</strong></span
+                      >
+                      <span
+                        >{{ t("savings.history.interest") }}
+                        <strong>{{ money(entry.interest) }}</strong></span
+                      >
+                    </button>
                   </div>
-                </dl>
-                <div class="account-detail-heading">
-                  <h3>{{ t("savings.charts.balanceTitle") }}</h3>
-                  <span>{{ activeRangeLabel }}</span>
-                </div>
-                <div class="account-detail-chart">
-                  <LineChart
-                    v-if="item.rows.length"
-                    :labels="chartLabels"
-                    :values="
-                      visibleMonths.map((month) => balanceAt(item.rows, month))
-                    "
-                    :total-label="item.account.name"
-                    :aria-label="t('savings.charts.balanceTitle')"
-                  />
-                  <p v-else>{{ t("savings.redesign.noHistory") }}</p>
-                </div>
-                <div class="account-detail-history">
-                  <button
-                    v-for="entry in [...item.rows].reverse()"
-                    :key="entry.date"
-                    type="button"
-                    @click="openSnapshotEdit(entry)"
-                  >
-                    <span>{{ displayDate(entry.date) }}</span>
-                    <span
-                      >{{ t("savings.history.balance") }}
-                      <strong>{{ money(entry.balance) }}</strong></span
-                    >
-                    <span
-                      >{{ t("savings.redesign.contribution") }}
-                      <strong>{{ money(entry.contribution) }}</strong></span
-                    >
-                    <span
-                      >{{ t("savings.history.interest") }}
-                      <strong>{{ money(entry.interest) }}</strong></span
-                    >
-                  </button>
                 </div>
               </div>
-            </article>
+            </div>
           </div>
         </section>
 
@@ -1218,16 +1309,17 @@ button:disabled {
 }
 .account-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-areas:
     "identity balance"
-    "tags actions";
+    "owner interest"
+    "actions actions";
   gap: 8px 12px;
   align-items: center;
   padding: 8px 12px;
 }
 .account-identity {
-  grid-area: identity;
+  width: 100%;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -1254,15 +1346,60 @@ button:disabled {
   font-size: 11px;
   overflow-wrap: anywhere;
 }
-.account-tags {
-  grid-area: tags;
+.account-column-name {
+  grid-area: identity;
+}
+.account-column-balance {
+  grid-area: balance;
+}
+.account-column-actions {
+  grid-area: actions;
+}
+.account-column-owner {
+  grid-area: owner;
+}
+.account-column-interest {
+  grid-area: interest;
+}
+.account-column-name,
+.account-column-owner,
+.account-column-interest {
+  min-width: 0;
+}
+.account-columns {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  min-width: 0;
+  gap: 2px 6px;
+  align-items: center;
+  padding: 2px 8px;
+  color: var(--fz-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.account-columns button {
+  min-height: 28px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.account-columns button:hover {
+  background: var(--fz-surface-soft);
+}
+.account-columns [aria-sort] button {
+  color: var(--fz-ink);
+}
+.account-columns button span {
+  margin-inline-start: 3px;
+}
+.account-columns .account-column-actions {
+  display: none;
 }
 .account-tag {
   --tag-accent: var(--fz-source-manual-assets);
+  display: inline-block;
   max-width: 100%;
   padding: 2px 7px;
   border-radius: 999px;
@@ -1282,7 +1419,6 @@ button:disabled {
   --tag-accent: var(--fz-accent);
 }
 .account-balance {
-  grid-area: balance;
   display: grid;
   justify-items: end;
   gap: 2px;
@@ -1290,7 +1426,6 @@ button:disabled {
   overflow-wrap: anywhere;
   text-align: right;
 }
-.account-balance > span,
 .account-facts dt {
   color: var(--fz-muted);
   font-size: 11px;
@@ -1302,7 +1437,6 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 .account-actions {
-  grid-area: actions;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1320,21 +1454,25 @@ button:disabled {
   font-size: 18px;
 }
 @container savings-accounts (width >= 660px) {
-  .account-row {
+  .account-row,
+  .account-columns {
+    display: grid;
     grid-template-columns:
-      minmax(0, 1fr) minmax(0, 1.3fr) minmax(110px, 0.6fr)
-      auto;
-    grid-template-areas: "identity tags balance actions";
-    gap: 14px;
+      minmax(0, 1.4fr) minmax(0, 1fr) minmax(115px, 0.9fr)
+      minmax(105px, 0.7fr) 148px;
+    grid-template-areas: "identity owner interest balance actions";
+    gap: 12px;
     padding-inline: 14px;
   }
-}
-@container savings-accounts (width < 420px) {
-  .account-row {
-    grid-template-areas:
-      "identity balance"
-      "tags tags"
-      "actions actions";
+  .account-columns {
+    padding-inline: 15px;
+  }
+  .account-columns .account-column-balance {
+    text-align: right;
+  }
+  .account-columns .account-column-actions {
+    display: block;
+    text-align: right;
   }
 }
 .update-balance:hover,

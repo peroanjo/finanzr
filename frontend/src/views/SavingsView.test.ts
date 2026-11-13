@@ -147,16 +147,12 @@ describe("SavingsView", () => {
     expect(wrapper.get(".savings-kpis").text()).toContain("+10,00");
     const accountCards = wrapper.findAll(".cash-account");
     expect(accountCards).toHaveLength(2);
-    expect(accountCards[0].get(".account-owner").text()).toBe(
-      "Titular: Titular A",
-    );
-    expect(accountCards[1].get(".account-owner").text()).toBe(
-      "Titular: Titular B",
-    );
+    expect(accountCards[0].get(".account-owner").text()).toBe("Titular A");
+    expect(accountCards[1].get(".account-owner").text()).toBe("Titular B");
     expect(accountCards[0].get(".account-owner").attributes("style")).not.toBe(
       accountCards[1].get(".account-owner").attributes("style"),
     );
-    expect(accountCards[0].get(".account-tags").text()).toContain(
+    expect(accountCards[0].get(".account-column-interest").text()).toContain(
       "No remunerada",
     );
     expect(accountCards[1].get(".account-interest-bearing").text()).toBe(
@@ -166,6 +162,58 @@ describe("SavingsView", () => {
       "5000,5700",
     );
     expect(wrapper.get('[data-testid="savings-interest"]').text()).toBe("2-1");
+  });
+
+  it("sorts each data column in both directions and keeps unrecorded balances last", async () => {
+    const missing = {
+      ...accounts[0],
+      id: "00000000-0000-0000-0000-000000000003",
+      name: "Sin saldo",
+      workspace_name: "Titular C",
+    };
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/savings/accounts")
+        return [accounts[1], missing, accounts[0]];
+      if (path === "/savings/history") return history;
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const wrapper = mount(SavingsView);
+    await flushPromises();
+    const names = () =>
+      wrapper.findAll(".account-identity strong").map((name) => name.text());
+    const sort = async (key: string, direction: string, expected: string[]) => {
+      const header = wrapper.get(`.account-columns .account-column-${key}`);
+      await header.get("button").trigger("click");
+      expect(header.attributes("aria-sort")).toBe(direction);
+      expect(wrapper.findAll("[aria-sort]")).toHaveLength(1);
+      expect(names()).toEqual(expected);
+    };
+
+    expect(names()).toEqual(["Principal", "Remunerada", "Sin saldo"]);
+    await sort("name", "descending", ["Sin saldo", "Remunerada", "Principal"]);
+    await sort("name", "ascending", ["Principal", "Remunerada", "Sin saldo"]);
+    await sort("owner", "ascending", ["Principal", "Remunerada", "Sin saldo"]);
+    await sort("owner", "descending", ["Sin saldo", "Remunerada", "Principal"]);
+    await sort("interest", "ascending", [
+      "Principal",
+      "Sin saldo",
+      "Remunerada",
+    ]);
+    await sort("interest", "descending", [
+      "Remunerada",
+      "Principal",
+      "Sin saldo",
+    ]);
+    await sort("balance", "descending", [
+      "Remunerada",
+      "Principal",
+      "Sin saldo",
+    ]);
+    await sort("balance", "ascending", [
+      "Principal",
+      "Remunerada",
+      "Sin saldo",
+    ]);
   });
 
   it("filters history and opens a monthly close", async () => {
