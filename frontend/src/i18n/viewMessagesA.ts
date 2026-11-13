@@ -94,7 +94,6 @@ export const viewMessagesA = defineMessageCatalog(
     },
     savings: {
       redesign: {
-        title: "Savings accounts",
         recordedBalance: "Total recorded balance",
         recordBalance: "Record balance",
         yourAccounts: "Your accounts",
@@ -492,7 +491,6 @@ export const viewMessagesA = defineMessageCatalog(
     },
     savings: {
       redesign: {
-        title: "Cuentas de ahorro",
         recordedBalance: "Saldo total registrado",
         recordBalance: "Registrar saldo",
         yourAccounts: "Tus cuentas",

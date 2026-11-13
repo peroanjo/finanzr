@@ -455,22 +455,19 @@ onMounted(load);
     </article>
 
     <template v-else>
-      <header class="savings-heading">
-        <h1>{{ t("savings.redesign.title") }}</h1>
-        <div class="hero-actions">
-          <button type="button" @click="openAccountCreate">
-            ＋ {{ t("savings.actions.newAccount") }}
-          </button>
-          <button
-            class="primary"
-            type="button"
-            :disabled="!accounts.length"
-            @click="openSnapshotCreate()"
-          >
-            ＋ {{ t("savings.redesign.recordBalance") }}
-          </button>
-        </div>
-      </header>
+      <div class="hero-actions">
+        <button type="button" @click="openAccountCreate">
+          ＋ {{ t("savings.actions.newAccount") }}
+        </button>
+        <button
+          class="primary"
+          type="button"
+          :disabled="!accounts.length"
+          @click="openSnapshotCreate()"
+        >
+          ＋ {{ t("savings.redesign.recordBalance") }}
+        </button>
+      </div>
       <div class="liquidity-grid">
         <article class="liquidity-hero" aria-labelledby="savings-total-title">
           <header>
@@ -974,7 +971,6 @@ onMounted(load);
   container: savings / inline-size;
   font-size: 13px;
 }
-.savings-heading,
 .accounts-heading,
 .liquidity-hero > header,
 .savings-panel > header,
@@ -985,18 +981,10 @@ onMounted(load);
   gap: 16px;
   flex-wrap: wrap;
 }
-.savings-heading {
-  margin-bottom: 20px;
-}
-h1,
 h2,
 h3,
 p {
   margin: 0;
-}
-h1 {
-  font-size: 22px;
-  letter-spacing: -0.04em;
 }
 h2 {
   font-size: 18px;
@@ -1014,8 +1002,10 @@ button:disabled {
 }
 .hero-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 .hero-actions button,
 .update-balance,
@@ -1538,12 +1528,6 @@ button:disabled {
 @media (max-width: 720px) {
   .savings-page {
     padding: 8px 16px 32px;
-  }
-  .savings-heading {
-    align-items: flex-start;
-  }
-  .hero-actions {
-    width: 100%;
   }
   .hero-actions button {
     flex: 1;
