@@ -1927,32 +1927,45 @@ th {
   border-top: 0;
 }
 .app-main:has(> .overview-page) {
-  --fz-overview-mint: #c6eadb;
-  --fz-overview-blue: #d7e7ed;
+  --fz-page-wash-start: #c6eadb;
+  --fz-page-wash-end: #d7e7ed;
   --fz-overview-glow: #e7f2d8;
-  --fz-overview-grain-opacity: 0.045;
+}
+.app-main:has(> .savings-page) {
+  --fz-page-wash-start: #ded2f5;
+  --fz-page-wash-end: #e9d8f0;
+}
+.app-main:has(> :is(.overview-page, .savings-page)) {
+  --fz-page-grain-opacity: 0.045;
   position: relative;
   isolation: isolate;
   background:
     radial-gradient(
       ellipse at 6% 0%,
-      color-mix(in srgb, var(--fz-overview-mint) 65%, transparent),
+      color-mix(in srgb, var(--fz-page-wash-start) 65%, transparent),
       transparent 55%
     ),
     radial-gradient(
       ellipse at 100% 42%,
-      color-mix(in srgb, var(--fz-overview-blue) 55%, transparent),
+      color-mix(in srgb, var(--fz-page-wash-end) 55%, transparent),
       transparent 65%
     ),
     var(--fz-canvas);
 }
 .app-shell[data-theme="dark"] .app-main:has(> .overview-page) {
-  --fz-overview-mint: #1b4538;
-  --fz-overview-blue: #1b303e;
+  --fz-page-wash-start: #1b4538;
+  --fz-page-wash-end: #1b303e;
   --fz-overview-glow: #35452a;
-  --fz-overview-grain-opacity: 0.035;
 }
-.app-main:has(> .overview-page)::before,
+.app-shell[data-theme="dark"] .app-main:has(> .savings-page) {
+  --fz-page-wash-start: #3b2b50;
+  --fz-page-wash-end: #332637;
+}
+.app-shell[data-theme="dark"]
+  .app-main:has(> :is(.overview-page, .savings-page)) {
+  --fz-page-grain-opacity: 0.035;
+}
+.app-main:has(> :is(.overview-page, .savings-page))::before,
 .overview-hero.trend-panel::before {
   content: "";
   position: absolute;
@@ -1960,10 +1973,10 @@ th {
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  opacity: var(--fz-overview-grain-opacity);
+  opacity: var(--fz-page-grain-opacity);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23888' filter='url(%23grain)' d='M0 0h180v180H0z'/%3E%3C/svg%3E");
 }
-.app-main:has(> .overview-page) > .app-topbar {
+.app-main:has(> :is(.overview-page, .savings-page)) > .app-topbar {
   border-bottom-color: color-mix(in srgb, var(--fz-ink) 10%, transparent);
 }
 .overview-page {
@@ -2279,17 +2292,17 @@ th {
     ),
     radial-gradient(
       ellipse at 65% 0%,
-      color-mix(in srgb, var(--fz-overview-mint) 78%, transparent),
+      color-mix(in srgb, var(--fz-page-wash-start) 78%, transparent),
       transparent 65%
     ),
     linear-gradient(
       125deg,
       var(--fz-surface) 18%,
-      color-mix(in srgb, var(--fz-surface) 72%, var(--fz-overview-blue))
+      color-mix(in srgb, var(--fz-surface) 72%, var(--fz-page-wash-end))
     );
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--fz-ink) 7%, transparent),
-    0 16px 44px color-mix(in srgb, var(--fz-overview-mint) 12%, transparent);
+    0 16px 44px color-mix(in srgb, var(--fz-page-wash-start) 12%, transparent);
   align-self: start;
 }
 .overview-hero.trend-panel .panel-header {
