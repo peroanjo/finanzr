@@ -1941,27 +1941,27 @@ th {
   --fz-overview-glow: #e7f2d8;
 }
 .app-main:has(> .savings-page) {
-  --fz-page-wash-start: #ded2f5;
-  --fz-page-wash-end: #e9d8f0;
-  --fz-canvas: #f5f2f9;
-  --fz-surface: #faf8fe;
-  --fz-surface-soft: #efebf6;
-  --fz-ink: #241e31;
-  --fz-muted: #62596f;
-  --fz-line: #e1d9eb;
-  --fz-accent: #5143ae;
-  --fz-accent-soft: #ebe3ff;
+  --fz-page-wash-start: #e1dfe8;
+  --fz-page-wash-end: #e9e5eb;
+  --fz-canvas: #f4f3f5;
+  --fz-surface: #faf9fb;
+  --fz-surface-soft: #eeedf0;
+  --fz-ink: #24222a;
+  --fz-muted: #615d69;
+  --fz-line: #e0dde4;
+  --fz-accent: #55506f;
+  --fz-accent-soft: #e8e5ef;
   --fz-negative: #ac414e;
-  --fz-source-savings: #5143ae;
-  --fz-source-funds: #427b98;
-  --fz-chart-grid: #62596f24;
-  --fz-chart-tooltip: #faf8fef2;
-  --fz-chart-tooltip-text: #241e31;
-  --fz-chart-tooltip-muted: #62596f;
-  --fz-chart-tooltip-border: #5143ae36;
-  --fz-chart-tooltip-shadow: #241e3129;
-  --fz-shadow: 0 14px 38px #241e3114;
-  --fz-interest-badge-ink: #574493;
+  --fz-source-savings: #55506f;
+  --fz-source-funds: #527484;
+  --fz-chart-grid: #615d6924;
+  --fz-chart-tooltip: #faf9fbf2;
+  --fz-chart-tooltip-text: #24222a;
+  --fz-chart-tooltip-muted: #615d69;
+  --fz-chart-tooltip-border: #55506f36;
+  --fz-chart-tooltip-shadow: #24222a29;
+  --fz-shadow: 0 14px 38px #24222a14;
+  --fz-interest-badge-ink: #59516e;
   color: var(--fz-ink);
 }
 .app-main:has(> :is(.overview-page, .savings-page)) {
@@ -1987,24 +1987,24 @@ th {
   --fz-overview-glow: #35452a;
 }
 .app-shell[data-theme="dark"] .app-main:has(> .savings-page) {
-  --fz-page-wash-start: #3b2b50;
-  --fz-page-wash-end: #332637;
-  --fz-canvas: #171321;
-  --fz-surface: #211d2b;
-  --fz-surface-soft: #2d263b;
-  --fz-ink: #f1ecfa;
-  --fz-muted: #b9aec9;
-  --fz-line: #3b334a;
-  --fz-accent: #b6a7ff;
-  --fz-accent-soft: #35294d;
-  --fz-source-savings: #b6a7ff;
-  --fz-source-funds: #77bbdb;
-  --fz-chart-grid: #b9aec929;
-  --fz-chart-tooltip: #211d2bf2;
-  --fz-chart-tooltip-text: #f1ecfa;
-  --fz-chart-tooltip-muted: #b9aec9;
-  --fz-chart-tooltip-border: #b6a7ff40;
-  --fz-interest-badge-ink: #d8caff;
+  --fz-page-wash-start: #302d3a;
+  --fz-page-wash-end: #2d2932;
+  --fz-canvas: #19181e;
+  --fz-surface: #232229;
+  --fz-surface-soft: #302e37;
+  --fz-ink: #f1eff4;
+  --fz-muted: #b8b2c0;
+  --fz-line: #3c3943;
+  --fz-accent: #b9b1cb;
+  --fz-accent-soft: #383341;
+  --fz-source-savings: #b9b1cb;
+  --fz-source-funds: #8eb7ca;
+  --fz-chart-grid: #b8b2c029;
+  --fz-chart-tooltip: #232229f2;
+  --fz-chart-tooltip-text: #f1eff4;
+  --fz-chart-tooltip-muted: #b8b2c0;
+  --fz-chart-tooltip-border: #b9b1cb40;
+  --fz-interest-badge-ink: #d6cfe2;
 }
 .app-shell[data-theme="dark"]
   .app-main:has(> :is(.overview-page, .savings-page)) {
