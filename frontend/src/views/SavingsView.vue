@@ -535,9 +535,8 @@ onMounted(load);
         </article>
         <section
           class="savings-essentials"
-          aria-labelledby="savings-essentials-title"
+          :aria-label="t('overview.essentials')"
         >
-          <h2 id="savings-essentials-title">{{ t("overview.essentials") }}</h2>
           <dl class="insight-grid savings-kpis">
             <div class="insight-card">
               <dt>
@@ -1332,18 +1331,11 @@ button:disabled {
 }
 .savings-essentials {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.savings-essentials h2 {
-  font-weight: 650;
-  letter-spacing: -0.035em;
+  display: grid;
 }
 .savings-kpis {
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
-  flex: 1;
 }
 .savings-kpis .insight-card {
   padding: 14px 16px;
