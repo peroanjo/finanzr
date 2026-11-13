@@ -93,10 +93,12 @@ def test_share_exposes_exactly_one_record_and_its_history(context: dict[str, Any
     assert [row["id"] for row in rows] == [str(c["account"].pk)]
     assert rows[0]["workspace_id"] == str(c["pa"].pk)
     assert rows[0]["workspace_name"] == ""
-    Workspace.objects.filter(pk=c["pa"].pk).update(name="Synthetic account owner")
-    assert c["cb"].get("/api/savings/accounts").json()[0]["workspace_name"] == (
-        "Synthetic account owner"
-    )
+    Workspace.objects.filter(pk=c["pa"].pk).update(name="Personal")
+    User.objects.filter(pk=c["a"].pk).update(display_name="Synthetic account owner")
+    for client in (c["ca"], c["cb"]):
+        rows = client.get("/api/savings/accounts").json()
+        row = next(row for row in rows if row["id"] == str(c["account"].pk))
+        assert row["workspace_name"] == "Synthetic account owner"
     history = c["cb"].get("/api/savings/history").json()
     assert len(history) == 1 and history[0]["balance"] == 100
     assert c["cb"].get("/api/summary").json()["net_worth"] == 100
@@ -146,6 +148,24 @@ def test_shared_edit_updates_canonical_record_and_never_duplicates(context: dict
     assert c["ca"].delete(f"/api/workspaces/shares/{share['id']}").status_code == 204
     assert c["cb"].get("/api/savings/accounts").json() == []
     assert AccountSnapshot.objects.filter(account=c["account"]).count() == 1
+
+
+def test_savings_owner_label_omits_email_and_ambiguous_personal_owners(
+    context: dict[str, Any],
+) -> None:
+    c = context
+    grant(c)
+    User.objects.filter(pk=c["a"].pk).update(display_name="private@example.com")
+    assert c["cb"].get("/api/savings/accounts").json()[0]["workspace_name"] == ""
+
+    User.objects.filter(pk=c["a"].pk).update(display_name="Synthetic person")
+    WorkspaceMembership.objects.create(user=c["b"], workspace=c["pa"], role="owner")
+    assert c["cb"].get("/api/savings/accounts").json()[0]["workspace_name"] == ""
+
+    account = Account.objects.create(workspace=c["common"], name="Common savings", kind="savings")
+    rows = c["cb"].get("/api/savings/accounts").json()
+    row = next(row for row in rows if row["id"] == str(account.pk))
+    assert row["workspace_name"] == c["common"].name
 
 
 def test_effective_access_is_intersection_of_membership_and_grant(context: dict[str, Any]) -> None:

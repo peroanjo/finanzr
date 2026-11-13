@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Any
+from uuid import UUID
 
 from apps.accounts.models import Account, AccountSnapshot
 from apps.api.projection import number, provider_name
+from apps.workspaces.models import WorkspaceMembership
 
 
 def savings_account_row(account: Account) -> dict[str, Any]:
@@ -18,15 +21,28 @@ def savings_account_row(account: Account) -> dict[str, Any]:
     }
 
 
-def savings_account_response(account: Account) -> dict[str, Any]:
-    source = account.workspace
-    # A personal workspace may use its owner's email as its default name.
-    name = "" if source.is_personal and "@" in source.name else source.name
-    return {
-        **savings_account_row(account),
-        "workspace_id": str(source.pk),
-        "workspace_name": name,
-    }
+def savings_account_responses(accounts: list[Account]) -> list[dict[str, Any]]:
+    personal_ids = {account.workspace_id for account in accounts if account.workspace.is_personal}
+    owners: dict[UUID, list[str]] = defaultdict(list)
+    for workspace_id, display_name in WorkspaceMembership.objects.filter(
+        workspace_id__in=personal_ids, role=WorkspaceMembership.Role.OWNER
+    ).values_list("workspace_id", "user__display_name"):
+        name = display_name.strip()
+        owners[workspace_id].append("" if "@" in name else name)
+
+    labels = {workspace_id: names[0] for workspace_id, names in owners.items() if len(names) == 1}
+    return [
+        {
+            **savings_account_row(account),
+            "workspace_id": str(account.workspace_id),
+            "workspace_name": (
+                labels.get(account.workspace_id, "")
+                if account.workspace.is_personal
+                else account.workspace.name
+            ),
+        }
+        for account in accounts
+    ]
 
 
 def savings_snapshot_row(snapshot: AccountSnapshot) -> dict[str, Any]:

@@ -359,7 +359,10 @@ class NativeSavingsAccountResponseSerializer(serializers.Serializer[dict[str, An
     type = serializers.CharField()
     currency = serializers.CharField()
     workspace_id = serializers.UUIDField()
-    workspace_name = serializers.CharField(allow_blank=True)
+    workspace_name = serializers.CharField(
+        allow_blank=True,
+        help_text="Owner display name for a personal workspace, or the shared workspace name.",
+    )
 
 
 class NativeSavingsSnapshotResponseSerializer(serializers.Serializer[dict[str, Any]]):
