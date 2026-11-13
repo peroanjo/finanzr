@@ -168,6 +168,25 @@ def test_savings_owner_label_omits_email_and_ambiguous_personal_owners(
     assert row["workspace_name"] == c["common"].name
 
 
+def test_savings_owner_label_resolves_single_owner_in_legacy_workspace(
+    context: dict[str, Any],
+) -> None:
+    c = context
+    Workspace.objects.filter(pk=c["pa"].pk).update(
+        name="Personal", slug="personal", is_personal=False
+    )
+    User.objects.filter(pk=c["a"].pk).update(display_name="Synthetic person")
+    grant(c)
+
+    for client in (c["ca"], c["cb"]):
+        rows = client.get("/api/savings/accounts").json()
+        row = next(row for row in rows if row["id"] == str(c["account"].pk))
+        assert row["workspace_name"] == "Synthetic person"
+
+    Workspace.objects.filter(pk=c["pa"].pk).update(slug="synthetic-group")
+    assert c["cb"].get("/api/savings/accounts").json()[0]["workspace_name"] == "Personal"
+
+
 def test_effective_access_is_intersection_of_membership_and_grant(context: dict[str, Any]) -> None:
     c = context
     grant(c, access="edit")

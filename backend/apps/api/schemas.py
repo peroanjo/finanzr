@@ -361,7 +361,10 @@ class NativeSavingsAccountResponseSerializer(serializers.Serializer[dict[str, An
     workspace_id = serializers.UUIDField()
     workspace_name = serializers.CharField(
         allow_blank=True,
-        help_text="Owner display name for a personal workspace, or the shared workspace name.",
+        help_text=(
+            "Owner display name for a personal or legacy Personal workspace, "
+            "or the shared workspace name."
+        ),
     )
 
 

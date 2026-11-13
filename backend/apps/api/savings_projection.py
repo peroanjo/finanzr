@@ -22,11 +22,19 @@ def savings_account_row(account: Account) -> dict[str, Any]:
 
 
 def savings_account_responses(accounts: list[Account]) -> list[dict[str, Any]]:
-    personal_ids = {account.workspace_id for account in accounts if account.workspace.is_personal}
+    owner_label_ids = {
+        account.workspace_id
+        for account in accounts
+        if account.workspace.is_personal or account.workspace.slug == "personal"
+    }
+    member_counts: dict[UUID, int] = defaultdict(int)
     owners: dict[UUID, list[str]] = defaultdict(list)
-    for workspace_id, display_name in WorkspaceMembership.objects.filter(
-        workspace_id__in=personal_ids, role=WorkspaceMembership.Role.OWNER
-    ).values_list("workspace_id", "user__display_name"):
+    for workspace_id, role, display_name in WorkspaceMembership.objects.filter(
+        workspace_id__in=owner_label_ids,
+    ).values_list("workspace_id", "role", "user__display_name"):
+        member_counts[workspace_id] += 1
+        if role != WorkspaceMembership.Role.OWNER:
+            continue
         name = display_name.strip()
         owners[workspace_id].append("" if "@" in name else name)
 
@@ -38,6 +46,10 @@ def savings_account_responses(accounts: list[Account]) -> list[dict[str, Any]]:
             "workspace_name": (
                 labels.get(account.workspace_id, "")
                 if account.workspace.is_personal
+                or (
+                    account.workspace.slug == "personal"
+                    and member_counts[account.workspace_id] == 1
+                )
                 else account.workspace.name
             ),
         }
