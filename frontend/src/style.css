@@ -1017,6 +1017,9 @@ select:focus-visible {
   min-width: 0;
   padding: 22px 24px;
   container-type: inline-size;
+}
+.overview-panel.monthly-variation-panel,
+.savings-panel.monthly-chart-surface {
   background:
     radial-gradient(
       ellipse at 0 0,

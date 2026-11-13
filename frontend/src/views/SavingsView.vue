@@ -4,12 +4,10 @@ import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
 import LineChart from "../components/LineChart.vue";
 import NavIcon from "../components/NavIcon.vue";
-import AccountSnapshotChart from "../components/AccountSnapshotChart.vue";
-import type {
-  SavingsAccount,
-  AccountChartSeries,
-  SavingsSnapshot,
-} from "../types/api";
+import MonthlyVariationChart, {
+  type MonthlyVariationSeries,
+} from "../components/MonthlyVariationChart.vue";
+import type { SavingsAccount, SavingsSnapshot } from "../types/api";
 
 type Range = "6m" | "12m" | "24m" | "all";
 
@@ -65,6 +63,7 @@ const history = ref<SavingsSnapshot[]>([]);
 const loading = ref(true);
 const error = ref("");
 const range = ref<Range>("12m");
+const selectedInterestMonth = ref<string | null>(null);
 const historyAccount = ref("all");
 const accountSort = ref<{
   key: AccountSortKey;
@@ -247,12 +246,13 @@ const balanceSeries = computed(() =>
     values: visibleMonths.value.map((month) => balanceAt(row.rows, month)),
   })),
 );
-const interestSeries = computed<AccountChartSeries[]>(() =>
+const interestSeries = computed<MonthlyVariationSeries[]>(() =>
   accountRows.value
     .filter((row) => row.remunerated)
     .map((row) => ({
+      key: row.account.id,
       label: row.account.name,
-      color: row.color,
+      color: row.color.slice(4, -1),
       values: visibleMonths.value.map((month) =>
         row.rows
           .filter((item) => item.date.startsWith(month))
@@ -260,6 +260,20 @@ const interestSeries = computed<AccountChartSeries[]>(() =>
       ),
     })),
 );
+const monthlyInterest = computed(() =>
+  visibleMonths.value.map((_, index) =>
+    interestSeries.value.reduce(
+      (total, series) => total + series.values[index],
+      0,
+    ),
+  ),
+);
+const selectedInterestIndex = computed(() => {
+  const index = visibleMonths.value.findIndex(
+    (month) => month === selectedInterestMonth.value,
+  );
+  return index === -1 ? visibleMonths.value.length - 1 : index;
+});
 const chartLabels = computed(() => visibleMonths.value.map(monthLabel));
 const displayedHistory = computed(() =>
   [...history.value]
@@ -872,20 +886,41 @@ onMounted(load);
           </div>
         </section>
 
-        <article class="savings-panel interest-panel">
+        <article
+          class="savings-panel interest-panel monthly-chart-surface"
+          aria-labelledby="savings-interest-title"
+        >
           <header>
-            <h2>{{ t("savings.charts.interestTitle") }}</h2>
+            <h2 id="savings-interest-title">
+              {{ t("savings.charts.interestTitle") }}
+            </h2>
             <span>{{ money(visibleInterest) }} · {{ activeRangeLabel }}</span>
           </header>
-          <AccountSnapshotChart
-            v-if="interestSeries.length"
+          <MonthlyVariationChart
+            v-if="interestSeries.length && chartLabels.length"
             class="interest-chart"
             :labels="chartLabels"
+            :values="monthlyInterest"
             :series="interestSeries"
-            mode="interest"
-            :minimum-font-size="10"
+            :label="t('savings.charts.interestTitle')"
+            :selected-index="selectedInterestIndex"
+            :selected-month="chartLabels[selectedInterestIndex]"
+            show-tooltip
+            @select="selectedInterestMonth = visibleMonths[$event]"
           />
-          <div v-else class="empty-chart interest-chart">
+          <ul
+            v-if="interestSeries.length && chartLabels.length"
+            class="liquidity-legend interest-legend"
+          >
+            <li v-for="series in interestSeries" :key="series.key">
+              <i
+                :style="{ background: `var(${series.color})` }"
+                aria-hidden="true"
+              />
+              {{ series.label }}
+            </li>
+          </ul>
+          <div v-else class="chart-empty interest-chart">
             {{ t("savings.charts.noInterest") }}
           </div>
         </article>
@@ -1178,7 +1213,7 @@ button:disabled {
 .savings-panel,
 .cash-account,
 .savings-error {
-  background: var(--fz-surface);
+  background-color: var(--fz-surface);
   border: 1px solid var(--fz-line);
   border-radius: 20px;
 }
@@ -1582,6 +1617,20 @@ button:disabled {
 .interest-panel > header {
   margin-bottom: 12px;
 }
+.interest-panel .interest-chart {
+  height: 290px;
+}
+.interest-legend {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.interest-legend li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-wrap: anywhere;
+}
 .savings-panel {
   padding: 24px;
   min-width: 0;
@@ -1803,6 +1852,10 @@ button:disabled {
   }
   .savings-trend {
     height: 210px;
+  }
+  .interest-panel .interest-chart {
+    height: 250px;
+    min-height: 250px;
   }
   .account-actions button {
     min-height: 36px;

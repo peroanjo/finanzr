@@ -39,6 +39,7 @@ vi.mock("chart.js", () => ({
   BarElement: {},
   CategoryScale: {},
   LinearScale: {},
+  Tooltip: {},
 }));
 
 const props = {

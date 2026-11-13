@@ -5,18 +5,20 @@ import {
   CategoryScale,
   Chart,
   LinearScale,
+  Tooltip,
   type ChartConfiguration,
 } from "chart.js";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { reportingCurrency } from "../i18n";
-Chart.register(BarController, BarElement, CategoryScale, LinearScale);
+Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
 
 const seriesOrder = ["savings", "interest", "pnl"] as const;
 export interface MonthlyVariationSeries {
-  key: (typeof seriesOrder)[number];
+  key: string;
   label: string;
   values: number[];
+  color?: string;
 }
 
 type AxisRange = { min: number; max: number };
@@ -36,6 +38,7 @@ const props = defineProps<{
   label: string;
   selectedIndex: number;
   selectedMonth: string;
+  showTooltip?: boolean;
 }>();
 const emit = defineEmits<{
   select: [index: number];
@@ -125,7 +128,13 @@ function animateSeries(previousSeries: MonthlyVariationSeries[]) {
     return;
   }
 
-  const tracks = seriesOrder.flatMap((key): AnimatedSeries[] => {
+  const keys = new Set([
+    ...seriesOrder,
+    ...previousSeries.map(({ key }) => key),
+    ...(previous?.tracks.map(({ series }) => series.key) ?? []),
+    ...props.series.map(({ key }) => key),
+  ]);
+  const tracks = [...keys].flatMap((key): AnimatedSeries[] => {
     const before = previousSeries.find((item) => item.key === key);
     const after = props.series.find((item) => item.key === key);
     const running = previous?.tracks.find(({ series }) => series.key === key);
@@ -328,7 +337,7 @@ function render() {
     ink: styles.getPropertyValue("--fz-ink").trim() || "#152019",
     font: `600 11px ${styles.fontFamily || "sans-serif"}`,
   };
-  const colors = {
+  const colors: Record<string, string> = {
     savings: styles.getPropertyValue("--monthly-savings").trim() || "#148a62",
     interest: styles.getPropertyValue("--monthly-interest").trim() || "#d08a32",
     pnl: styles.getPropertyValue("--monthly-pnl").trim() || "#8870c5",
@@ -338,8 +347,10 @@ function render() {
       styles.getPropertyValue("--monthly-savings-negative").trim() || "#5479bd",
     pnl: styles.getPropertyValue("--monthly-pnl-negative").trim() || "#c95151",
   };
-  const colorFor = (key: MonthlyVariationSeries["key"], value: number) =>
-    value < 0 ? (negativeColors[key] ?? colors[key]) : colors[key];
+  const colorFor = (key: string, value: number) =>
+    (value < 0 ? negativeColors[key] : undefined) ??
+    colors[key] ??
+    colors.interest;
   selectionAccent = colors.savings;
   const muted = styles.getPropertyValue("--fz-muted").trim() || "#8fa49a";
   zeroLineColor = muted;
@@ -357,9 +368,12 @@ function render() {
     type: "bar",
     data: {
       labels: props.labels,
-      datasets: series.map(({ key, label, values }, index) => {
+      datasets: series.map(({ key, label, values, color }, index) => {
         const amounts = transition?.tracks[index].series.values ?? values;
-        const swatches = amounts.map((value) => colorFor(key, value));
+        const seriesColor = color ? styles.getPropertyValue(color).trim() : "";
+        const swatches = amounts.map(
+          (value) => seriesColor || colorFor(key, value),
+        );
         return {
           label,
           data: values,
@@ -415,7 +429,25 @@ function render() {
       interaction: { intersect: false, mode: "index" },
       plugins: {
         legend: { display: false },
-        tooltip: { enabled: false },
+        tooltip: {
+          enabled: props.showTooltip ?? false,
+          backgroundColor: styles.getPropertyValue("--fz-chart-tooltip").trim(),
+          titleColor: styles.getPropertyValue("--fz-chart-tooltip-text").trim(),
+          bodyColor: styles.getPropertyValue("--fz-chart-tooltip-text").trim(),
+          callbacks: {
+            label: ({ dataset, parsed }) =>
+              `${dataset.label}: ${currency.value.format(parsed.y ?? 0)}`,
+            footer: (items) =>
+              t("shared.accountSnapshotChart.total", {
+                value: currency.value.format(
+                  items.reduce(
+                    (total, item) => total + (item.parsed.y ?? 0),
+                    0,
+                  ),
+                ),
+              }),
+          },
+        },
       },
       scales: {
         x: {

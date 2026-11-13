@@ -14,11 +14,11 @@ vi.mock("../api/client", () => ({
     body: JSON.stringify(body),
   }),
 }));
-vi.mock("../components/AccountSnapshotChart.vue", () => ({
+vi.mock("../components/MonthlyVariationChart.vue", () => ({
   default: {
-    props: ["labels", "series", "mode"],
+    props: ["labels", "series", "values", "selectedIndex"],
     template:
-      '<div :data-testid="`savings-${mode}`">{{ labels.length }}-{{ series.length }}</div>',
+      '<div data-testid="savings-interest">{{ labels.length }}-{{ series.length }} · {{ values.join(",") }} · {{ selectedIndex }}</div>',
   },
 }));
 
@@ -161,7 +161,9 @@ describe("SavingsView", () => {
     expect(wrapper.get('[data-testid="savings-trend"]').text()).toBe(
       "5000,5700",
     );
-    expect(wrapper.get('[data-testid="savings-interest"]').text()).toBe("2-1");
+    expect(wrapper.get('[data-testid="savings-interest"]').text()).toBe(
+      "2-1 · 5,5 · 1",
+    );
   });
 
   it("sorts each data column in both directions and keeps unrecorded balances last", async () => {
