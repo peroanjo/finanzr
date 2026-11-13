@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, json } from "../api/client";
 import LineChart from "../components/LineChart.vue";
+import NavIcon from "../components/NavIcon.vue";
 import AccountSnapshotChart from "../components/AccountSnapshotChart.vue";
 import type {
   SavingsAccount,
@@ -470,70 +471,122 @@ onMounted(load);
           </button>
         </div>
       </header>
-      <article class="liquidity-hero" aria-labelledby="savings-total-title">
-        <header>
-          <h2 id="savings-total-title">
-            {{ t("savings.redesign.recordedBalance") }}
-          </h2>
-          <div
-            class="range-control"
-            role="group"
-            :aria-label="t('overview.periodAria')"
-          >
-            <button
-              v-for="item in ranges"
-              :key="item.key"
-              type="button"
-              :class="{ active: range === item.key }"
-              :aria-pressed="range === item.key"
-              @click="range = item.key"
+      <div class="liquidity-grid">
+        <article class="liquidity-hero" aria-labelledby="savings-total-title">
+          <header>
+            <h2 id="savings-total-title">
+              {{ t("savings.redesign.recordedBalance") }}
+            </h2>
+            <div
+              class="range-control"
+              role="group"
+              :aria-label="t('overview.periodAria')"
             >
-              {{ item.label }}
-            </button>
-          </div>
-        </header>
-        <div class="cash-total">
-          <strong>{{ money(totalBalance) }}</strong>
-          <div class="savings-delta" :class="{ negative: periodChange < 0 }">
-            <template v-if="visibleMonths.length > 1">
-              <strong
-                >{{ signedMoney(periodChange)
-                }}<template v-if="periodChangePercent !== null">
-                  · {{ percentage(periodChangePercent) }}</template
-                ></strong
+              <button
+                v-for="item in ranges"
+                :key="item.key"
+                type="button"
+                :class="{ active: range === item.key }"
+                :aria-pressed="range === item.key"
+                @click="range = item.key"
               >
-              <small>{{ periodDates }}</small>
-            </template>
-            <small v-else>{{ t("savings.redesign.needHistory") }}</small>
+                {{ item.label }}
+              </button>
+            </div>
+          </header>
+          <div class="cash-total">
+            <strong>{{ money(totalBalance) }}</strong>
+            <div class="savings-delta" :class="{ negative: periodChange < 0 }">
+              <template v-if="visibleMonths.length > 1">
+                <strong
+                  >{{ signedMoney(periodChange)
+                  }}<template v-if="periodChangePercent !== null">
+                    · {{ percentage(periodChangePercent) }}</template
+                  ></strong
+                >
+                <small>{{ periodDates }}</small>
+              </template>
+              <small v-else>{{ t("savings.redesign.needHistory") }}</small>
+            </div>
           </div>
-        </div>
-        <div class="savings-trend">
-          <LineChart
-            v-if="visibleMonths.length"
-            :labels="chartLabels"
-            :values="visibleMonths.map(monthTotal)"
-            :series="balanceSeries"
-            featured
-            :total-label="t('savings.redesign.recordedBalance')"
-            :aria-label="t('savings.charts.balanceTitle')"
-          />
-          <p v-else class="empty-chart">
-            {{ t("savings.redesign.noHistory") }}
-          </p>
-        </div>
-        <div class="liquidity-legend">
-          <span
-            ><i class="total-marker" />{{
-              t("savings.redesign.recordedBalance")
-            }}</span
-          >
-          <span v-for="item in accountRows" :key="item.account.id"
-            ><i :style="{ background: item.color }" />{{
-              item.account.name
-            }}</span
-          >
-        </div>
-      </article>
+          <div class="savings-trend">
+            <LineChart
+              v-if="visibleMonths.length"
+              :labels="chartLabels"
+              :values="visibleMonths.map(monthTotal)"
+              :series="balanceSeries"
+              featured
+              :total-label="t('savings.redesign.recordedBalance')"
+              :aria-label="t('savings.charts.balanceTitle')"
+            />
+            <p v-else class="empty-chart">
+              {{ t("savings.redesign.noHistory") }}
+            </p>
+          </div>
+          <div class="liquidity-legend">
+            <span
+              ><i class="total-marker" />{{
+                t("savings.redesign.recordedBalance")
+              }}</span
+            >
+            <span v-for="item in accountRows" :key="item.account.id"
+              ><i :style="{ background: item.color }" />{{
+                item.account.name
+              }}</span
+            >
+          </div>
+        </article>
+        <section
+          class="savings-essentials"
+          aria-labelledby="savings-essentials-title"
+        >
+          <h2 id="savings-essentials-title">{{ t("overview.essentials") }}</h2>
+          <dl class="insight-grid savings-kpis">
+            <div class="insight-card">
+              <dt>
+                <NavIcon name="wallet" class="insight-icon" />
+                <span>{{ t("savings.hero.interestBearingBalance") }}</span>
+              </dt>
+              <dd class="insight-value">{{ money(remuneratedBalance) }}</dd>
+              <dd class="insight-detail">
+                {{
+                  t("savings.hero.ofCash", {
+                    share: percentage(remuneratedShare),
+                  })
+                }}
+              </dd>
+            </div>
+            <div class="insight-card interest-insight">
+              <dt>
+                <NavIcon name="trend" class="insight-icon" />
+                <span>{{ t("savings.redesign.periodInterest") }}</span>
+              </dt>
+              <dd class="insight-value">{{ signedMoney(visibleInterest) }}</dd>
+              <dd class="insight-detail">
+                {{ periodDates || activeRangeLabel }} ·
+                {{
+                  t("savings.hero.sinceStart", { total: money(totalInterest) })
+                }}
+              </dd>
+            </div>
+            <div class="insight-card accounts-insight">
+              <dt>
+                <NavIcon name="building" class="insight-icon" />
+                <span>{{ t("savings.hero.activeAccounts") }}</span>
+              </dt>
+              <dd class="insight-value">{{ accounts.length }}</dd>
+              <dd class="insight-detail">
+                {{
+                  t("savings.hero.earningInterest", {
+                    count: accountRows.filter((item) => item.remunerated)
+                      .length,
+                  })
+                }}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      </div>
 
       <div class="accounts-heading">
         <h2>{{ t("savings.redesign.yourAccounts") }}</h2>
@@ -664,41 +717,6 @@ onMounted(load);
           </div>
         </article>
       </div>
-
-      <section
-        class="savings-essentials"
-        aria-labelledby="savings-essentials-title"
-      >
-        <h2 id="savings-essentials-title">{{ t("overview.essentials") }}</h2>
-        <div class="savings-kpis">
-          <div>
-            <span>{{ t("savings.hero.interestBearingBalance") }}</span
-            ><strong>{{ money(remuneratedBalance) }}</strong
-            ><small>{{
-              t("savings.hero.ofCash", { share: percentage(remuneratedShare) })
-            }}</small>
-          </div>
-          <div>
-            <span>{{ t("savings.redesign.periodInterest") }}</span
-            ><strong>{{ signedMoney(visibleInterest) }}</strong
-            ><small
-              >{{ periodDates || activeRangeLabel }} ·
-              {{
-                t("savings.hero.sinceStart", { total: money(totalInterest) })
-              }}</small
-            >
-          </div>
-          <div>
-            <span>{{ t("savings.hero.activeAccounts") }}</span
-            ><strong>{{ accounts.length }}</strong
-            ><small>{{
-              t("savings.hero.earningInterest", {
-                count: accountRows.filter((item) => item.remunerated).length,
-              })
-            }}</small>
-          </div>
-        </div>
-      </section>
 
       <div class="lower-grid">
         <article class="savings-panel interest-panel">
@@ -953,6 +971,7 @@ onMounted(load);
   margin: 0 auto;
   padding: 8px 48px 56px;
   --cash-blue: var(--fz-accent);
+  container: savings / inline-size;
   font-size: 13px;
 }
 .savings-heading,
@@ -1025,7 +1044,12 @@ button:disabled {
   border: 1px solid var(--fz-line);
   border-radius: 20px;
 }
+.liquidity-grid {
+  display: grid;
+  gap: 20px;
+}
 .liquidity-hero {
+  min-width: 0;
   padding: 24px 28px;
   display: flex;
   flex-direction: column;
@@ -1271,31 +1295,44 @@ button:disabled {
   color: var(--fz-ink);
 }
 .savings-essentials {
-  margin-top: 30px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.savings-essentials h2 {
+  font-weight: 650;
+  letter-spacing: -0.035em;
 }
 .savings-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  flex: 1;
 }
-.savings-kpis > div {
-  display: grid;
-  gap: 9px;
-  padding: 20px;
-  border: 1px solid var(--fz-line);
-  border-radius: 14px;
-  background: var(--fz-surface);
+.savings-kpis .insight-card {
+  padding: 14px 16px;
 }
-.savings-kpis span,
-.savings-kpis small {
-  color: var(--fz-muted);
-  font-size: 12px;
+.savings-kpis .insight-value {
+  margin-top: 7px;
 }
-.savings-kpis strong {
-  font-size: 25px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+.savings-kpis .insight-detail {
+  overflow-wrap: anywhere;
+}
+.savings-kpis .accounts-insight {
+  --insight-accent: var(--fz-source-stocks);
+}
+@container savings (560px <= width < 760px) {
+  .savings-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container savings (width >= 760px) {
+  .liquidity-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 28%);
+  }
+  .savings-trend {
+    flex: 1 0 236px;
+  }
 }
 .lower-grid {
   display: grid;
@@ -1549,10 +1586,6 @@ button:disabled {
   .update-balance {
     grid-column: 1 / 4;
     min-height: 44px;
-  }
-  .savings-kpis {
-    grid-template-columns: 1fr;
-    gap: 10px;
   }
   .account-detail {
     padding: 16px;
