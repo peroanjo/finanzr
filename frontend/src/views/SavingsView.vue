@@ -1289,6 +1289,15 @@ button:disabled {
       "updated interest update";
   }
 }
+@container savings-accounts (width >= 750px) {
+  .account-row {
+    grid-template-columns:
+      minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 1fr)
+      minmax(0, 1fr) auto 36px;
+    grid-template-areas: "identity balance interest updated update edit";
+    padding: 20px;
+  }
+}
 .update-balance:hover,
 .edit-account:hover,
 .hero-actions button:not(.primary):hover {
@@ -1373,7 +1382,7 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-.history-panel {
+.accounts-section {
   grid-column: 1 / -1;
 }
 .interest-panel > header {
@@ -1393,6 +1402,9 @@ button:disabled {
   color: var(--fz-muted);
   font-size: 12px;
 }
+.history-panel {
+  container: savings-history / inline-size;
+}
 .history-panel select {
   padding: 9px;
   max-width: 100%;
@@ -1408,17 +1420,34 @@ button:disabled {
 }
 .history-list > button {
   display: grid;
-  grid-template-columns: 4px minmax(110px, 1.5fr) repeat(3, minmax(90px, 1fr));
-  gap: 16px;
+  grid-template-columns: 4px repeat(3, minmax(0, 1fr));
+  gap: 10px;
   align-items: center;
   width: 100%;
-  min-width: 550px;
   padding: 13px 4px;
   border: 0;
   border-bottom: 1px solid var(--fz-line);
   background: transparent;
   color: var(--fz-ink);
   text-align: left;
+}
+.history-list > button > i {
+  grid-row: 1 / 3;
+}
+.history-list > button > span:first-of-type {
+  grid-column: 2 / -1;
+}
+@container savings-history (width >= 460px) {
+  .history-list > button {
+    grid-template-columns: 4px minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .history-list > button > i {
+    grid-row: auto;
+  }
+  .history-list > button > span:first-of-type {
+    grid-column: auto;
+  }
 }
 .history-list > button:hover,
 .account-detail-history button:hover {
@@ -1431,6 +1460,7 @@ button:disabled {
 .history-list span {
   display: grid;
   gap: 4px;
+  overflow-wrap: anywhere;
 }
 .history-list small {
   font-size: 11px;
